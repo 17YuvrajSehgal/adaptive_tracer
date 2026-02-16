@@ -776,12 +776,18 @@ def generate_dataset_request_based(
             # Append system call name
             call.append(dict_sys.get_idx(sysname))
             # Append entry (1), exit (2), or none (0)
+            # Append return value
             if "entry" in event["name"]:
-                entry.append(1)
-            elif "exit" in event["name"]:
-                entry.append(2)
+                ret.append(0)  # start event (no return value)
             else:
-                entry.append(0)
+                ret_val = event.get("ret", None)
+                if ret_val is None:
+                    ret.append(0)  # no return value available
+                elif ret_val >= 0:
+                    ret.append(1)  # success
+                else:
+                    ret.append(2)  # failure
+
             # Append elapsed time between events
             if prev_timestp is not None:
                 duration.append(event["timestamp"] - prev_timestp)
