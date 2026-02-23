@@ -22,7 +22,6 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16         # 1 for normal trace + up to 7 OOD workers + OS headroom
-#SBATCH --mem=64G                  # babeltrace2 buffers several GB; scan + encode overlap
 #SBATCH --time=03:00:00
 
 # --- Output ------------------------------------------------------------------
