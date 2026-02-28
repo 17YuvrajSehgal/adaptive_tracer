@@ -1,13 +1,13 @@
 #!/bin/bash
 # ============================================================
 # record_traces.sh — Record strace for all ts-* services
-# PIDs are discovered via the kind control-plane container.
 #
-# FIX: crictl inspect returns the PID *inside* the container
-# namespace (usually 1 or a small number). strace on the host
-# needs the HOST-namespace PID. We translate using NStgid from
-# /proc/<pid>/status which Linux always exposes on the host,
-# even for processes inside nested PID namespaces.
+# The kind control-plane container has its own PID namespace,
+# so strace must run INSIDE the container. We:
+#   1. Discover ts-*.jar PIDs via `crictl inspect` inside the node
+#   2. Launch strace inside the container via `docker exec`
+#   3. Run load from the host
+#   4. Stop strace and copy the log to the host output dir
 # ============================================================
 set -euo pipefail
 
@@ -22,25 +22,17 @@ NAMESPACE="${TS_NAMESPACE:-ts}"
 
 # The kind control-plane container name
 KIND_CONTAINER="train-ticket-control-plane"
+# Where strace writes its log inside the container
+CONTAINER_LOG="/tmp/strace_${SCENARIO}.log"
 
 log() { echo "[$(date '+%H:%M:%S')] $*"; }
 
 mkdir -p "$OUT_DIR"
 
-# ── Discover ts-* service PIDs ────────────────────────────────────────────────
-# Strategy:
-#   1. Use `docker exec` into the kind node + `crictl ps` to list ts-* containers.
-#   2. For each container get its *init PID inside the kind node's PID namespace*
-#      via `crictl inspect .info.pid`.
-#   3. That PID is inside the kind container's PID namespace, NOT the host's.
-#      Translate to host PID by reading NStgid from the kind container's /proc:
-#        docker exec kind-node cat /proc/<container-init-pid>/status
-#      NStgid lists PIDs from innermost to outermost namespace; the LAST value
-#      is the host-visible PID that strace can attach to.
-#   4. Fallback: scan /proc on the host directly for java ts-*.jar cmdlines
-#      (works if kind shares the host PID namespace, which it does by default).
-log "▶ Discovering ts-* service PIDs via kind container..."
+# ── Discover ts-* PIDs inside the kind container ────────────────────────────
+log "▶ Discovering ts-* service PIDs inside kind container..."
 
+# Get container PIDs as seen INSIDE the kind node (these are valid for strace there)
 mapfile -t SERVICE_PIDS < <(
   docker exec "$KIND_CONTAINER" bash -c '
     crictl ps --output json 2>/dev/null \
@@ -53,76 +45,49 @@ for c in data.get(\"containers\", []):
         print(c[\"id\"])
 "
   ' | while read -r cid; do
-      # Get the PID of the container init process as seen inside the kind node
-      container_pid=$(docker exec "$KIND_CONTAINER" bash -c \
+      docker exec "$KIND_CONTAINER" bash -c \
         "crictl inspect --output json '$cid' 2>/dev/null \
          | python3 -c \"import json,sys; d=json.load(sys.stdin); print(d.get('info',{}).get('pid',''))\"" \
-        2>/dev/null)
-
-      [[ -z "$container_pid" || ! "$container_pid" =~ ^[0-9]+$ ]] && continue
-
-      # Translate: read NStgid from /proc inside the kind node.
-      # NStgid line looks like: "NStgid:  1   12345"
-      # The LAST field is the outermost (host) PID.
-      host_pid=$(docker exec "$KIND_CONTAINER" bash -c \
-        "awk '/^NStgid/{print \$NF}' /proc/$container_pid/status 2>/dev/null" \
-        2>/dev/null)
-
-      [[ "$host_pid" =~ ^[0-9]+$ ]] && echo "$host_pid"
+      2>/dev/null
   done | grep -E '^[0-9]+$' | sort -u
 )
 
-# ── Fallback: scan /proc on the host directly ─────────────────────────────────
+# Fallback: scan /proc inside the kind container for java ts-*.jar
 if [ ${#SERVICE_PIDS[@]} -eq 0 ]; then
-    log "   crictl/NStgid method found 0 PIDs — falling back to host /proc scan..."
+    log "   crictl method found 0 PIDs — falling back to /proc scan inside container..."
     mapfile -t SERVICE_PIDS < <(
-        for cmdfile in /proc/[0-9]*/cmdline; do
-            pid_num="${cmdfile%/cmdline}"
-            pid_num="${pid_num##*/proc/}"
-            cmdline=$(tr '\0' ' ' < "$cmdfile" 2>/dev/null || true)
-            if echo "$cmdline" | grep -qP 'ts-[a-z0-9-]+\.jar'; then
-                echo "$pid_num"
-            fi
-        done | sort -u
+        docker exec "$KIND_CONTAINER" bash -c '
+            for cmdfile in /proc/[0-9]*/cmdline; do
+                pid_num="${cmdfile%/cmdline}"
+                pid_num="${pid_num##*/proc/}"
+                cmdline=$(tr "\0" " " < "$cmdfile" 2>/dev/null || true)
+                if echo "$cmdline" | grep -qP "ts-[a-z0-9-]+\.jar"; then
+                    echo "$pid_num"
+                fi
+            done
+        ' | sort -u
     )
 fi
 
 if [ ${#SERVICE_PIDS[@]} -eq 0 ]; then
-    log "❌ ERROR: No ts-* service processes found."
-    log "   Check: kubectl get pods -n $NAMESPACE"
+    log "❌ ERROR: No ts-* service processes found inside the kind container."
     log "   Check: docker exec $KIND_CONTAINER crictl ps | grep ts-"
     exit 1
 fi
 
-# ── Verify PIDs are actually alive on the host ────────────────────────────────
-VALID_PIDS=()
-for pid in "${SERVICE_PIDS[@]}"; do
-    if kill -0 "$pid" 2>/dev/null; then
-        VALID_PIDS+=("$pid")
-    else
-        log "   ⚠  PID $pid not visible on host — skipping"
-    fi
-done
-
-if [ ${#VALID_PIDS[@]} -eq 0 ]; then
-    log "❌ ERROR: All discovered PIDs are invalid from the host perspective."
-    log "   This usually means the kind container uses a separate PID namespace."
-    log "   Try running strace INSIDE the kind container instead:"
-    log "     docker exec -it $KIND_CONTAINER bash"
-    log "     strace -f -p <pid-inside-node> -o /tmp/strace.log"
-    exit 1
-fi
-SERVICE_PIDS=("${VALID_PIDS[@]}")
-
-# ── Build PID → service name map ─────────────────────────────────────────────
+# ── Build PID → service name map (reading /proc inside the container) ────────
 declare -A PID_TO_SERVICE
-for pid in "${SERVICE_PIDS[@]}"; do
-    svc=$(cat "/proc/$pid/cmdline" 2>/dev/null \
-          | tr '\0' ' ' \
-          | grep -oP 'ts-[a-z0-9-]+(?=\.jar)' \
-          | head -1 || true)
-    [ -n "$svc" ] && PID_TO_SERVICE[$pid]="$svc" || PID_TO_SERVICE[$pid]="unknown"
-done
+while IFS='=' read -r pid svc; do
+    PID_TO_SERVICE[$pid]="$svc"
+done < <(
+    docker exec "$KIND_CONTAINER" bash -c "
+        for pid in ${SERVICE_PIDS[*]}; do
+            svc=\$(tr '\\0' ' ' < /proc/\$pid/cmdline 2>/dev/null \
+                  | grep -oP 'ts-[a-z0-9-]+(?=\.jar)' | head -1 || true)
+            echo \"\${pid}=\${svc:-unknown}\"
+        done
+    "
+)
 
 log "============================================"
 log " SCENARIO : $SCENARIO"
@@ -130,14 +95,11 @@ log " OUTPUT   : $OUT_DIR"
 log " SERVICES : ${#SERVICE_PIDS[@]}"
 log "============================================"
 for pid in "${SERVICE_PIDS[@]}"; do
-    printf "   %6s  %s\n" "$pid" "${PID_TO_SERVICE[$pid]}"
+    printf "   %6s  %s\n" "$pid" "${PID_TO_SERVICE[$pid]:-unknown}"
 done
 log "============================================"
 
-# ── Build strace -p args ──────────────────────────────────────────────────────
-P_ARGS=$(printf -- '-p %s ' "${SERVICE_PIDS[@]}")
-
-# ── Write initial metadata ────────────────────────────────────────────────────
+# ── Write initial metadata ───────────────────────────────────────────────────
 START_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 PID_JSON=$(printf '"%s",' "${SERVICE_PIDS[@]}" | sed 's/,$//')
 PID_MAP_PY=""
@@ -161,19 +123,21 @@ with open('$META_FILE', 'w') as f:
     json.dump(m, f, indent=2)
 PYEOF
 
-# ── Start strace ──────────────────────────────────────────────────────────────
-log "▶ Starting strace on ${#SERVICE_PIDS[@]} services..."
-sudo strace $P_ARGS \
-    -f \
-    -tt \
-    -T \
-    -e trace=network,read,write,futex,clone,execve \
-    -o "$LOG_FILE" &
-STRACE_PID=$!
-log "   strace PID: $STRACE_PID"
-sleep 2   # let strace attach before traffic starts
+# ── Start strace INSIDE the kind container ─────────────────────────────────
+P_ARGS=$(printf -- '-p %s ' "${SERVICE_PIDS[@]}")
 
-# ── Run load ──────────────────────────────────────────────────────────────────
+log "▶ Starting strace inside $KIND_CONTAINER on ${#SERVICE_PIDS[@]} services..."
+# Run strace in background inside the container; output goes to CONTAINER_LOG
+docker exec -d "$KIND_CONTAINER" bash -c \
+    "strace $P_ARGS -f -tt -T \
+     -e trace=network,read,write,futex,clone,execve \
+     -o '$CONTAINER_LOG' 2>&1"
+
+# Brief pause to let strace attach before traffic starts
+sleep 3
+log "   strace running inside container, log: $CONTAINER_LOG"
+
+# ── Run load from the host ────────────────────────────────────────────────────
 LOAD_MODE="minimal"
 log "▶ Running load: generateload.sh $LOAD_MODE"
 cd "$LOAD_DIR"
@@ -182,15 +146,22 @@ source "$LOAD_VENV"
 bash generateload.sh "$LOAD_MODE"
 LOAD_EXIT=$?
 
-# ── Stop strace ───────────────────────────────────────────────────────────────
-log "▶ Stopping strace..."
-sudo kill "$STRACE_PID" 2>/dev/null || true
-wait "$STRACE_PID" 2>/dev/null || true
+# ── Stop strace inside the container ────────────────────────────────────
+log "▶ Stopping strace inside container..."
+docker exec "$KIND_CONTAINER" bash -c \
+    "pkill -f 'strace.*$CONTAINER_LOG' 2>/dev/null || pkill -x strace 2>/dev/null || true"
+sleep 1
+
+# ── Copy log from container to host ─────────────────────────────────────────
+log "▶ Copying strace log from container to host..."
+docker cp "$KIND_CONTAINER:$CONTAINER_LOG" "$LOG_FILE"
+# Clean up inside the container
+docker exec "$KIND_CONTAINER" rm -f "$CONTAINER_LOG" 2>/dev/null || true
 
 # ── Update metadata with final stats ─────────────────────────────────────────
 END_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-LINE_COUNT=$(wc -l < "$LOG_FILE")
-FILE_SIZE=$(du -sh "$LOG_FILE" | cut -f1)
+LINE_COUNT=$(wc -l < "$LOG_FILE" 2>/dev/null || echo 0)
+FILE_SIZE=$(du -sh "$LOG_FILE" 2>/dev/null | cut -f1 || echo "0")
 
 python3 - <<PYEOF
 import json
