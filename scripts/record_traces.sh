@@ -1,9 +1,13 @@
 #!/bin/bash
 # ============================================================
 # record_traces.sh — Record strace for all ts-* services
-# PIDs are discovered via the kind control-plane container
-# using nsenter + crictl to find the real host PIDs of
-# Java processes running inside Kubernetes pods.
+# PIDs are discovered via the kind control-plane container.
+#
+# FIX: crictl inspect returns the PID *inside* the container
+# namespace (usually 1 or a small number). strace on the host
+# needs the HOST-namespace PID. We translate using NStgid from
+# /proc/<pid>/status which Linux always exposes on the host,
+# even for processes inside nested PID namespaces.
 # ============================================================
 set -euo pipefail
 
@@ -23,42 +27,60 @@ log() { echo "[$(date '+%H:%M:%S')] $*"; }
 
 mkdir -p "$OUT_DIR"
 
-# ── Discover ts-* service PIDs via the kind container ────────────────────────
-# Services run inside containers inside the kind node, not directly on the host.
-# We use `docker exec` into the kind node, then use `crictl` to list containers
-# and `cat /proc/<pid>/cmdline` to find Java ts-*.jar processes.
-# The PIDs reported by `crictl inspect` are the HOST-visible PIDs (shared
-# pid namespace between kind node and host on Linux), so strace can attach.
+# ── Discover ts-* service PIDs ────────────────────────────────────────────────
+# Strategy:
+#   1. Use `docker exec` into the kind node + `crictl ps` to list ts-* containers.
+#   2. For each container get its *init PID inside the kind node's PID namespace*
+#      via `crictl inspect .info.pid`.
+#   3. That PID is inside the kind container's PID namespace, NOT the host's.
+#      Translate to host PID by reading NStgid from the kind container's /proc:
+#        docker exec kind-node cat /proc/<container-init-pid>/status
+#      NStgid lists PIDs from innermost to outermost namespace; the LAST value
+#      is the host-visible PID that strace can attach to.
+#   4. Fallback: scan /proc on the host directly for java ts-*.jar cmdlines
+#      (works if kind shares the host PID namespace, which it does by default).
 log "▶ Discovering ts-* service PIDs via kind container..."
 
 mapfile -t SERVICE_PIDS < <(
-    docker exec "$KIND_CONTAINER" bash -c '
-        crictl ps --output json 2>/dev/null \
-        | python3 -c "
+  docker exec "$KIND_CONTAINER" bash -c '
+    crictl ps --output json 2>/dev/null \
+    | python3 -c "
 import json, sys
 data = json.load(sys.stdin)
 for c in data.get(\"containers\", []):
     name = c.get(\"metadata\", {}).get(\"name\", \"\")
     if name.startswith(\"ts-\"):
-        cid = c[\"id\"]
-        print(cid)
+        print(c[\"id\"])
 "
-    ' | while read -r cid; do
-        docker exec "$KIND_CONTAINER" bash -c \
-            "crictl inspect --output json $cid 2>/dev/null \
-             | python3 -c \"import json,sys; d=json.load(sys.stdin); print(d.get('info',{}).get('pid',''))\"" \
-        2>/dev/null
-    done | grep -E '^[0-9]+$' | sort -u
+  ' | while read -r cid; do
+      # Get the PID of the container init process as seen inside the kind node
+      container_pid=$(docker exec "$KIND_CONTAINER" bash -c \
+        "crictl inspect --output json '$cid' 2>/dev/null \
+         | python3 -c \"import json,sys; d=json.load(sys.stdin); print(d.get('info',{}).get('pid',''))\"" \
+        2>/dev/null)
+
+      [[ -z "$container_pid" || ! "$container_pid" =~ ^[0-9]+$ ]] && continue
+
+      # Translate: read NStgid from /proc inside the kind node.
+      # NStgid line looks like: "NStgid:  1   12345"
+      # The LAST field is the outermost (host) PID.
+      host_pid=$(docker exec "$KIND_CONTAINER" bash -c \
+        "awk '/^NStgid/{print \$NF}' /proc/$container_pid/status 2>/dev/null" \
+        2>/dev/null)
+
+      [[ "$host_pid" =~ ^[0-9]+$ ]] && echo "$host_pid"
+  done | grep -E '^[0-9]+$' | sort -u
 )
 
+# ── Fallback: scan /proc on the host directly ─────────────────────────────────
 if [ ${#SERVICE_PIDS[@]} -eq 0 ]; then
-    # Fallback: scan /proc directly on the host for java ts-*.jar processes
-    log "   crictl method found 0 PIDs — falling back to /proc scan..."
+    log "   crictl/NStgid method found 0 PIDs — falling back to host /proc scan..."
     mapfile -t SERVICE_PIDS < <(
-        for pid in /proc/[0-9]*/cmdline; do
-            pid_num=$(echo "$pid" | grep -oP '\d+')
-            cmdline=$(tr '\0' ' ' < "$pid" 2>/dev/null || true)
-            if echo "$cmdline" | grep -qP 'ts-[a-z-]+\.jar'; then
+        for cmdfile in /proc/[0-9]*/cmdline; do
+            pid_num="${cmdfile%/cmdline}"
+            pid_num="${pid_num##*/proc/}"
+            cmdline=$(tr '\0' ' ' < "$cmdfile" 2>/dev/null || true)
+            if echo "$cmdline" | grep -qP 'ts-[a-z0-9-]+\.jar'; then
                 echo "$pid_num"
             fi
         done | sort -u
@@ -68,9 +90,29 @@ fi
 if [ ${#SERVICE_PIDS[@]} -eq 0 ]; then
     log "❌ ERROR: No ts-* service processes found."
     log "   Check: kubectl get pods -n $NAMESPACE"
-    log "   Check: docker exec $KIND_CONTAINER crictl ps"
+    log "   Check: docker exec $KIND_CONTAINER crictl ps | grep ts-"
     exit 1
 fi
+
+# ── Verify PIDs are actually alive on the host ────────────────────────────────
+VALID_PIDS=()
+for pid in "${SERVICE_PIDS[@]}"; do
+    if kill -0 "$pid" 2>/dev/null; then
+        VALID_PIDS+=("$pid")
+    else
+        log "   ⚠  PID $pid not visible on host — skipping"
+    fi
+done
+
+if [ ${#VALID_PIDS[@]} -eq 0 ]; then
+    log "❌ ERROR: All discovered PIDs are invalid from the host perspective."
+    log "   This usually means the kind container uses a separate PID namespace."
+    log "   Try running strace INSIDE the kind container instead:"
+    log "     docker exec -it $KIND_CONTAINER bash"
+    log "     strace -f -p <pid-inside-node> -o /tmp/strace.log"
+    exit 1
+fi
+SERVICE_PIDS=("${VALID_PIDS[@]}")
 
 # ── Build PID → service name map ─────────────────────────────────────────────
 declare -A PID_TO_SERVICE
@@ -132,9 +174,6 @@ log "   strace PID: $STRACE_PID"
 sleep 2   # let strace attach before traffic starts
 
 # ── Run load ──────────────────────────────────────────────────────────────────
-# normal scenario  → minimal mode (read-only, low pressure)
-# anomaly scenario → minimal mode still (we want load but not overwhelming)
-# Use the updated generateload.sh from train-ticket-auto-query
 LOAD_MODE="minimal"
 log "▶ Running load: generateload.sh $LOAD_MODE"
 cd "$LOAD_DIR"
