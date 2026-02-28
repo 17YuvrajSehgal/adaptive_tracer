@@ -36,20 +36,26 @@ log "▶ Discovering ts-* service PIDs inside kind container..."
 mapfile -t SERVICE_PIDS < <(
   docker exec "$KIND_CONTAINER" bash -c '
     crictl ps --output json 2>/dev/null \
-    | python3 -c "
-import json, sys
+    | python3 - <<PYEOF
+import json, sys, subprocess, re
 data = json.load(sys.stdin)
-for c in data.get(\"containers\", []):
-    name = c.get(\"metadata\", {}).get(\"name\", \"\")
-    if name.startswith(\"ts-\"):
-        print(c[\"id\"])
-"
-  ' | while read -r cid; do
-      docker exec "$KIND_CONTAINER" bash -c \
-        "crictl inspect --output json '$cid' 2>/dev/null \
-         | python3 -c \"import json,sys; d=json.load(sys.stdin); print(d.get('info',{}).get('pid',''))\"" \
-      2>/dev/null
-  done | grep -E '^[0-9]+$' | sort -u
+for c in data.get("containers", []):
+    name = c.get("metadata", {}).get("name", "")
+    if name.startswith("ts-"):
+        cid = c["id"]
+        try:
+            out = subprocess.check_output(
+                ["crictl", "inspect", "--output", "json", cid],
+                stderr=subprocess.DEVNULL
+            )
+            d = json.loads(out)
+            pid = d.get("info", {}).get("pid", "")
+            if pid and re.match(r"^[0-9]+$", str(pid)):
+                print(pid)
+        except Exception:
+            pass
+PYEOF
+  ' | grep -E '^[0-9]+$' | sort -u
 )
 
 # Fallback: scan /proc inside the kind container for java ts-*.jar
@@ -77,15 +83,21 @@ fi
 
 # ── Build PID → service name map (reading /proc inside the container) ────────
 declare -A PID_TO_SERVICE
+# Write PIDs into a file inside the container so we don't have to expand the
+# bash array across the docker exec boundary (which breaks quoting).
+PID_LIST_FILE="/tmp/_strace_pids_$$.txt"
+printf '%s\n' "${SERVICE_PIDS[@]}" | docker exec -i "$KIND_CONTAINER" bash -c "cat > $PID_LIST_FILE"
+
 while IFS='=' read -r pid svc; do
-    PID_TO_SERVICE[$pid]="$svc"
+    [[ -n "$pid" ]] && PID_TO_SERVICE[$pid]="$svc"
 done < <(
     docker exec "$KIND_CONTAINER" bash -c "
-        for pid in ${SERVICE_PIDS[*]}; do
+        while IFS= read -r pid; do
             svc=\$(tr '\\0' ' ' < /proc/\$pid/cmdline 2>/dev/null \
                   | grep -oP 'ts-[a-z0-9-]+(?=\.jar)' | head -1 || true)
             echo \"\${pid}=\${svc:-unknown}\"
-        done
+        done < $PID_LIST_FILE
+        rm -f $PID_LIST_FILE
     "
 )
 
