@@ -83,7 +83,7 @@ sleep 2
 
 echo ""
 echo "▶ Running load: generateload.sh light"
-cd "$LOAD_DIR" && source "$LOAD_VENV" && bash generateload.sh light
+cd "$LOAD_DIR" && source "$LOAD_VENV" && bash generateload.sh $([[ "$SCENARIO" == "normal" ]] && echo minimal || echo light)
 LOAD_EXIT=$?
 
 echo ""
