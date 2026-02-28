@@ -1,119 +1,155 @@
 #!/bin/bash
 # ============================================================
-#  inject_anomaly.sh — Inject various anomaly conditions
-#  Sourced by record_all.sh before each anomaly scenario
-#  Usage: source inject_anomaly.sh <scenario>  (to set cleanup fn)
-#         bash inject_anomaly.sh start <scenario>
-#         bash inject_anomaly.sh stop
+# inject_anomaly.sh — Inject various anomaly conditions
+# Usage:
+#   bash inject_anomaly.sh start <scenario>
+#   bash inject_anomaly.sh stop
+#
+# Scenarios: cpu-stress, memory-stress, io-stress,
+#            bandwidth, db-load, pod-restart, verbose-log
 # ============================================================
+
+set -euo pipefail
 
 CMD="${1:-start}"
 SCENARIO="${2:-}"
 CLEANUP_FILE="/tmp/anomaly_cleanup_pids"
+NAMESPACE="${TS_NAMESPACE:-ts}"
+
+# MySQL pod and credentials matching the Train Ticket kind deployment
+MYSQL_POD="tsdb-mysql-leader-0"
+MYSQL_USER="root"
+MYSQL_PASS="${MYSQL_ROOT_PASSWORD:-Abcd1234#}"
+MYSQL_DB="ts"
+
+log() { echo "[$(date '+%H:%M:%S')] $*"; }
 
 start_cpu_stress() {
-    echo "🔥 Starting CPU stress (all cores)..."
+    log "🔥 Starting CPU stress (all cores, 85% load)..."
     CPU_COUNT=$(nproc)
     stress-ng --cpu "$CPU_COUNT" --cpu-load 85 --timeout 0 &
     echo $! >> "$CLEANUP_FILE"
-    echo "   stress-ng PID: $!"
+    log "   stress-ng CPU PID: $!"
 }
 
 start_memory_stress() {
-    echo "🧠 Starting memory pressure (6GB)..."
+    log "🧠 Starting memory pressure (6GB across 4 workers)..."
     stress-ng --vm 4 --vm-bytes 1500m --timeout 0 &
     echo $! >> "$CLEANUP_FILE"
-    echo "   stress-ng PID: $!"
+    log "   stress-ng MEM PID: $!"
 }
 
 start_io_stress() {
-    echo "💾 Starting IO stress..."
+    log "💾 Starting IO stress (8 io workers, 4 hdd workers)..."
     stress-ng --io 8 --hdd 4 --timeout 0 &
     echo $! >> "$CLEANUP_FILE"
-    echo "   stress-ng PID: $!"
+    log "   stress-ng IO PID: $!"
 }
 
 start_bandwidth_throttle() {
-    echo "🌐 Throttling network bandwidth to 10Mbit..."
-    # Throttle on cluster interface (adjust eth0 if needed)
+    log "🌐 Throttling network bandwidth to 10Mbit..."
     IFACE=$(ip route | grep default | awk '{print $5}' | head -1)
+    if [ -z "$IFACE" ]; then
+        log "   ❌ Could not detect default interface. Skipping."
+        return 1
+    fi
+    # Remove any existing qdisc first to avoid 'file exists' error
+    sudo tc qdisc del dev "$IFACE" root 2>/dev/null || true
     sudo tc qdisc add dev "$IFACE" root tbf rate 10mbit burst 32kbit latency 400ms
     echo "tc:$IFACE" >> "$CLEANUP_FILE"
-    echo "   Throttled: $IFACE → 10Mbit"
+    log "   Throttled: $IFACE → 10Mbit"
 }
 
 start_db_load() {
-    echo "🗄  Starting DB overload (heavy MySQL queries)..."
-    # Hit MySQL repeatedly via kubectl exec
-    kubectl exec -it tsdb-mysql-0 -- bash -c \
-        "while true; do mysql -uroot -ppassword ts -e \
-        'SELECT * FROM orders o JOIN order_items oi ON o.id=oi.order_id LIMIT 100000;' \
-        2>/dev/null; done" &
+    log "🗄 Starting DB overload (heavy MySQL queries on $MYSQL_POD)..."
+    # Run in background — the kubectl exec loop runs inside the pod
+    kubectl exec -n "$NAMESPACE" "$MYSQL_POD" -- bash -c \
+        "while true; do \
+            mysql -u${MYSQL_USER} -p${MYSQL_PASS} ${MYSQL_DB} \
+              -e 'SELECT * FROM orders LIMIT 100000;' \
+              2>/dev/null; \
+         done" &
     echo $! >> "$CLEANUP_FILE"
-    echo "   DB load PID: $!"
+    log "   DB load PID: $!"
 }
 
 start_pod_restart() {
-    echo "🔄 Scheduling pod restarts every 30s..."
-    (while true; do
-        kubectl delete pod -l app=ts-order-service --grace-period=0 2>/dev/null
-        sleep 30
-        kubectl delete pod -l app=ts-payment-service --grace-period=0 2>/dev/null
-        sleep 30
-    done) &
+    log "🔄 Scheduling pod restarts every 30s (order + payment)..."
+    (
+        while true; do
+            kubectl delete pod -n "$NAMESPACE" -l app=ts-order-service \
+                --grace-period=0 2>/dev/null || true
+            sleep 30
+            kubectl delete pod -n "$NAMESPACE" -l app=ts-payment-service \
+                --grace-period=0 2>/dev/null || true
+            sleep 30
+        done
+    ) &
     echo $! >> "$CLEANUP_FILE"
-    echo "   Restart loop PID: $!"
+    log "   Restart loop PID: $!"
 }
 
 start_verbose_log() {
-    echo "📝 Enabling verbose logging on ts-order-service..."
-    kubectl exec -it deploy/ts-order-service -- \
+    log "📝 Enabling TRACE logging on ts-order-service..."
+    kubectl exec -n "$NAMESPACE" deploy/ts-order-service -- \
         curl -s -X POST "http://localhost:8080/actuator/loggers/ROOT" \
         -H "Content-Type: application/json" \
-        -d '{"configuredLevel":"TRACE"}' || true
+        -d '{"configuredLevel":"TRACE"}' 2>/dev/null || {
+            log "   ⚠️  actuator endpoint not reachable — skipping"
+            return 0
+        }
     echo "verbose_log" >> "$CLEANUP_FILE"
+    log "   Logging set to TRACE on ts-order-service"
 }
 
 stop_all() {
-    echo "🛑 Stopping anomaly injectors..."
+    log "🛑 Stopping all anomaly injectors..."
     if [ ! -f "$CLEANUP_FILE" ]; then
-        echo "   No cleanup file found"
-        return
+        log "   No cleanup file found — nothing to stop"
+        return 0
     fi
     while IFS= read -r entry; do
         if [[ "$entry" == tc:* ]]; then
             IFACE="${entry#tc:}"
             sudo tc qdisc del dev "$IFACE" root 2>/dev/null && \
-                echo "   Removed tc qdisc on $IFACE"
+                log "   Removed tc qdisc on $IFACE" || true
         elif [[ "$entry" == "verbose_log" ]]; then
-            kubectl exec -it deploy/ts-order-service -- \
+            kubectl exec -n "$NAMESPACE" deploy/ts-order-service -- \
                 curl -s -X POST "http://localhost:8080/actuator/loggers/ROOT" \
                 -H "Content-Type: application/json" \
                 -d '{"configuredLevel":"INFO"}' 2>/dev/null || true
-            echo "   Restored logging level to INFO"
+            log "   Restored logging level to INFO on ts-order-service"
         else
-            kill "$entry" 2>/dev/null && echo "   Killed PID $entry"
+            kill "$entry" 2>/dev/null && log "   Killed PID $entry" || true
         fi
     done < "$CLEANUP_FILE"
     rm -f "$CLEANUP_FILE"
-    echo "✅ All anomaly processes stopped"
+    log "✅ All anomaly processes stopped"
 }
-
-rm -f "$CLEANUP_FILE"
 
 case "$CMD" in
     start)
+        rm -f "$CLEANUP_FILE"   # clear stale state from previous run
         case "$SCENARIO" in
-            cpu-stress)       start_cpu_stress ;;
-            memory-stress)    start_memory_stress ;;
-            io-stress)        start_io_stress ;;
-            bandwidth)        start_bandwidth_throttle ;;
-            db-load)          start_db_load ;;
-            pod-restart)      start_pod_restart ;;
-            verbose-log)      start_verbose_log ;;
-            *) echo "Unknown scenario: $SCENARIO"; exit 1 ;;
+            cpu-stress)     start_cpu_stress         ;;
+            memory-stress)  start_memory_stress      ;;
+            io-stress)      start_io_stress          ;;
+            bandwidth)      start_bandwidth_throttle ;;
+            db-load)        start_db_load            ;;
+            pod-restart)    start_pod_restart        ;;
+            verbose-log)    start_verbose_log        ;;
+            *)
+                echo "❌ Unknown scenario: '$SCENARIO'"
+                echo "   Valid: cpu-stress | memory-stress | io-stress | bandwidth | db-load | pod-restart | verbose-log"
+                exit 1
+                ;;
         esac
         ;;
-    stop) stop_all ;;
-    *) echo "Usage: $0 start <scenario> | stop"; exit 1 ;;
+    stop)
+        stop_all
+        ;;
+    *)
+        echo "Usage: $0 start <scenario> | stop"
+        exit 1
+        ;;
 esac
