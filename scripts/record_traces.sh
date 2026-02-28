@@ -18,7 +18,8 @@ BASE_DIR="/home/sehgaluv17/lttng-final-traces"
 OUT_DIR="$BASE_DIR/$SCENARIO"
 LOG_FILE="$OUT_DIR/strace.log"
 META_FILE="$OUT_DIR/meta.json"
-LOAD_SCRIPT="/home/sehgaluv17/generateload.sh"
+LOAD_DIR="/home/sehgaluv17/train-ticket-auto-query"
+LOAD_VENV="$LOAD_DIR/venv/bin/activate"
 
 # All 40 service PIDs
 SERVICE_PIDS=(
@@ -77,7 +78,7 @@ sleep 2  # let strace attach
 
 echo ""
 echo "▶ Running load: ./generateload.sh light"
-bash "$LOAD_SCRIPT" light
+cd "$LOAD_DIR" && source "$LOAD_VENV" && bash generateload.sh light
 LOAD_EXIT=$?
 
 echo ""
