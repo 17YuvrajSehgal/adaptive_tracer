@@ -1,15 +1,7 @@
 #!/bin/bash
 # ============================================================
-#  record_traces.sh — Record strace for all 40 services
-#  Usage:
-#    ./record_traces.sh normal
-#    ./record_traces.sh cpu-stress
-#    ./record_traces.sh memory-stress
-#    ./record_traces.sh io-stress
-#    ./record_traces.sh pod-restart
-#    ./record_traces.sh bandwidth
-#    ./record_traces.sh db-load
-#    ./record_traces.sh verbose-log
+#  record_traces.sh — Record strace for all ts-* services
+#  PIDs are discovered dynamically at runtime
 # ============================================================
 set -e
 
@@ -21,63 +13,76 @@ META_FILE="$OUT_DIR/meta.json"
 LOAD_DIR="/home/sehgaluv17/train-ticket-auto-query"
 LOAD_VENV="$LOAD_DIR/venv/bin/activate"
 
-# All 40 service PIDs
-SERVICE_PIDS=(
-    728220 728442 728406 730043 729849 729875 729918
-    750653 753059 752765 752786 753148 753122 752090
-    753014 753109 728356 728173 728273 729815 729986
-    730071 728076 728258 731304 731290 729890 731137
-    729827 730810 731318 731359 731351 752306 752746
-    752751 752308 752793 753176 752069
-)
-
 mkdir -p "$OUT_DIR"
+
+# ── Dynamically discover all ts-* service PIDs ──────────────
+echo "▶ Discovering ts-* service PIDs..."
+mapfile -t SERVICE_PIDS < <(ps aux | grep '/app/ts-' | grep -v grep | awk '{print $2}' | sort -u)
+
+if [ ${#SERVICE_PIDS[@]} -eq 0 ]; then
+    echo "❌ ERROR: No ts-* service processes found."
+    echo "   Are the pods running? Check: kubectl get pods"
+    exit 1
+fi
+
+# Build PID -> service name map for metadata
+declare -A PID_TO_SERVICE
+while IFS= read -r line; do
+    pid=$(echo "$line" | awk '{print $2}')
+    # Extract service name from cmdline
+    svc=$(cat /proc/$pid/cmdline 2>/dev/null | tr '\0' ' ' | \
+          grep -oP 'ts-[a-z-]+(?=\.jar)' | head -1)
+    [ -n "$svc" ] && PID_TO_SERVICE[$pid]="$svc"
+done < <(ps aux | grep '/app/ts-' | grep -v grep)
+
 echo "============================================"
 echo " SCENARIO : $SCENARIO"
 echo " OUTPUT   : $OUT_DIR"
 echo " SERVICES : ${#SERVICE_PIDS[@]}"
 echo "============================================"
-
-# Verify all PIDs are alive
-DEAD=()
+echo " PIDs found:"
 for pid in "${SERVICE_PIDS[@]}"; do
-    if ! kill -0 "$pid" 2>/dev/null; then
-        DEAD+=($pid)
-    fi
+    svc="${PID_TO_SERVICE[$pid]:-unknown}"
+    echo "   $pid  $svc"
 done
-if [ ${#DEAD[@]} -gt 0 ]; then
-    echo "❌ ERROR: Dead PIDs: ${DEAD[*]}"
-    echo "   Run: ps aux | grep /app/ts- | awk '{print \$2}'"
-    exit 1
-fi
-echo "✅ All ${#SERVICE_PIDS[@]} PIDs are alive"
+echo "============================================"
 
 # Build -p args
 P_ARGS=$(printf -- '-p %s ' "${SERVICE_PIDS[@]}")
 
 # Write metadata
 START_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-cat > "$META_FILE" << JSON
-{
-  "scenario": "$SCENARIO",
-  "start_time": "$START_TS",
-  "log_file": "$LOG_FILE",
-  "service_count": ${#SERVICE_PIDS[@]},
-  "pids": [$(IFS=,; echo "${SERVICE_PIDS[*]}")]
+PID_JSON=$(printf '"%s",' "${SERVICE_PIDS[@]}" | sed 's/,$//')
+python3 -c "
+import json
+m = {
+    'scenario':      '$SCENARIO',
+    'start_time':    '$START_TS',
+    'log_file':      '$LOG_FILE',
+    'service_count': ${#SERVICE_PIDS[@]},
+    'pids': [${PID_JSON}],
+    'pid_map': $(python3 -c "
+import json
+d = {}
+$(for pid in "${!PID_TO_SERVICE[@]}"; do echo "d['$pid']='${PID_TO_SERVICE[$pid]}';"; done)
+print(json.dumps(d))
+")
 }
-JSON
+with open('$META_FILE', 'w') as f:
+    json.dump(m, f, indent=2)
+"
 
 echo ""
-echo "▶ Starting strace on all services..."
+echo "▶ Starting strace on ${#SERVICE_PIDS[@]} services..."
 sudo strace $P_ARGS \
     -f -tt -T \
     -o "$LOG_FILE" &
 STRACE_PID=$!
 echo "  strace PID: $STRACE_PID"
-sleep 2  # let strace attach
+sleep 2
 
 echo ""
-echo "▶ Running load: ./generateload.sh light"
+echo "▶ Running load: generateload.sh light"
 cd "$LOAD_DIR" && source "$LOAD_VENV" && bash generateload.sh light
 LOAD_EXIT=$?
 
@@ -90,7 +95,6 @@ END_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 LINE_COUNT=$(wc -l < "$LOG_FILE")
 FILE_SIZE=$(du -sh "$LOG_FILE" | cut -f1)
 
-# Update metadata with end stats
 python3 -c "
 import json
 with open('$META_FILE') as f:
