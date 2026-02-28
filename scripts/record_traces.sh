@@ -32,29 +32,23 @@ mkdir -p "$OUT_DIR"
 # ── Discover ts-* PIDs inside the kind container ────────────────────────────
 log "▶ Discovering ts-* service PIDs inside kind container..."
 
-# Get container PIDs as seen INSIDE the kind node (these are valid for strace there)
+# Get container PIDs as seen INSIDE the kind node (these are valid for strace there).
+# Strategy: use plain-text crictl ps (no JSON) to get ts-* container IDs, then
+# crictl inspect each one for its PID.  Everything runs inside a single docker exec
+# so there are no nested-exec or heredoc-inside-single-quote pitfalls.
 mapfile -t SERVICE_PIDS < <(
   docker exec "$KIND_CONTAINER" bash -c '
-    crictl ps --output json 2>/dev/null \
-    | python3 - <<PYEOF
-import json, sys, subprocess, re
-data = json.load(sys.stdin)
-for c in data.get("containers", []):
-    name = c.get("metadata", {}).get("name", "")
-    if name.startswith("ts-"):
-        cid = c["id"]
-        try:
-            out = subprocess.check_output(
-                ["crictl", "inspect", "--output", "json", cid],
-                stderr=subprocess.DEVNULL
-            )
-            d = json.loads(out)
-            pid = d.get("info", {}).get("pid", "")
-            if pid and re.match(r"^[0-9]+$", str(pid)):
-                print(pid)
-        except Exception:
-            pass
-PYEOF
+    for cid in $(crictl ps 2>/dev/null | awk "NR>1 && \$NF~/^ts-/{print \$1}"); do
+        # Try info.pid (containerd <1.7) then status.pid (containerd >=1.7)
+        pid=$(crictl inspect --output json "$cid" 2>/dev/null \
+             | python3 -c '"'"'
+import json,sys
+d=json.load(sys.stdin)
+pid=d.get("info",{}).get("pid","") or d.get("status",{}).get("pid","")
+if pid: print(pid)
+'"'"' 2>/dev/null)
+        echo "$pid"
+    done
   ' | grep -E '^[0-9]+$' | sort -u
 )
 
@@ -77,7 +71,11 @@ fi
 
 if [ ${#SERVICE_PIDS[@]} -eq 0 ]; then
     log "❌ ERROR: No ts-* service processes found inside the kind container."
-    log "   Check: docker exec $KIND_CONTAINER crictl ps | grep ts-"
+    log "   Diagnostics — run these to investigate:"
+    log "     docker exec $KIND_CONTAINER crictl ps"
+    log "     docker exec $KIND_CONTAINER crictl ps | awk 'NR>1 {print \$NF}'"
+    log "   If ts-* containers appear in the list above but weren't picked up,"
+    log "   the NAME column may not be the last column in your crictl version."
     exit 1
 fi
 
