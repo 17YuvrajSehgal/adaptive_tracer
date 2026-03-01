@@ -169,53 +169,43 @@ else
     log "   Hint: try: docker exec $KIND_CONTAINER strace --version"
 fi
 
-# ── Live tail of strace log in background (prints to terminal) ───────────────
-log "▶ Live strace output (sampling every 5s from $LOG_FILE):"
-(
-    sleep 5
-    while true; do
-        COUNT=$(wc -l < "$LOG_FILE" 2>/dev/null || echo "?")
-        SAMPLE=$(tail -3 "$LOG_FILE" 2>/dev/null || true)
-        echo "[$(date '+%H:%M:%S')] [strace] lines so far: $COUNT" | tee -a "$LIVE_LOG"
-        if [ -n "$SAMPLE" ]; then
-            echo "$SAMPLE" | sed 's/^/   /' | tee -a "$LIVE_LOG"
-        fi
-        sleep 5
-    done
-) &
-TAIL_PID=$!
-
 # ── Run load from the host ────────────────────────────────────────────────────
 log "▶ Running load: generateload.sh $LOAD_MODE"
-log "   (load output streamed live below)"
 log "------------------------------------------------------------"
 
 cd "$LOAD_DIR"
 # shellcheck disable=SC1090
 source "$LOAD_VENV"
 # Pipe through tee so output appears live AND lands in run.log.
-# PIPESTATUS[0] gives the real generateload.sh exit code (not tee's).
 bash generateload.sh "$LOAD_MODE" 2>&1 | tee -a "$LIVE_LOG"
 LOAD_EXIT=${PIPESTATUS[0]}
 
 log "------------------------------------------------------------"
-log "   generateload.sh exited with code $LOAD_EXIT"
+log "   load finished (exit $LOAD_EXIT)"
 
-# ── Stop the live tail ────────────────────────────────────────────────────────
-kill "$TAIL_PID" 2>/dev/null || true
-wait "$TAIL_PID" 2>/dev/null || true
+# ── Stop strace and wait for the log to be fully written ─────────────────────
+log "▶ Stopping strace (sending SIGINT so it detaches and flushes)..."
 
-# ── Stop strace inside the container then wait for docker exec to finish ─────
-log "▶ Stopping strace inside container..."
-# Send SIGTERM to the strace process inside the container.
-# strace will detach from all traced PIDs and flush its output buffer.
+# SIGINT causes strace to detach from all PIDs and close the output file cleanly.
 docker exec "$KIND_CONTAINER" \
-    pkill -x strace 2>/dev/null || true
+    pkill -INT -x strace 2>/dev/null || true
 
-# Wait for the background docker exec to finish (ensures LOG_FILE is fully written).
+# Wait up to 15 seconds for the background docker exec to exit on its own.
+# If it doesn't, send SIGKILL to the docker exec process on the host side.
+WAIT_SECS=0
+while kill -0 "$STRACE_BG_PID" 2>/dev/null; do
+    sleep 1
+    WAIT_SECS=$(( WAIT_SECS + 1 ))
+    if [ "$WAIT_SECS" -ge 15 ]; then
+        log "   ⚠️  docker exec still running after 15s — force-killing"
+        kill -9 "$STRACE_BG_PID" 2>/dev/null || true
+        # Also SIGKILL strace inside the container as a last resort
+        docker exec "$KIND_CONTAINER" pkill -9 -x strace 2>/dev/null || true
+        break
+    fi
+done
 wait "$STRACE_BG_PID" 2>/dev/null || true
-log "   docker exec finished — log should be fully flushed"
-
+log "   strace stopped — log file closed"
 
 # ── Update metadata with final stats ─────────────────────────────────────────
 END_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
