@@ -27,8 +27,6 @@ LOAD_VENV="$LOAD_DIR/venv/bin/activate"
 
 # The kind control-plane container name
 KIND_CONTAINER="train-ticket-control-plane"
-# Where strace writes its log inside the container
-CONTAINER_LOG="/tmp/strace_${SCENARIO}.log"
 
 # ── Logging helpers ───────────────────────────────────────────────────────────
 log()  { echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LIVE_LOG"; }
@@ -139,41 +137,45 @@ with open('$META_FILE', 'w') as f:
     json.dump(m, f, indent=2)
 PYEOF
 
-# ── Start strace INSIDE the kind container ────────────────────────────────────
+# ── Start strace, piping output directly to the host log file ────────────────
+# Key insight: running docker exec in the BACKGROUND on the host (not -d) lets us
+# pipe strace's stdout straight to $LOG_FILE.  No temp file inside the container,
+# no docker cp, no file-disappears-after-pkill mystery.
 P_ARGS=$(printf -- '-p %s ' "${SERVICE_PIDS[@]}")
 
 log "▶ Starting strace inside $KIND_CONTAINER on ${#SERVICE_PIDS[@]} services..."
 log "   syscalls : network,read,write,futex,clone,execve"
-log "   log file : $CONTAINER_LOG  (inside container)"
+log "   host log : $LOG_FILE  (written live via docker exec stdout)"
 
-# Run strace detached inside the container
-docker exec -d "$KIND_CONTAINER" bash -c \
+: > "$LOG_FILE"   # ensure the file exists immediately so tail -f can open it
+
+docker exec "$KIND_CONTAINER" bash -c \
     "strace $P_ARGS -f -tt -T \
      -e trace=network,read,write,futex,clone,execve \
-     -o '$CONTAINER_LOG' 2>&1"
+     2>&1" \
+    >> "$LOG_FILE" &
+STRACE_BG_PID=$!
 
-# Brief pause to let strace attach
+# Brief pause to let strace attach before confirming
 sleep 3
 
-# Confirm strace is actually running inside the container
-STRACE_PID=$(docker exec "$KIND_CONTAINER" \
-    pgrep -f "strace.*$CONTAINER_LOG" 2>/dev/null | head -1 || true)
-if [ -n "$STRACE_PID" ]; then
-    log "   strace PID inside container: $STRACE_PID ✅"
+# Verify strace is actually running inside the container
+STRACE_INNER_PID=$(docker exec "$KIND_CONTAINER" \
+    pgrep -x strace 2>/dev/null | head -1 || true)
+if [ -n "$STRACE_INNER_PID" ]; then
+    log "   strace PID inside container: $STRACE_INNER_PID ✅"
 else
     log "   ⚠️  strace process not found inside container — it may have failed to attach"
+    log "   Hint: try: docker exec $KIND_CONTAINER strace --version"
 fi
 
 # ── Live tail of strace log in background (prints to terminal) ───────────────
-log "▶ Live strace output (sampling every 5s):"
-log "   (first lines will appear after strace starts writing to $CONTAINER_LOG)"
+log "▶ Live strace output (sampling every 5s from $LOG_FILE):"
 (
-    sleep 5   # give strace a moment before first peek
+    sleep 5
     while true; do
-        COUNT=$(docker exec "$KIND_CONTAINER" \
-            wc -l < "$CONTAINER_LOG" 2>/dev/null || echo "?")
-        SAMPLE=$(docker exec "$KIND_CONTAINER" \
-            tail -3 "$CONTAINER_LOG" 2>/dev/null || true)
+        COUNT=$(wc -l < "$LOG_FILE" 2>/dev/null || echo "?")
+        SAMPLE=$(tail -3 "$LOG_FILE" 2>/dev/null || true)
         echo "[$(date '+%H:%M:%S')] [strace] lines so far: $COUNT" | tee -a "$LIVE_LOG"
         if [ -n "$SAMPLE" ]; then
             echo "$SAMPLE" | sed 's/^/   /' | tee -a "$LIVE_LOG"
@@ -191,8 +193,8 @@ log "------------------------------------------------------------"
 cd "$LOAD_DIR"
 # shellcheck disable=SC1090
 source "$LOAD_VENV"
-# Run load; pipe through tee so output appears live AND is saved to run log.
-# Use PIPESTATUS so we capture the real exit code of generateload.sh, not tee.
+# Pipe through tee so output appears live AND lands in run.log.
+# PIPESTATUS[0] gives the real generateload.sh exit code (not tee's).
 bash generateload.sh "$LOAD_MODE" 2>&1 | tee -a "$LIVE_LOG"
 LOAD_EXIT=${PIPESTATUS[0]}
 
@@ -203,33 +205,17 @@ log "   generateload.sh exited with code $LOAD_EXIT"
 kill "$TAIL_PID" 2>/dev/null || true
 wait "$TAIL_PID" 2>/dev/null || true
 
-# ── Stop strace inside the container ─────────────────────────────────────────
+# ── Stop strace inside the container then wait for docker exec to finish ─────
 log "▶ Stopping strace inside container..."
-docker exec "$KIND_CONTAINER" bash -c \
-    "pkill -f 'strace.*$CONTAINER_LOG' 2>/dev/null || pkill -x strace 2>/dev/null || true"
-sleep 2   # give strace time to flush its output buffer
+# Send SIGTERM to the strace process inside the container.
+# strace will detach from all traced PIDs and flush its output buffer.
+docker exec "$KIND_CONTAINER" \
+    pkill -x strace 2>/dev/null || true
 
-# ── Check strace wrote something ─────────────────────────────────────────────
-CONTAINER_LINES=$(docker exec "$KIND_CONTAINER" \
-    wc -l < "$CONTAINER_LOG" 2>/dev/null || echo 0)
-log "   Lines in container strace log: $CONTAINER_LINES"
+# Wait for the background docker exec to finish (ensures LOG_FILE is fully written).
+wait "$STRACE_BG_PID" 2>/dev/null || true
+log "   docker exec finished — log should be fully flushed"
 
-if [ "$CONTAINER_LINES" -eq 0 ] 2>/dev/null; then
-    log "⚠️  WARNING: strace log inside container is empty."
-    log "   Possible causes:"
-    log "   • strace failed to attach (check permissions / seccomp)"
-    log "   • All target PIDs exited before strace started"
-    log "   Copying empty file anyway so the run is recorded."
-fi
-
-# ── Copy log from container to host ──────────────────────────────────────────
-log "▶ Copying strace log from container → $LOG_FILE"
-docker cp "$KIND_CONTAINER:$CONTAINER_LOG" "$LOG_FILE" && \
-    log "   Copy OK" || \
-    log "⚠️  docker cp failed — log may be missing inside container"
-
-# Clean up inside the container
-docker exec "$KIND_CONTAINER" rm -f "$CONTAINER_LOG" 2>/dev/null || true
 
 # ── Update metadata with final stats ─────────────────────────────────────────
 END_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
