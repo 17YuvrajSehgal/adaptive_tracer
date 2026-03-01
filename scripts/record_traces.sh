@@ -4,30 +4,45 @@
 #
 # The kind control-plane container has its own PID namespace,
 # so strace must run INSIDE the container. We:
-#   1. Discover ts-*.jar PIDs via `crictl inspect` inside the node
+#   1. Discover ts-*.jar PIDs via crictl inside the node
 #   2. Launch strace inside the container via `docker exec`
-#   3. Run load from the host
-#   4. Stop strace and copy the log to the host output dir
+#   3. Run load from the host (output shown live)
+#   4. Stop strace, copy the log to the host output dir
+#
+# Usage:
+#   ./record_traces.sh [scenario] [load_mode]
+#   LOAD_MODE=normal ./record_traces.sh cpu-stress
 # ============================================================
-set -euo pipefail
+set -uo pipefail   # NOTE: -e removed so load failures don't skip the copy step
 
 SCENARIO="${1:-normal}"
+LOAD_MODE="${LOAD_MODE:-${2:-minimal}}"
 BASE_DIR="/home/sehgaluv17/lttng-final-traces"
 OUT_DIR="$BASE_DIR/$SCENARIO"
 LOG_FILE="$OUT_DIR/strace.log"
 META_FILE="$OUT_DIR/meta.json"
+LIVE_LOG="$OUT_DIR/run.log"          # tee target: full session log on disk
 LOAD_DIR="/home/sehgaluv17/train-ticket-auto-query"
 LOAD_VENV="$LOAD_DIR/venv/bin/activate"
-NAMESPACE="${TS_NAMESPACE:-ts}"
 
 # The kind control-plane container name
 KIND_CONTAINER="train-ticket-control-plane"
 # Where strace writes its log inside the container
 CONTAINER_LOG="/tmp/strace_${SCENARIO}.log"
 
-log() { echo "[$(date '+%H:%M:%S')] $*"; }
+# ── Logging helpers ───────────────────────────────────────────────────────────
+log()  { echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LIVE_LOG"; }
+logn() { printf "[$(date '+%H:%M:%S')] %s" "$*" | tee -a "$LIVE_LOG"; }  # no newline
 
 mkdir -p "$OUT_DIR"
+: > "$LIVE_LOG"   # truncate/create run log
+
+log "============================================================"
+log " record_traces.sh starting"
+log "   SCENARIO  : $SCENARIO"
+log "   LOAD_MODE : $LOAD_MODE"
+log "   OUTPUT    : $OUT_DIR"
+log "============================================================"
 
 # ── Discover ts-* PIDs inside the kind container ────────────────────────────
 log "▶ Discovering ts-* service PIDs inside kind container..."
@@ -70,9 +85,9 @@ if [ ${#SERVICE_PIDS[@]} -eq 0 ]; then
     while read -r _pid; do
         [[ "$_pid" =~ ^[0-9]+$ ]] || continue
         SERVICE_PIDS+=("$_pid")
-        _svc=$(docker exec "$KIND_CONTAINER" \
-            grep -oP '(?<=/)(ts-[a-z-]+)(?=-[0-9])' /proc/"$_pid"/cmdline \
-            2>/dev/null | head -1 || true)
+        _svc=$(docker exec "$KIND_CONTAINER" bash -c \
+            "tr '\0' ' ' < /proc/$_pid/cmdline 2>/dev/null \
+             | grep -oP '(?<=/)(ts-[a-z-]+)(?=-[0-9])' | head -1" 2>/dev/null || true)
         PID_TO_SERVICE["$_pid"]="${_svc:-unknown}"
     done < <(
         docker exec "$KIND_CONTAINER" bash -c '
@@ -91,15 +106,11 @@ if [ ${#SERVICE_PIDS[@]} -eq 0 ]; then
     exit 1
 fi
 
-
-
 log "============================================"
-log " SCENARIO : $SCENARIO"
-log " OUTPUT   : $OUT_DIR"
 log " SERVICES : ${#SERVICE_PIDS[@]}"
 log "============================================"
 for pid in "${SERVICE_PIDS[@]}"; do
-    printf "   %6s  %s\n" "$pid" "${PID_TO_SERVICE[$pid]:-unknown}"
+    printf "   %6s  %s\n" "$pid" "${PID_TO_SERVICE[$pid]:-unknown}" | tee -a "$LIVE_LOG"
 done
 log "============================================"
 
@@ -117,6 +128,7 @@ d = {}
 ${PID_MAP_PY}
 m = {
     'scenario':      '$SCENARIO',
+    'load_mode':     '$LOAD_MODE',
     'start_time':    '$START_TS',
     'log_file':      '$LOG_FILE',
     'service_count': ${#SERVICE_PIDS[@]},
@@ -127,38 +139,95 @@ with open('$META_FILE', 'w') as f:
     json.dump(m, f, indent=2)
 PYEOF
 
-# ── Start strace INSIDE the kind container ─────────────────────────────────
+# ── Start strace INSIDE the kind container ────────────────────────────────────
 P_ARGS=$(printf -- '-p %s ' "${SERVICE_PIDS[@]}")
 
 log "▶ Starting strace inside $KIND_CONTAINER on ${#SERVICE_PIDS[@]} services..."
-# Run strace in background inside the container; output goes to CONTAINER_LOG
+log "   syscalls : network,read,write,futex,clone,execve"
+log "   log file : $CONTAINER_LOG  (inside container)"
+
+# Run strace detached inside the container
 docker exec -d "$KIND_CONTAINER" bash -c \
     "strace $P_ARGS -f -tt -T \
      -e trace=network,read,write,futex,clone,execve \
      -o '$CONTAINER_LOG' 2>&1"
 
-# Brief pause to let strace attach before traffic starts
+# Brief pause to let strace attach
 sleep 3
-log "   strace running inside container, log: $CONTAINER_LOG"
+
+# Confirm strace is actually running inside the container
+STRACE_PID=$(docker exec "$KIND_CONTAINER" \
+    pgrep -f "strace.*$CONTAINER_LOG" 2>/dev/null | head -1 || true)
+if [ -n "$STRACE_PID" ]; then
+    log "   strace PID inside container: $STRACE_PID ✅"
+else
+    log "   ⚠️  strace process not found inside container — it may have failed to attach"
+fi
+
+# ── Live tail of strace log in background (prints to terminal) ───────────────
+log "▶ Live strace output (sampling every 5s):"
+log "   (first lines will appear after strace starts writing to $CONTAINER_LOG)"
+(
+    sleep 5   # give strace a moment before first peek
+    while true; do
+        COUNT=$(docker exec "$KIND_CONTAINER" \
+            wc -l < "$CONTAINER_LOG" 2>/dev/null || echo "?")
+        SAMPLE=$(docker exec "$KIND_CONTAINER" \
+            tail -3 "$CONTAINER_LOG" 2>/dev/null || true)
+        echo "[$(date '+%H:%M:%S')] [strace] lines so far: $COUNT" | tee -a "$LIVE_LOG"
+        if [ -n "$SAMPLE" ]; then
+            echo "$SAMPLE" | sed 's/^/   /' | tee -a "$LIVE_LOG"
+        fi
+        sleep 5
+    done
+) &
+TAIL_PID=$!
 
 # ── Run load from the host ────────────────────────────────────────────────────
-LOAD_MODE="minimal"
 log "▶ Running load: generateload.sh $LOAD_MODE"
+log "   (load output streamed live below)"
+log "------------------------------------------------------------"
+
 cd "$LOAD_DIR"
 # shellcheck disable=SC1090
 source "$LOAD_VENV"
-bash generateload.sh "$LOAD_MODE"
-LOAD_EXIT=$?
+# Run load; pipe through tee so output appears live AND is saved to run log.
+# Use PIPESTATUS so we capture the real exit code of generateload.sh, not tee.
+bash generateload.sh "$LOAD_MODE" 2>&1 | tee -a "$LIVE_LOG"
+LOAD_EXIT=${PIPESTATUS[0]}
 
-# ── Stop strace inside the container ────────────────────────────────────
+log "------------------------------------------------------------"
+log "   generateload.sh exited with code $LOAD_EXIT"
+
+# ── Stop the live tail ────────────────────────────────────────────────────────
+kill "$TAIL_PID" 2>/dev/null || true
+wait "$TAIL_PID" 2>/dev/null || true
+
+# ── Stop strace inside the container ─────────────────────────────────────────
 log "▶ Stopping strace inside container..."
 docker exec "$KIND_CONTAINER" bash -c \
     "pkill -f 'strace.*$CONTAINER_LOG' 2>/dev/null || pkill -x strace 2>/dev/null || true"
-sleep 1
+sleep 2   # give strace time to flush its output buffer
 
-# ── Copy log from container to host ─────────────────────────────────────────
-log "▶ Copying strace log from container to host..."
-docker cp "$KIND_CONTAINER:$CONTAINER_LOG" "$LOG_FILE"
+# ── Check strace wrote something ─────────────────────────────────────────────
+CONTAINER_LINES=$(docker exec "$KIND_CONTAINER" \
+    wc -l < "$CONTAINER_LOG" 2>/dev/null || echo 0)
+log "   Lines in container strace log: $CONTAINER_LINES"
+
+if [ "$CONTAINER_LINES" -eq 0 ] 2>/dev/null; then
+    log "⚠️  WARNING: strace log inside container is empty."
+    log "   Possible causes:"
+    log "   • strace failed to attach (check permissions / seccomp)"
+    log "   • All target PIDs exited before strace started"
+    log "   Copying empty file anyway so the run is recorded."
+fi
+
+# ── Copy log from container to host ──────────────────────────────────────────
+log "▶ Copying strace log from container → $LOG_FILE"
+docker cp "$KIND_CONTAINER:$CONTAINER_LOG" "$LOG_FILE" && \
+    log "   Copy OK" || \
+    log "⚠️  docker cp failed — log may be missing inside container"
+
 # Clean up inside the container
 docker exec "$KIND_CONTAINER" rm -f "$CONTAINER_LOG" 2>/dev/null || true
 
@@ -181,8 +250,15 @@ PYEOF
 
 log ""
 log "============================================"
-log " ✅ Done — $SCENARIO"
-log "    Lines : $LINE_COUNT"
-log "    Size  : $FILE_SIZE"
-log "    File  : $LOG_FILE"
+if [ "$LINE_COUNT" -gt 0 ]; then
+    log " ✅ Done — $SCENARIO"
+else
+    log " ⚠️  Done (EMPTY LOG) — $SCENARIO"
+fi
+log "    Lines     : $LINE_COUNT"
+log "    Size      : $FILE_SIZE"
+log "    strace log: $LOG_FILE"
+log "    run log   : $LIVE_LOG"
+log "    meta      : $META_FILE"
+log "    load exit : $LOAD_EXIT"
 log "============================================"

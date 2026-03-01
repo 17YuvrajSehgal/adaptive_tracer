@@ -22,7 +22,7 @@ MYSQL_USER="root"
 MYSQL_PASS="${MYSQL_ROOT_PASSWORD:-Abcd1234#}"
 MYSQL_DB="ts"
 
-log() { echo "[$(date '+%H:%M:%S')] $*"; }
+log() { echo "[$(date '+%H:%M:%S')] [anomaly] $*"; }
 
 start_cpu_stress() {
     log "🔥 Starting CPU stress (all cores, 85% load)..."
