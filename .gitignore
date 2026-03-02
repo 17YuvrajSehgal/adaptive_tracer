@@ -8,3 +8,5 @@ __pycache__/
 *$py.class
 
 .venv
+/grafana-pdfs
+experiments.tar.gz
