@@ -83,7 +83,7 @@ import pickle
 import argparse
 import numpy as np
 from time import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 from collections import defaultdict
 
 # ── optional babeltrace2 import (graceful fallback for offline dev) ──────────
@@ -98,6 +98,18 @@ except ImportError:
 # Add project root to path so we can import existing LMAT modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dataset.Dictionary import Dictionary
+
+###############################################################################
+# Logging helper  (stdout so python -u flushes live to SLURM log)
+###############################################################################
+
+_JOB_START = time()
+
+def log(msg: str, *, prefix: str = "INFO") -> None:
+    """Print a timestamped line to stdout (flushed immediately via python -u)."""
+    elapsed = timedelta(seconds=int(time() - _JOB_START))
+    now     = datetime.now().strftime("%H:%M:%S")
+    print(f"[{now} +{elapsed}] [{prefix}] {msg}", flush=True)
 
 ###############################################################################
 # Constants
@@ -295,14 +307,35 @@ def _kernel_events(kernel_trace_dir, warmup_ns):
         )
 
     it = bt2.TraceCollectionMessageIterator(ctf_path)
+    _counter = 0
+    _skipped = 0
+    _t0 = time()
+    _LOG_EVERY = 500_000
+
     for msg in it:
         if not isinstance(msg, bt2._EventMessageConst):
             continue
         ev = msg.event
         ts = msg.default_clock_snapshot.ns_from_origin
 
+        _counter += 1
         if ts < warmup_ns:
+            _skipped += 1
+            if _counter % _LOG_EVERY == 0:
+                rate = _counter / max(1, time() - _t0)
+                log(f"  kernel read: {_counter:>10,} events  "
+                    f"(skipping warm-up)  {rate:,.0f} ev/s",
+                    prefix="PARSE")
             continue
+
+        if _counter % _LOG_EVERY == 0:
+            elapsed = timedelta(seconds=int(time() - _t0))
+            kept    = _counter - _skipped
+            rate    = kept / max(1, time() - _t0)
+            log(f"  kernel read: {_counter:>10,} total  "
+                f"{kept:>10,} kept  {_skipped:>8,} warm-up skipped  "
+                f"{rate:,.0f} ev/s  elapsed {elapsed}",
+                prefix="PARSE")
 
         # Normalise syscall name (remove prefixes)
         raw_name = ev.name
@@ -645,14 +678,20 @@ def write_shards(sequences, split_dir, shard_size, delay_spans, is_anomaly):
     is_anomaly : int, 0 or 1
     """
     os.makedirs(split_dir, exist_ok=True)
-    n_shards = (len(sequences) + shard_size - 1) // shard_size
+    n_total  = len(sequences)
+    n_shards = (n_total + shard_size - 1) // shard_size
     written  = 0
+    t0_write = time()
+
+    log(f"Writing {n_total:,} sequences → {n_shards} shard(s) in {split_dir}",
+        prefix="SHARD")
 
     for shard_idx in range(n_shards):
         batch = sequences[shard_idx * shard_size:(shard_idx + 1) * shard_size]
         if not batch:
             break
 
+        t_shard = time()
         max_len = max(s["seq_len"] for s in batch)
 
         def pad(arr, maxl, pad_val=0, dtype=np.int32):
@@ -679,7 +718,17 @@ def write_shards(sequences, split_dir, shard_size, delay_spans, is_anomaly):
         shard_path = os.path.join(split_dir, f"shard_{shard_idx:06d}.npz")
         np.savez_compressed(shard_path, **shard_data)
         written += len(batch)
-        print(f"  wrote {shard_path}  ({len(batch)} sequences)", file=sys.stderr)
+
+        # ── progress line with ETA ───────────────────────────────────────────
+        pct      = written / n_total * 100
+        elapsed  = time() - t0_write
+        eta_s    = (elapsed / written) * (n_total - written) if written else 0
+        eta_str  = str(timedelta(seconds=int(eta_s)))
+        shard_ms = (time() - t_shard) * 1000
+        log(f"  shard {shard_idx+1:>4}/{n_shards}  "
+            f"{written:>7,}/{n_total:,} seqs  ({pct:5.1f}%)  "
+            f"padded_len={max_len}  {shard_ms:.0f}ms/shard  ETA {eta_str}",
+            prefix="SHARD")
 
     return written
 
@@ -701,14 +750,16 @@ def process_run(run_dir, seg_mode, window_ms, warmup_s, min_events,
 
     warmup_ns = int(warmup_s * 1e9)
 
-    print(f"\n[INFO] Processing run: {run_dir}", file=sys.stderr)
-    print(f"  seg_mode={seg_mode}  warmup={warmup_s}s  window_ms={window_ms}",
-          file=sys.stderr)
+    log(f"{'─'*56}", prefix="RUN")
+    log(f"Run dir  : {run_dir}", prefix="RUN")
+    log(f"seg_mode={seg_mode}  warmup={warmup_s}s  "
+        f"window_ms={window_ms}  is_train={is_train}", prefix="RUN")
 
     # ── 1. Collect kernel events ─────────────────────────────────────────────
     t0 = time()
     kernel_evs = []
     if BT2_AVAILABLE and os.path.isdir(kernel_dir):
+        log(f"Reading kernel trace from {kernel_dir} ...", prefix="PARSE")
         first_ts = None
         for ev in _kernel_events(kernel_dir, warmup_ns=0):
             if first_ts is None:
@@ -716,11 +767,16 @@ def process_run(run_dir, seg_mode, window_ms, warmup_s, min_events,
             if ev["timestamp"] - (first_ts or 0) < int(warmup_s * 1e9):
                 continue
             kernel_evs.append(ev)
-    print(f"  kernel events collected: {len(kernel_evs):,}  "
-          f"({timedelta(seconds=round(time()-t0))})", file=sys.stderr)
+    else:
+        log(f"[SKIP] kernel dir not found or bt2 unavailable: {kernel_dir}",
+            prefix="WARN")
+
+    parse_dur = timedelta(seconds=round(time() - t0))
+    log(f"Kernel events collected: {len(kernel_evs):,}  "
+        f"(parse time {parse_dur})", prefix="PARSE")
 
     if not kernel_evs:
-        print(f"  [SKIP] No kernel events found in {kernel_dir}", file=sys.stderr)
+        log(f"[SKIP] No kernel events — skipping run.", prefix="WARN")
         return [], delay_spans
 
     trace_start_ns = kernel_evs[0]["timestamp"]
@@ -728,26 +784,40 @@ def process_run(run_dir, seg_mode, window_ms, warmup_s, min_events,
     # ── 2. Segment ───────────────────────────────────────────────────────────
     t0 = time()
     if seg_mode == "ust" and os.path.isdir(ust_dir):
+        log(f"Extracting UST OTel spans from {ust_dir} ...", prefix="SEG")
         warmup_abs_ns = trace_start_ns + int(warmup_s * 1e9)
         spans = _extract_ust_spans(ust_dir, ust_event_name, warmup_abs_ns)
-        print(f"  UST spans extracted: {len(spans):,}", file=sys.stderr)
+        log(f"UST spans extracted: {len(spans):,}", prefix="SEG")
         if spans:
+            log(f"Matching kernel events to {len(spans):,} spans ...", prefix="SEG")
             raw_segments = segment_ust(kernel_evs, spans, min_events)
         else:
-            print("  [WARN] No UST spans → falling back to time-window",
-                  file=sys.stderr)
+            log("No UST spans — falling back to TID time-window segmentation",
+                prefix="WARN")
             raw_segments = segment_time(kernel_evs, window_ms, min_events)
     else:
+        log(f"TID time-window segmentation (window_ms={window_ms}) ...",
+            prefix="SEG")
         raw_segments = segment_time(kernel_evs, window_ms, min_events)
 
-    print(f"  segments (before encoding): {len(raw_segments):,}  "
-          f"({timedelta(seconds=round(time()-t0))})", file=sys.stderr)
+    seg_dur = timedelta(seconds=round(time() - t0))
+    log(f"Segments produced: {len(raw_segments):,}  "
+        f"(min_events={min_events}  seg time {seg_dur})", prefix="SEG")
+
+    if not raw_segments:
+        log("[SKIP] Zero segments after filtering — check --min_events.",
+            prefix="WARN")
+        return [], delay_spans
 
     # ── 3. Encode sequences ─────────────────────────────────────────────────
-    encoded = []
+    t0 = time()
+    log(f"Encoding {len(raw_segments):,} sequences ...", prefix="ENC")
+    encoded       = []
     all_latencies = []
     all_names     = []
-    for evs, dur_ms, _ in raw_segments:
+    _LOG_ENC = max(1, len(raw_segments) // 20)  # log ~20 times
+
+    for idx, (evs, dur_ms, _) in enumerate(raw_segments):
         enc = encode_sequence(evs, dict_sys, dict_proc, is_train, max_seq_len)
         enc["req_dur_ms"] = dur_ms
         enc["seq_len"]    = len(enc["call"])
@@ -755,22 +825,46 @@ def process_run(run_dir, seg_mode, window_ms, warmup_s, min_events,
         all_latencies.append(enc["raw_lat"])
         all_names.append(enc["ev_names"])
 
+        if (idx + 1) % _LOG_ENC == 0 or (idx + 1) == len(raw_segments):
+            pct     = (idx + 1) / len(raw_segments) * 100
+            elapsed = time() - t0
+            eta_s   = (elapsed / (idx + 1)) * (len(raw_segments) - idx - 1)
+            log(f"  encoded {idx+1:>7,}/{len(raw_segments):,}  "
+                f"({pct:5.1f}%)  vocab={len(dict_sys)}  "
+                f"ETA {timedelta(seconds=int(eta_s))}",
+                prefix="ENC")
+
+    enc_dur = timedelta(seconds=round(time() - t0))
+    log(f"Encoding done in {enc_dur}  "
+        f"vocab: {len(dict_sys)} syscalls / {len(dict_proc)} procs",
+        prefix="ENC")
+
     # ── 4. Update latency boundaries (train only) ────────────────────────────
     if is_train:
+        log("Building latency boundary spans from training data ...", prefix="LAT")
+        t0 = time()
         new_spans = build_delay_spans(all_latencies, all_names, n_categories)
         if delay_spans is None:
             delay_spans = new_spans
         else:
             delay_spans = merge_delay_spans(delay_spans, new_spans)
+        log(f"Delay spans updated: {len(delay_spans)} event types  "
+            f"({timedelta(seconds=round(time()-t0))})", prefix="LAT")
 
     # ── 5. Categorise latencies ─────────────────────────────────────────────
+    t0 = time()
     if delay_spans is not None:
+        log(f"Categorising latencies for {len(encoded):,} sequences ...",
+            prefix="LAT")
         for enc in encoded:
             enc["lat_cat"] = categorise_latency_vec(
                 enc["raw_lat"], enc["ev_names"], delay_spans
             )
+        log(f"Latency categorisation done  ({timedelta(seconds=round(time()-t0))})",
+            prefix="LAT")
     else:
-        # No spans yet (will be applied later); store raw zeros
+        log("No delay spans yet — lat_cat set to zeros (will be re-applied later)",
+            prefix="WARN")
         for enc in encoded:
             enc["lat_cat"] = np.zeros(enc["seq_len"], dtype=np.uint8)
 
@@ -787,18 +881,34 @@ def main():
 
     os.makedirs(args.output_dir, exist_ok=True)
 
+    log("="*60, prefix="START")
+    log("SockShop LTTng → NPZ preprocessing", prefix="START")
+    log(f"trace_root  : {args.trace_root}",  prefix="START")
+    log(f"output_dir  : {args.output_dir}",  prefix="START")
+    log(f"seg_mode    : {args.seg_mode}",     prefix="START")
+    log(f"n_categories: {args.n_categories}", prefix="START")
+    log(f"shard_size  : {args.shard_size}",   prefix="START")
+    log(f"warmup_s    : {args.warmup_s}",     prefix="START")
+    log(f"min_events  : {args.min_events}",   prefix="START")
+    log("="*60, prefix="START")
+
     # Parse split specs ---------------------------------------------------
     split_specs = []
     for spec in args.splits:
         parts = spec.split(":")
         if len(parts) != 3:
-            print(f"[ERROR] Invalid split spec '{spec}' — expected NAME:DIRS:LABEL",
-                  file=sys.stderr)
+            log(f"Invalid split spec '{spec}' — expected NAME:DIRS:LABEL",
+                prefix="ERROR")
             sys.exit(1)
         name, dirs_str, label_str = parts
         dirs  = [d.strip() for d in dirs_str.split(",") if d.strip()]
         label = int(label_str)
         split_specs.append({"name": name, "dirs": dirs, "label": label})
+
+    log(f"Splits to process ({len(split_specs)} total):", prefix="START")
+    for s in split_specs:
+        log(f"  {s['name']:<20} dirs={s['dirs']}  label={s['label']}",
+            prefix="START")
 
     if not split_specs:
         print("[ERROR] No splits specified.", file=sys.stderr)

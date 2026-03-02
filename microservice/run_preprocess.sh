@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=24
 #SBATCH --time=06:00:00
 #SBATCH --output=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/%x-%j.out
-#SBATCH --mail-type=FAIL
+#SBATCH --mail-type=BEGIN,END,FAIL
 
 set -euo pipefail
 
@@ -39,7 +39,7 @@ source $PROJECT/.venv/bin/activate
 # The FIRST split is always treated as the training split (builds vocab + latency
 # boundaries).  All subsequent splits use the frozen vocab.
 
-srun python microservice/preprocess_sockshop.py \
+srun python -u microservice/preprocess_sockshop.py \
     --trace_root  "$TRACE_ROOT" \
     --output_dir  "$OUTPUT_DIR" \
     --splits \
