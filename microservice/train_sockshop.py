@@ -305,9 +305,12 @@ def evaluate_split(model, loader, device, args, crit_e, crit_l,
             le, ll = forward_batch(model, batch, device, args)
             loss, loss_e, loss_l = compute_loss(le, ll, batch, device, args, crit_e, crit_l)
 
-        tot_loss += loss.item()
-        tot_e    += loss_e.item()
-        tot_l    += loss_l.item()
+        v_loss = loss.item()
+        if not math.isnan(v_loss):
+            tot_loss += v_loss
+            tot_e    += loss_e.item()
+            tot_l    += loss_l.item()
+            n += 1
         tgt_call  = batch["tgt_call"].to(device, dtype=torch.long, non_blocking=True)
         tgt_lat   = batch["tgt_lat" ].to(device, dtype=torch.long, non_blocking=True)
         if args.train_event_model and le.numel() > 0:
@@ -323,10 +326,10 @@ def evaluate_split(model, loader, device, args, crit_e, crit_l,
                 le.reshape(B*L, V), tgt_call.reshape(B*L)).reshape(B, L)
             mask = tgt_call != 0
             seq_sc = (per_tok * mask).sum(1) / mask.sum(1).clamp(min=1)
-            scores.append(seq_sc.cpu().numpy())
+            scores.append(seq_sc.float().cpu().numpy())
             labels.append(batch["is_anomaly"].numpy())
 
-        n += 1
+
 
     out = dict(loss=tot_loss/max(n,1), loss_e=tot_e/max(n,1),
                loss_l=tot_l/max(n,1),
@@ -545,6 +548,7 @@ def main():
         acc_e_sum = acc_e_cnt = 0.0
         acc_l_sum = acc_l_cnt = 0.0
         n_batches  = 0
+        valid_loss_batches = 0
         optimizer.zero_grad(set_to_none=True)
 
         pbar = (tqdm(train_loader, desc=f"Ep{epoch:02d}/{args.n_epochs}",
@@ -574,7 +578,9 @@ def main():
                 global_step += 1
 
             raw_loss = loss.item() * args.accum_steps
-            epoch_loss += raw_loss
+            if not math.isnan(raw_loss):
+                epoch_loss += raw_loss
+                valid_loss_batches += 1
             tgt_call = batch["tgt_call"].to(device, dtype=torch.long, non_blocking=True)
             tgt_lat  = batch["tgt_lat" ].to(device, dtype=torch.long, non_blocking=True)
             if args.train_event_model and logits_e.numel() > 0:
@@ -601,7 +607,7 @@ def main():
             # Log every 100 optimizer steps (rank 0 only)
             if is_main and is_optim_step and global_step % 100 == 0:
                 metrics = {
-                    "train/loss":  epoch_loss / n_batches,
+                    "train/loss":  epoch_loss / max(valid_loss_batches, 1),
                     "train/acc_e": epoch_acc_e,
                     "train/acc_l": epoch_acc_l,
                     "train/lr":    cur_lr,
@@ -611,7 +617,7 @@ def main():
                 if global_step % 500 == 0:
                     elapsed = timedelta(seconds=int(time.time() - t_start))
                     log(f"step={global_step:6d}  epoch={epoch}  "
-                        f"loss={epoch_loss/n_batches:.4f}  "
+                        f"loss={epoch_loss/max(valid_loss_batches, 1):.4f}  "
                         f"acc_e={epoch_acc_e:.2%}  "
                         f"lr={cur_lr:.2e}  elapsed={elapsed}")
 
@@ -651,7 +657,7 @@ def main():
         # End of epoch
         elapsed = timedelta(seconds=int(time.time() - t_start))
         log(f"Epoch {epoch:3d}/{args.n_epochs}  "
-            f"loss={epoch_loss/max(n_batches,1):.4f}  "
+            f"loss={epoch_loss/max(valid_loss_batches,1):.4f}  "
             f"acc_e={epoch_acc_e:.2%}  "
             f"acc_l={epoch_acc_l:.2%}  "
             f"elapsed={elapsed}")
