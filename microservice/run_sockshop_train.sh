@@ -15,13 +15,16 @@
 #SBATCH --output=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/%x-%j.out
 #SBATCH --mail-type=BEGIN,END,FAIL
 
-# ── Environment ──────────────────────────────────────────────────────────────
+set -euo pipefail
+
+# ---- Modules (per Trillium docs) ----
 module purge
-module load StdEnv/2023 python/3.11.5
+module load StdEnv/2023
+module load cuda/12.6
+module load python/3.11.5
 
+# ---- Paths (SCRATCH is writable on compute nodes; HOME/PROJECT are read-only) ----
 PROJECT=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer
-source $PROJECT/.venv/bin/activate
-
 SCRATCH=/scratch/yuvraj17/adaptive_tracing_scratch
 PREPROCESSED=$SCRATCH/micro-service-trace-data/preprocessed
 LOG_DIR=$SCRATCH/adaptive_tracer/logs/sockshop_${SLURM_JOB_ID}
@@ -29,7 +32,13 @@ WANDB_DIR=$LOG_DIR
 
 mkdir -p "$LOG_DIR"
 
-# ── WandB (offline mode is safe on cluster — sync later with `wandb sync`) ──
+# ---- Optional: avoid CPU thread blowups ----
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+
+# ---- WandB offline (safe on cluster) ----
 export WANDB_MODE=offline
 export WANDB_DIR="$LOG_DIR"
 export WANDB_CACHE_DIR="$SCRATCH/wandb_cache"
@@ -42,15 +51,48 @@ export HF_HOME="$SCRATCH/.hf_cache"
 mkdir -p "$TRITON_CACHE_DIR" "$TORCH_HOME"
 
 echo "============================================================"
-echo "Job ID      : $SLURM_JOB_ID"
-echo "Node        : $SLURMD_NODENAME"
-echo "GPU         : $(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)"
-echo "Preprocessed: $PREPROCESSED"
-echo "Log dir     : $LOG_DIR"
+echo "Job ID       : $SLURM_JOB_ID"
+echo "Partition    : $SLURM_JOB_PARTITION"
+echo "Node         : $SLURMD_NODENAME"
+echo "Submit dir   : $SLURM_SUBMIT_DIR"
+echo "Project dir  : $PROJECT"
+echo "Scratch dir  : $SCRATCH"
+echo "Preprocessed : $PREPROCESSED"
+echo "Log dir      : $LOG_DIR"
 echo "============================================================"
 
-# ── Training ─────────────────────────────────────────────────────────────────
-cd $PROJECT
+# ---- Sanity checks ----
+echo "[1/6] Module list"
+module list
+
+echo "[2/6] GPU visible to job"
+srun nvidia-smi
+
+echo "[3/6] Python + CUDA sanity (PyTorch)"
+source "$PROJECT/.venv/bin/activate"
+
+srun python - <<'PY'
+import os, sys
+print("Python:", sys.version.split()[0])
+try:
+    import torch
+    print("torch:", torch.__version__)
+    print("cuda available:", torch.cuda.is_available())
+    if torch.cuda.is_available():
+        print("gpu count:", torch.cuda.device_count())
+        print("gpu name:", torch.cuda.get_device_name(0))
+        x = torch.randn(1024, 1024, device="cuda")
+        y = x @ x
+        print("matmul ok, y mean:", y.mean().item())
+except Exception as e:
+    print("ERROR importing/using torch:", e)
+    raise
+PY
+
+echo "[4/6] Check that preprocessed directory exists"
+srun bash -lc "ls -lah '$PREPROCESSED' | head -50"
+
+cd "$PROJECT"
 
 python -u microservice/train_sockshop.py \
     --preprocessed_dir "$PREPROCESSED" \
