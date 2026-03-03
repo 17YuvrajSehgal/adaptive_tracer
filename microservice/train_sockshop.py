@@ -299,9 +299,6 @@ def evaluate_split(model, loader, device, args, crit_e, crit_l,
     scores, labels = [], []
 
     for batch in loader:
-        if args.compile and device.type == "cuda":
-            torch.compiler.cudagraph_mark_step_begin()
-
         with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16,
                                 enabled=args.amp and device.type == "cuda"):
             le, ll = forward_batch(model, batch, device, args)
@@ -486,8 +483,12 @@ def main():
         model.load_state_dict(torch.load(args.load_model, map_location=device))
         log(f"Loaded checkpoint from {args.load_model}")
 
+    # Compile model
     if args.compile and torch.cuda.is_available():
         log("Compiling model with torch.compile ...")
+        # Disable CUDAGraphs to prevent the "overwritten by subsequent run" embedding bug
+        import torch._inductor.config
+        torch._inductor.config.triton.cudagraphs = False
         model = torch.compile(model, mode="reduce-overhead")
 
     # Wrap in DDP after compile
@@ -551,9 +552,6 @@ def main():
                 if HAS_TQDM else train_loader)
 
         for batch in pbar:
-            if args.compile and device.type == "cuda":
-                torch.compiler.cudagraph_mark_step_begin()
-
             is_optim_step = ((n_batches + 1) % args.accum_steps == 0)
 
             with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16,
