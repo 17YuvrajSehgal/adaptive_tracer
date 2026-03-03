@@ -180,11 +180,24 @@ class Logger:
     def log(self, metrics: dict, step: int):
         if self.use_wandb:
             wandb.log(metrics, step=step)
+        
+        # Check if we need to initialize or update fieldnames
+        current_keys = ["step"] + list(metrics.keys())
+        needs_new_header = False
+        
         if self._writer is None:
-            self._file   = open(self.csv_path, "w", newline="", buffering=1)
-            self._writer = csv.DictWriter(
-                self._file, fieldnames=["step"] + list(metrics.keys()))
+            self._file = open(self.csv_path, "w", newline="", buffering=1)
+            self._writer = csv.DictWriter(self._file, fieldnames=current_keys)
+            needs_new_header = True
+        else:
+            missing_keys = [k for k in current_keys if k not in self._writer.fieldnames]
+            if missing_keys:
+                self._writer.fieldnames.extend(missing_keys)
+                needs_new_header = True
+                
+        if needs_new_header:
             self._writer.writeheader()
+            
         row = {"step": step}
         row.update({k: f"{v:.6g}" if isinstance(v, float) else v
                     for k, v in metrics.items()})
