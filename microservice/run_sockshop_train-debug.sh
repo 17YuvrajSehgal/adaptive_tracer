@@ -120,7 +120,6 @@ python -u microservice/train_sockshop.py \
     --num_workers     4 \
     --label_smoothing 0.1 \
     --amp \
-    --compile \
     --eval_every  2000 \
     --save_every  5000 \
     --wandb_project sockshop_lmat \
