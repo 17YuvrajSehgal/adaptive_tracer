@@ -6,6 +6,7 @@
 #SBATCH --job-name=sockshop_train
 #SBATCH --account=def-naser2
 #SBATCH --nodes=1
+#SBATCH --partition=compute_full_node
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --time=24:00:00

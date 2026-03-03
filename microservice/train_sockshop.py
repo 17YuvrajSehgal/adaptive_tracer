@@ -48,6 +48,8 @@ from datetime import datetime, timedelta
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 
 # Ensure project root on sys.path
@@ -134,8 +136,9 @@ def get_args():
     p.add_argument("--wandb_run_name", type=str, default=None)
     p.add_argument("--load_model",     type=str, default=None)
 
-    # GPU
-    p.add_argument("--gpu", type=int, default=0)
+    # GPU — when launched via torchrun, LOCAL_RANK overrides --gpu
+    p.add_argument("--gpu", type=int, default=0,
+                   help="GPU index (single-GPU mode). Overridden by torchrun LOCAL_RANK.")
 
     args = p.parse_args()
     if not (args.train_event_model or args.train_latency_model):
@@ -392,25 +395,48 @@ def run_ood_eval(model, args, device, crit_e, crit_l, log_fn):
 def main():
     args = get_args()
 
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
+    # ── DDP / single-GPU setup ─────────────────────────────────────────────
+    local_rank = int(os.environ.get("LOCAL_RANK", -1))
+    ddp_enabled = local_rank >= 0
+
+    if ddp_enabled:
+        dist.init_process_group(backend="nccl")
+        world_size = dist.get_world_size()
+        rank       = dist.get_rank()
+        device     = torch.device(f"cuda:{local_rank}")
+        torch.cuda.set_device(device)
+    else:
+        rank       = 0
+        world_size = 1
+        device     = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu")
+
+    is_main = (rank == 0)   # only rank 0 logs, saves, and writes WandB
+
+    random.seed(args.seed + rank)
+    np.random.seed(args.seed + rank)
+    torch.manual_seed(args.seed + rank)
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32       = True
 
-    device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu")
-    os.makedirs(args.log_dir, exist_ok=True)
+    if is_main:
+        os.makedirs(args.log_dir, exist_ok=True)
+    if ddp_enabled:
+        dist.barrier()   # wait for rank 0 to create log_dir
 
-    log_file = open(os.path.join(args.log_dir, "train.log"), "a", buffering=1)
+    log_file = open(os.path.join(args.log_dir, f"train_rank{rank}.log"), "a", buffering=1)
 
     def log(msg):
-        line = f"[{datetime.now():%H:%M:%S}] {msg}"
-        print(line, flush=True)
-        log_file.write(line + "\n")
-        log_file.flush()
+        line = f"[{datetime.now():%H:%M:%S}][rank{rank}] {msg}"
+        if is_main:
+            print(line, flush=True)
+            log_file.write(line + "\n")
+            log_file.flush()
+        elif "ERROR" in msg or "WARN" in msg:
+            # non-main ranks only print errors
+            print(line, flush=True)
 
-    use_wandb = bool(args.wandb_project) and HAS_WANDB
-    logger    = Logger(args.log_dir, use_wandb, args)
+    use_wandb = bool(args.wandb_project) and HAS_WANDB and is_main
+    logger    = Logger(args.log_dir, use_wandb, args) if is_main else None
 
     # Vocab
     with open(os.path.join(args.preprocessed_dir, "vocab.pkl"), "rb") as f:
@@ -418,6 +444,8 @@ def main():
     n_syscall = len(dict_sys)
     n_process = len(dict_proc)
     log(f"Vocab: {n_syscall} syscalls / {n_process} processes")
+    if ddp_enabled:
+        log(f"DDP: world_size={world_size}  local_rank={local_rank}  device={device}")
 
     # Datasets + loaders
     def make_loader(split, shuffle=True, workers=None):
@@ -437,7 +465,17 @@ def main():
 
     train_ds, train_loader = make_loader("train_id",  shuffle=True)
     valid_ds, valid_loader = make_loader("valid_id",  shuffle=False)
-    log(f"Train shards: {len(train_ds._shards)}  Valid shards: {len(valid_ds._shards)}")
+
+    # Assign DDP rank so each GPU reads disjoint shards
+    if ddp_enabled:
+        train_ds.rank       = rank
+        train_ds.world_size = world_size
+        if valid_ds is not None:
+            valid_ds.rank       = rank
+            valid_ds.world_size = world_size
+
+    log(f"Train shards for this rank: {len(train_ds._shards) // world_size}  "
+        f"(total={len(train_ds._shards)})  Valid shards: {len(valid_ds._shards) if valid_ds else 0}")
 
     # Model
     model = build_model(args, n_syscall, n_process, device)
@@ -449,12 +487,18 @@ def main():
         log("Compiling model with torch.compile ...")
         model = torch.compile(model, mode="reduce-overhead")
 
+    # Wrap in DDP after compile
+    if ddp_enabled:
+        model = DDP(model, device_ids=[local_rank], output_device=local_rank,
+                    find_unused_parameters=False)
+
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    log(f"Model: {args.model.upper()}  params={n_params:,}")
-    log(f"  n_hidden={args.n_hidden}  n_layer={args.n_layer}  n_head={args.n_head}")
-    log(f"  AMP(bf16)={args.amp}  compile={args.compile}  chk={args.chk}")
-    log(f"  batch={args.batch}  accum_steps={args.accum_steps}  "
-        f"eff_batch={args.batch * args.accum_steps}")
+    if is_main:
+        log(f"Model: {args.model.upper()}  params={n_params:,}")
+        log(f"  n_hidden={args.n_hidden}  n_layer={args.n_layer}  n_head={args.n_head}")
+        log(f"  AMP(bf16)={args.amp}  compile={args.compile}  chk={args.chk}  DDP={ddp_enabled}")
+        log(f"  batch={args.batch}  accum_steps={args.accum_steps}  world_size={world_size}  "
+            f"eff_batch={args.batch * args.accum_steps * world_size}")
 
     # Loss criteria
     crit_e = (nn.CrossEntropyLoss(ignore_index=0, label_smoothing=args.label_smoothing)
@@ -478,8 +522,11 @@ def main():
     with open(os.path.join(args.log_dir, "config.json"), "w") as f:
         json.dump(vars(args), f, indent=2)
 
+    if ddp_enabled:
+        dist.barrier()   # all ranks ready before training
+
     log("=" * 70)
-    log(f"Starting training  device={device}  total_steps~={total_steps}")
+    log(f"Starting training  device={device}  total_steps~={total_steps}  world_size={world_size}")
     log("=" * 70)
 
     global_step   = 0
@@ -547,8 +594,8 @@ def main():
                     lr=f"{cur_lr:.2e}",
                     step=global_step)
 
-            # Log every 100 optimizer steps
-            if is_optim_step and global_step % 100 == 0:
+            # Log every 100 optimizer steps (rank 0 only)
+            if is_main and is_optim_step and global_step % 100 == 0:
                 metrics = {
                     "train/loss":  epoch_loss / n_batches,
                     "train/acc_e": epoch_acc_e,
@@ -556,7 +603,7 @@ def main():
                     "train/lr":    cur_lr,
                     "train/epoch": epoch,
                 }
-                logger.log(metrics, step=global_step)
+                if logger: logger.log(metrics, step=global_step)
                 if global_step % 500 == 0:
                     elapsed = timedelta(seconds=int(time.time() - t_start))
                     log(f"step={global_step:6d}  epoch={epoch}  "
@@ -564,31 +611,37 @@ def main():
                         f"acc_e={epoch_acc_e:.2%}  "
                         f"lr={cur_lr:.2e}  elapsed={elapsed}")
 
-            # Validation
+            # Validation — run on all ranks, but only log from rank 0
             if (valid_loader and is_optim_step and
                     global_step > 0 and global_step % args.eval_every == 0):
-                log(f"--- Validation @ step {global_step} ---")
-                res = evaluate_split(model, valid_loader, device, args, _crit_e, _crit_l)
-                log(f"  val loss={res['loss']:.4f}  "
-                    f"loss_e={res['loss_e']:.4f}  acc_e={res['acc_e']:.2%}  "
-                    f"acc_l={res['acc_l']:.2%}")
-                logger.log({f"val/{k}": v for k, v in res.items()
-                             if not isinstance(v, np.ndarray)},
-                            step=global_step)
+                # Sync before eval so all ranks use same model state
+                if ddp_enabled: dist.barrier()
+                if is_main:
+                    log(f"--- Validation @ step {global_step} ---")
+                    res = evaluate_split(model, valid_loader, device, args, _crit_e, _crit_l)
+                    log(f"  val loss={res['loss']:.4f}  "
+                        f"loss_e={res['loss_e']:.4f}  acc_e={res['acc_e']:.2%}  "
+                        f"acc_l={res['acc_l']:.2%}")
+                    if logger: logger.log({f"val/{k}": v for k, v in res.items()
+                                 if not isinstance(v, np.ndarray)},
+                                step=global_step)
+                    if res["loss"] < best_val_loss:
+                        best_val_loss = res["loss"]
+                        best_path = os.path.join(args.log_dir, "model_best.pt")
+                        raw = (model.module if ddp_enabled else
+                               model._orig_mod if hasattr(model, "_orig_mod") else model)
+                        if logger: logger.save_model(raw, best_path)
+                        log(f"  New best val loss={best_val_loss:.4f} -> {best_path}")
+                if ddp_enabled: dist.barrier()
                 model.train()
-                if res["loss"] < best_val_loss:
-                    best_val_loss = res["loss"]
-                    best_path = os.path.join(args.log_dir, "model_best.pt")
-                    raw = model._orig_mod if hasattr(model, "_orig_mod") else model
-                    logger.save_model(raw, best_path)
-                    log(f"  New best val loss={best_val_loss:.4f} -> {best_path}")
 
-            # Periodic checkpoint
-            if (is_optim_step and global_step > 0 and
+            # Periodic checkpoint (rank 0 only)
+            if (is_main and is_optim_step and global_step > 0 and
                     global_step % args.save_every == 0):
                 ckpt = os.path.join(args.log_dir, f"ckpt_{global_step:07d}.pt")
-                raw  = model._orig_mod if hasattr(model, "_orig_mod") else model
-                logger.save_model(raw, ckpt)
+                raw  = (model.module if ddp_enabled else
+                        model._orig_mod if hasattr(model, "_orig_mod") else model)
+                if logger: logger.save_model(raw, ckpt)
                 log(f"  Checkpoint -> {ckpt}")
 
         # End of epoch
@@ -598,31 +651,38 @@ def main():
             f"acc_e={epoch_acc_e:.2%}  "
             f"acc_l={epoch_acc_l:.2%}  "
             f"elapsed={elapsed}")
-        raw = model._orig_mod if hasattr(model, "_orig_mod") else model
-        logger.save_model(raw, os.path.join(args.log_dir, f"ckpt_epoch{epoch:03d}.pt"))
+        if is_main:
+            raw = (model.module if ddp_enabled else
+                   model._orig_mod if hasattr(model, "_orig_mod") else model)
+            if logger: logger.save_model(raw, os.path.join(args.log_dir, f"ckpt_epoch{epoch:03d}.pt"))
 
-    # Load best checkpoint for OOD eval
-    log("=" * 70)
-    log("Training complete — OOD evaluation")
-    log("=" * 70)
-    raw = model._orig_mod if hasattr(model, "_orig_mod") else model
-    best_path = os.path.join(args.log_dir, "model_best.pt")
-    if os.path.isfile(best_path):
-        raw.load_state_dict(torch.load(best_path, map_location=device))
-        log(f"Loaded best model from {best_path}")
+    # ── OOD eval + final save (rank 0 only) ─────────────────────────────────
+    if is_main:
+        log("=" * 70)
+        log("Training complete — OOD evaluation")
+        log("=" * 70)
+        raw = (model.module if ddp_enabled else
+               model._orig_mod if hasattr(model, "_orig_mod") else model)
+        best_path = os.path.join(args.log_dir, "model_best.pt")
+        if os.path.isfile(best_path):
+            raw.load_state_dict(torch.load(best_path, map_location=device))
+            log(f"Loaded best model from {best_path}")
 
-    ood_results = run_ood_eval(raw, args, device, _crit_e, _crit_l, log)
-    with open(os.path.join(args.log_dir, "ood_results.json"), "w") as f:
-        json.dump(ood_results, f, indent=2)
-    log(f"OOD results -> {os.path.join(args.log_dir, 'ood_results.json')}")
+        ood_results = run_ood_eval(raw, args, device, _crit_e, _crit_l, log)
+        with open(os.path.join(args.log_dir, "ood_results.json"), "w") as f:
+            json.dump(ood_results, f, indent=2)
+        log(f"OOD results -> {os.path.join(args.log_dir, 'ood_results.json')}")
 
-    if use_wandb and ood_results:
-        wandb.log({"ood/" + at + "/" + m: v
-                   for at, metrics in ood_results.items()
-                   for m, v in metrics.items()})
+        if use_wandb and ood_results:
+            wandb.log({"ood/" + at + "/" + m: v
+                       for at, metrics in ood_results.items()
+                       for m, v in metrics.items()})
 
-    logger.close()
-    log_file.close()
+        if logger: logger.close()
+        log_file.close()
+
+    if ddp_enabled:
+        dist.destroy_process_group()
 
 
 if __name__ == "__main__":
