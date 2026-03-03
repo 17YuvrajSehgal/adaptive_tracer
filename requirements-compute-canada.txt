@@ -1,5 +1,4 @@
 annotated_types==0.7.0+computecanada
-bt2==2.0.4
 certifi==2026.2.25
 charset_normalizer==3.4.4+computecanada
 click==8.3.1+computecanada
