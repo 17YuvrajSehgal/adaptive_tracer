@@ -7,6 +7,7 @@
 #SBATCH --job-name=sockshop_train
 #SBATCH --account=def-naser2
 #SBATCH --cpus-per-task=24
+#SBATCH --gpus-per-node=h100:1
 #SBATCH --mem=32G
 #SBATCH --time=6:00:00
 #SBATCH --output=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/%x-%j.out
