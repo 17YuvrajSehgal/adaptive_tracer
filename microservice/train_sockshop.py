@@ -1,163 +1,388 @@
 #!/usr/bin/env python3
 """
-train_sockshop.py
-=================
+train_sockshop.py — LMAT training on SockShop NPZ dataset
+==========================================================
 
-Training entry point for LMAT models on the SockShop NPZ dataset.
+H100-optimized training script for the SockShop anomaly detection
+experiment.  Reads preprocessed NPZ shards, trains an LSTM or Transformer
+model with next-syscall prediction + latency categorisation, then runs OOD
+evaluation (AUROC/AUPR) on all anomaly splits.
 
-This script mirrors the training logic in main.py but uses the fast
-SockshopNpzDataset (NPZ shards) instead of the original text-based
-IterableDataset.  The models (LSTM / Transformer) and training loop
-(DDP, AMP, early stopping) are completely unchanged.
+Key features:
+  - BF16 mixed-precision (H100 native)
+  - torch.compile (reduce-overhead mode)
+  - Gradient accumulation for large effective batch sizes
+  - pin_memory + non_blocking H2D transfers
+  - WandB + CSV logging
+  - Cosine LR schedule with linear warm-up
+  - OOD evaluation: per-anomaly-type AUROC and AUPR
 
-Usage (single GPU on Compute Canada / any Linux server):
----------------------------------------------------------
-python microservice/train_sockshop.py \\
-    --data_path  micro-service-trace-data/preprocessed \\
-    --log_folder logs/sockshop-lstm-1 \\
-    --model      lstm \\
-    --train_split train_id \\
-    --valid_split valid_id \\
-    --ood_valid_splits "valid_ood_cpu,valid_ood_disk,valid_ood_mem" \\
-    --ood_test_splits  "test_ood_cpu,test_ood_disk,test_ood_mem" \\
-    --test_split test_id \\
-    --n_hidden 256 --n_layer 2 \\
-    --dim_sys 48 --dim_proc 48 \\
-    --dim_entry 12 --dim_ret 12 \\
-    --dim_pid 12 --dim_tid 12 --dim_time 12 --dim_order 12 --dim_f_mean 0 \\
-    --n_categories 6 \\
-    --n_update 1000000 --eval 1000 \\
-    --lr 0.001 --ls 0.1 --batch 32 \\
-    --gpu 0 --amp \\
-    --seed 1 \\
-    --train_event_model --train_latency_model \\
-    --analysis
+Usage (single H100):
+  python -u microservice/train_sockshop.py \\
+      --preprocessed_dir /scratch/.../preprocessed \\
+      --model transformer \\
+      --n_head 8 --n_hidden 1024 --n_layer 6 \\
+      --dim_sys 64 --dim_entry 8 --dim_ret 8 \\
+      --dim_proc 8 --dim_pid 16 --dim_tid 16 \\
+      --dim_order 16 --dim_time 16 \\
+      --batch 512 --accum_steps 4 --n_epochs 20 \\
+      --lr 3e-4 --warmup_steps 2000 \\
+      --train_event_model --train_latency_model \\
+      --amp --compile \\
+      --wandb_project sockshop_lmat \\
+      --log_dir logs/sockshop_exp1
 """
 
 import os
 import sys
-import pickle
+import json
+import math
+import time
 import random
+import argparse
+import csv
+import pickle
+from pathlib import Path
+from datetime import datetime, timedelta
 
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.multiprocessing as mp
+from torch.utils.data import DataLoader
 
-# Project root on sys.path  (microservice/ is one level down from root)
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ensure project root on sys.path
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE.parent))
 
-from microservice.NpzDataset import SockshopNpzDataset, sockshop_collate_fn
 from models import LSTM, Transformer
-from functions import train, evaluate, adaptive_tracing_eval
+from microservice.NpzDataset import SockshopNpzDataset, sockshop_collate_fn
+
+try:
+    from tqdm import tqdm
+    HAS_TQDM = True
+except ImportError:
+    HAS_TQDM = False
+
+try:
+    import wandb
+    HAS_WANDB = True
+except ImportError:
+    HAS_WANDB = False
+
+try:
+    from sklearn.metrics import roc_auc_score, average_precision_score
+    HAS_SKLEARN = True
+except ImportError:
+    HAS_SKLEARN = False
+
 
 ###############################################################################
-# Argument parsing
+# Arguments
 ###############################################################################
 
-import argparse
+def get_args():
+    p = argparse.ArgumentParser(description="Train LMAT on SockShop NPZ dataset")
 
-
-def get_sockshop_args():
-    p = argparse.ArgumentParser(
-        description="Train LMAT on SockShop NPZ dataset",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-
-    # Paths
-    p.add_argument("--data_path", required=True,
-                   help="Path to preprocessed/ folder (contains split sub-dirs)")
-    p.add_argument("--log_folder", required=True,
-                   help="Directory to write logs, checkpoints, model")
-    p.add_argument("--train_split",  default="train_id")
-    p.add_argument("--valid_split",  default="valid_id")
-    p.add_argument("--test_split",   default="test_id")
-    p.add_argument("--ood_valid_splits", default="valid_ood_cpu,valid_ood_disk,valid_ood_mem",
-                   help="Comma-separated list of OOD validation split names")
-    p.add_argument("--ood_test_splits",  default="test_ood_cpu,test_ood_disk,test_ood_mem",
-                   help="Comma-separated list of OOD test split names")
+    # Data
+    p.add_argument("--preprocessed_dir", required=True,
+                   help="Path to preprocessed/ directory containing split subdirs")
+    p.add_argument("--n_categories", type=int, default=6)
+    p.add_argument("--max_seq_len",  type=int, default=512)
+    p.add_argument("--max_samples",  type=int, default=None)
 
     # Model
-    p.add_argument("--model", default="lstm", choices=["lstm", "transformer"])
-    p.add_argument("--n_hidden", type=int, default=256)
-    p.add_argument("--n_layer",  type=int, default=2)
-    p.add_argument("--n_head",   type=int, default=4)
-    p.add_argument("--n_categories", type=int, default=6)
-    p.add_argument("--dropout",  type=float, default=0.01)
-    p.add_argument("--dim_sys",    type=int, default=48)
-    p.add_argument("--dim_proc",   type=int, default=48)
-    p.add_argument("--dim_entry",  type=int, default=12)
-    p.add_argument("--dim_ret",    type=int, default=12)
-    p.add_argument("--dim_pid",    type=int, default=12)
-    p.add_argument("--dim_tid",    type=int, default=12)
-    p.add_argument("--dim_time",   type=int, default=12)
-    p.add_argument("--dim_order",  type=int, default=12)
-    p.add_argument("--dim_f_mean", type=int, default=0)
-    p.add_argument("--activation", default="gelu", choices=["relu", "gelu", "swiglu"])
+    p.add_argument("--model", choices=["lstm", "transformer"], default="transformer")
+    p.add_argument("--n_head",   type=int,   default=8)
+    p.add_argument("--n_hidden", type=int,   default=1024)
+    p.add_argument("--n_layer",  type=int,   default=6)
+    p.add_argument("--dropout",  type=float, default=0.1)
+    p.add_argument("--activation", choices=["relu", "gelu", "swiglu"], default="gelu")
     p.add_argument("--tfixup", action="store_true")
+    p.add_argument("--dim_sys",    type=int, default=64)
+    p.add_argument("--dim_entry",  type=int, default=8)
+    p.add_argument("--dim_ret",    type=int, default=8)
+    p.add_argument("--dim_proc",   type=int, default=8)
+    p.add_argument("--dim_pid",    type=int, default=16)
+    p.add_argument("--dim_tid",    type=int, default=16)
+    p.add_argument("--dim_order",  type=int, default=16)
+    p.add_argument("--dim_time",   type=int, default=16)
+    p.add_argument("--dim_f_mean", type=int, default=0)
+    p.add_argument("--train_event_model",    action="store_true")
+    p.add_argument("--train_latency_model",  action="store_true")
+    p.add_argument("--ordinal_latency",      action="store_true")
+    p.add_argument("--label_smoothing", type=float, default=0.0)
 
     # Training
-    p.add_argument("--gpu", type=str, default="0",
-                   help="Comma-separated GPU IDs, e.g. '0' or '0,1'")
-    p.add_argument("--batch",  type=int, default=32)
-    p.add_argument("--n_update", type=int, default=1_000_000)
-    p.add_argument("--eval",   type=int, default=1000,
-                   help="Validate every N gradient updates")
-    p.add_argument("--lr",     type=float, default=1e-3)
-    p.add_argument("--ls",     type=float, default=0.1,
-                   help="Label smoothing coefficient")
-    p.add_argument("--clip",   type=float, default=10.0,
-                   help="Gradient clipping max norm")
-    p.add_argument("--warmup_steps",         type=int, default=0)
-    p.add_argument("--reduce_lr_patience",   type=int, default=5)
-    p.add_argument("--early_stopping_patience", type=int, default=20)
-    p.add_argument("--amp",    action="store_true", help="AMP mixed precision")
-    p.add_argument("--chk",    action="store_true", help="Gradient checkpointing")
+    p.add_argument("--batch",        type=int,   default=256)
+    p.add_argument("--accum_steps",  type=int,   default=4,
+                   help="Gradient accumulation steps (eff_batch = batch * accum_steps)")
+    p.add_argument("--n_epochs",     type=int,   default=20)
+    p.add_argument("--lr",           type=float, default=3e-4)
+    p.add_argument("--warmup_steps", type=int,   default=2000)
+    p.add_argument("--clip",         type=float, default=1.0)
+    p.add_argument("--num_workers",  type=int,   default=4)
+    p.add_argument("--amp",     action="store_true", help="BF16 mixed-precision (H100)")
+    p.add_argument("--compile", action="store_true", help="torch.compile the model")
+    p.add_argument("--chk",     action="store_true", help="Gradient checkpointing")
+    p.add_argument("--seed",    type=int, default=42)
 
-    # Task flags
-    p.add_argument("--train_event_model",   action="store_true")
-    p.add_argument("--train_latency_model", action="store_true")
-    p.add_argument("--ordinal_latency",     action="store_true")
-    p.add_argument("--continuous_latency",  action="store_true")
+    # Logging
+    p.add_argument("--log_dir",        type=str, default="logs/sockshop")
+    p.add_argument("--save_every",     type=int, default=5000)
+    p.add_argument("--eval_every",     type=int, default=2000)
+    p.add_argument("--wandb_project",  type=str, default=None)
+    p.add_argument("--wandb_run_name", type=str, default=None)
+    p.add_argument("--load_model",     type=str, default=None)
 
-    # Misc
-    p.add_argument("--seed",       type=int, default=1)
-    p.add_argument("--max_sample", type=int, default=None,
-                   help="Max sequences to load per split (None = all)")
-    p.add_argument("--max_token",  type=int, default=512)
-    p.add_argument("--analysis",   action="store_true",
-                   help="Run OOD detection after training")
-    p.add_argument("--load_model", type=str, default=None,
-                   help="Skip training and load model from this log folder")
+    # GPU
+    p.add_argument("--gpu", type=int, default=0)
 
-    return p.parse_args()
+    args = p.parse_args()
+    if not (args.train_event_model or args.train_latency_model):
+        p.error("At least one of --train_event_model / --train_latency_model is required")
+    return args
 
 
 ###############################################################################
-# Helpers
+# LR schedule — cosine with linear warm-up
 ###############################################################################
 
-def load_vocab_and_meta(data_path, train_split):
-    """Load the vocabulary pickle saved by preprocess_sockshop.py."""
-    vocab_path = os.path.join(data_path, "vocab.pkl")
-    if not os.path.isfile(vocab_path):
-        raise FileNotFoundError(
-            f"vocab.pkl not found in {data_path}.  "
-            "Run preprocess_sockshop.py first."
-        )
-    with open(vocab_path, "rb") as f:
-        dict_sys, dict_proc = pickle.load(f)
-    return dict_sys, dict_proc
+def lr_lambda(step, warmup_steps, total_steps, min_ratio=0.05):
+    if step < warmup_steps:
+        return step / max(1, warmup_steps)
+    progress = (step - warmup_steps) / max(1, total_steps - warmup_steps)
+    return min_ratio + (1.0 - min_ratio) * 0.5 * (1.0 + math.cos(math.pi * progress))
 
 
-def make_dataset(data_path, split_name, max_sample, max_token, shuffle):
-    split_dir = os.path.join(data_path, split_name)
-    return SockshopNpzDataset(
-        split_dir     = split_dir,
-        max_seq_len   = max_token,
-        max_samples   = max_sample,
-        shuffle_shards= shuffle,
+###############################################################################
+# Logging
+###############################################################################
+
+class Logger:
+    def __init__(self, log_dir, use_wandb, args):
+        self.use_wandb = use_wandb and HAS_WANDB
+        self.csv_path  = os.path.join(log_dir, "metrics.csv")
+        self._writer   = None
+        self._file     = None
+        if self.use_wandb:
+            wandb.init(
+                project=args.wandb_project,
+                name=args.wandb_run_name or
+                     f"{args.model}_{datetime.now():%Y%m%d_%H%M%S}",
+                config=vars(args),
+                dir=log_dir,
+            )
+
+    def log(self, metrics: dict, step: int):
+        if self.use_wandb:
+            wandb.log(metrics, step=step)
+        if self._writer is None:
+            self._file   = open(self.csv_path, "w", newline="", buffering=1)
+            self._writer = csv.DictWriter(
+                self._file, fieldnames=["step"] + list(metrics.keys()))
+            self._writer.writeheader()
+        row = {"step": step}
+        row.update({k: f"{v:.6g}" if isinstance(v, float) else v
+                    for k, v in metrics.items()})
+        self._writer.writerow(row)
+
+    def save_model(self, model, path):
+        torch.save(model.state_dict(), path)
+        if self.use_wandb:
+            wandb.save(path)
+
+    def close(self):
+        if self._file:
+            self._file.close()
+        if self.use_wandb:
+            wandb.finish()
+
+
+###############################################################################
+# Model factory
+###############################################################################
+
+def build_model(args, n_syscall, n_process, device):
+    kw = dict(
+        n_syscall=n_syscall, n_category=args.n_categories, n_process=n_process,
+        n_hidden=args.n_hidden, n_layer=args.n_layer, dropout=args.dropout,
+        dim_sys=args.dim_sys, dim_entry=args.dim_entry, dim_ret=args.dim_ret,
+        dim_proc=args.dim_proc, dim_pid=args.dim_pid, dim_tid=args.dim_tid,
+        dim_order=args.dim_order, dim_time=args.dim_time, dim_f_mean=args.dim_f_mean,
+        train_event=args.train_event_model, train_latency=args.train_latency_model,
+        ordinal_latency=args.ordinal_latency,
     )
+    if args.model == "lstm":
+        return LSTM(**kw).to(device)
+    return Transformer(n_head=args.n_head, activation=args.activation,
+                       tfixup=args.tfixup, **kw).to(device)
+
+
+###############################################################################
+# Forward pass helper
+###############################################################################
+
+def forward_batch(model, batch, device, args):
+    def t(key, dtype=torch.long):
+        return batch[key].to(device, dtype=dtype, non_blocking=True)
+
+    call     = t("call")
+    entry    = t("entry")
+    duration = t("duration")
+    proc     = t("proc")
+    pid      = t("pid")
+    tid      = t("tid")
+    ret      = t("ret")
+    pad_mask = batch["pad_mask"].to(device, non_blocking=True)
+
+    if args.model == "transformer":
+        return model(call, entry, duration, proc, pid, tid, ret,
+                     pad_mask=pad_mask, chk=args.chk)
+    return model(call, entry, duration, proc, pid, tid, ret)
+
+
+###############################################################################
+# Loss
+###############################################################################
+
+def compute_loss(logits_e, logits_l, batch, device, args, crit_e, crit_l):
+    tgt_call = batch["tgt_call"].to(device, dtype=torch.long, non_blocking=True)
+    tgt_lat  = batch["tgt_lat" ].to(device, dtype=torch.long, non_blocking=True)
+    loss = torch.tensor(0.0, device=device)
+    loss_e = loss_l = torch.tensor(0.0, device=device)
+
+    if args.train_event_model and crit_e and logits_e.numel() > 0:
+        B, L, V = logits_e.shape
+        loss_e = crit_e(logits_e.reshape(B*L, V), tgt_call.reshape(B*L))
+        loss   = loss + loss_e
+
+    if args.train_latency_model and crit_l and logits_l.numel() > 0:
+        B, L, C = logits_l.shape
+        if args.ordinal_latency:
+            loss_l = crit_l(logits_l.reshape(B*L, C),
+                            tgt_lat.reshape(B*L, 1).float().expand(B*L, C))
+        else:
+            loss_l = crit_l(logits_l.reshape(B*L, C), tgt_lat.reshape(B*L))
+        loss = loss + loss_l
+
+    return loss, loss_e, loss_l
+
+
+###############################################################################
+# Accuracy
+###############################################################################
+
+def token_accuracy(logits, targets):
+    if logits.numel() == 0:
+        return float("nan")
+    pred = logits.argmax(-1)
+    mask = targets != 0
+    if not mask.any():
+        return float("nan")
+    return (pred[mask] == targets[mask]).float().mean().item()
+
+
+###############################################################################
+# Evaluation
+###############################################################################
+
+@torch.no_grad()
+def evaluate_split(model, loader, device, args, crit_e, crit_l,
+                   return_scores=False):
+    model.eval()
+    tot_loss = tot_e = tot_l = 0.0
+    ae_sum = ae_cnt = al_sum = al_cnt = 0.0
+    n = 0
+    scores, labels = [], []
+
+    for batch in loader:
+        with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16,
+                                enabled=args.amp and device.type == "cuda"):
+            le, ll = forward_batch(model, batch, device, args)
+            loss, loss_e, loss_l = compute_loss(le, ll, batch, device, args, crit_e, crit_l)
+
+        tot_loss += loss.item()
+        tot_e    += loss_e.item()
+        tot_l    += loss_l.item()
+        tgt_call  = batch["tgt_call"].to(device, dtype=torch.long, non_blocking=True)
+        tgt_lat   = batch["tgt_lat" ].to(device, dtype=torch.long, non_blocking=True)
+        if args.train_event_model and le.numel() > 0:
+            v = token_accuracy(le, tgt_call)
+            if not math.isnan(v): ae_sum += v; ae_cnt += 1
+        if args.train_latency_model and ll.numel() > 0:
+            v = token_accuracy(ll, tgt_lat)
+            if not math.isnan(v): al_sum += v; al_cnt += 1
+
+        if return_scores and args.train_event_model and le.numel() > 0:
+            B, L, V = le.shape
+            per_tok = nn.CrossEntropyLoss(ignore_index=0, reduction="none")(
+                le.reshape(B*L, V), tgt_call.reshape(B*L)).reshape(B, L)
+            mask = tgt_call != 0
+            seq_sc = (per_tok * mask).sum(1) / mask.sum(1).clamp(min=1)
+            scores.append(seq_sc.cpu().numpy())
+            labels.append(batch["is_anomaly"].numpy())
+
+        n += 1
+
+    out = dict(loss=tot_loss/max(n,1), loss_e=tot_e/max(n,1),
+               loss_l=tot_l/max(n,1),
+               acc_e=ae_sum/max(ae_cnt,1), acc_l=al_sum/max(al_cnt,1))
+    if return_scores:
+        out["scores"] = np.concatenate(scores) if scores else np.array([])
+        out["labels"] = np.concatenate(labels) if labels else np.array([])
+    return out
+
+
+###############################################################################
+# OOD evaluation
+###############################################################################
+
+def run_ood_eval(model, args, device, crit_e, crit_l, log_fn):
+    if not HAS_SKLEARN:
+        log_fn("[OOD] sklearn not available — skipping")
+        return {}
+
+    base = args.preprocessed_dir
+    id_dir = os.path.join(base, "test_id")
+    if not os.path.isdir(id_dir):
+        log_fn("[OOD] test_id not found")
+        return {}
+
+    log_fn("[OOD] Scoring test_id (normal baseline) ...")
+    ds_id  = SockshopNpzDataset(id_dir, batch_size=args.batch,
+                                 max_seq_len=args.max_seq_len, shuffle_shards=False)
+    ld_id  = DataLoader(ds_id, batch_size=None, collate_fn=sockshop_collate_fn,
+                        num_workers=2, pin_memory=True)
+    res_id = evaluate_split(model, ld_id, device, args, crit_e, crit_l,
+                             return_scores=True)
+
+    results = {}
+    for atype in ["cpu", "disk", "mem", "net"]:
+        ood_dir = os.path.join(base, f"test_ood_{atype}")
+        if not os.path.isdir(ood_dir):
+            continue
+        log_fn(f"[OOD] Scoring test_ood_{atype} ...")
+        ds_ood = SockshopNpzDataset(ood_dir, batch_size=args.batch,
+                                     max_seq_len=args.max_seq_len, shuffle_shards=False)
+        ld_ood = DataLoader(ds_ood, batch_size=None, collate_fn=sockshop_collate_fn,
+                            num_workers=2, pin_memory=True)
+        res_ood = evaluate_split(model, ld_ood, device, args, crit_e, crit_l,
+                                  return_scores=True)
+
+        scores = np.concatenate([res_id["scores"], res_ood["scores"]])
+        labels = np.concatenate([np.zeros(len(res_id["scores"])),
+                                  np.ones(len(res_ood["scores"]))])
+        if len(np.unique(labels)) < 2:
+            continue
+
+        auroc = roc_auc_score(labels, scores)
+        aupr  = average_precision_score(labels, scores)
+        log_fn(f"[OOD] {atype:6s}  AUROC={auroc:.4f}  AUPR={aupr:.4f}  "
+               f"(normal={len(res_id['scores']):,}  ood={len(res_ood['scores']):,})")
+        results[atype] = {"auroc": auroc, "aupr": aupr,
+                          "n_normal": len(res_id["scores"]),
+                          "n_ood":    len(res_ood["scores"])}
+    return results
 
 
 ###############################################################################
@@ -165,201 +390,239 @@ def make_dataset(data_path, split_name, max_sample, max_token, shuffle):
 ###############################################################################
 
 def main():
-    args = get_sockshop_args()
+    args = get_args()
 
-    # Seeds
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32       = True
 
-    # Log directory
-    os.makedirs(args.log_folder, exist_ok=True)
-    sys.stdout = open(os.path.join(args.log_folder, "log.txt"), "a", buffering=4096)
+    device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu")
+    os.makedirs(args.log_dir, exist_ok=True)
 
-    # Print args
-    print(f"{'='*80}\n{'SockShop LMAT Training':^80}\n{'='*80}")
-    for k, v in vars(args).items():
-        print(f"  {k:<30}: {v}")
+    log_file = open(os.path.join(args.log_dir, "train.log"), "a", buffering=1)
 
-    # ── Vocabulary ──────────────────────────────────────────────────────────
-    dict_sys, dict_proc = load_vocab_and_meta(args.data_path, args.train_split)
+    def log(msg):
+        line = f"[{datetime.now():%H:%M:%S}] {msg}"
+        print(line, flush=True)
+        log_file.write(line + "\n")
+        log_file.flush()
+
+    use_wandb = bool(args.wandb_project) and HAS_WANDB
+    logger    = Logger(args.log_dir, use_wandb, args)
+
+    # Vocab
+    with open(os.path.join(args.preprocessed_dir, "vocab.pkl"), "rb") as f:
+        dict_sys, dict_proc = pickle.load(f)
     n_syscall = len(dict_sys)
     n_process = len(dict_proc)
-    print(f"  Vocab: {n_syscall} syscalls, {n_process} process names")
+    log(f"Vocab: {n_syscall} syscalls / {n_process} processes")
 
-    # ── Datasets ────────────────────────────────────────────────────────────
-    train_ds = make_dataset(args.data_path, args.train_split,
-                            args.max_sample, args.max_token, shuffle=True)
-    valid_ds = make_dataset(args.data_path, args.valid_split,
-                            args.max_sample, args.max_token, shuffle=False)
-    test_ds  = make_dataset(args.data_path, args.test_split,
-                            args.max_sample, args.max_token, shuffle=False)
+    # Datasets + loaders
+    def make_loader(split, shuffle=True, workers=None):
+        d = os.path.join(args.preprocessed_dir, split)
+        if not os.path.isdir(d):
+            return None, None
+        ds = SockshopNpzDataset(d, batch_size=args.batch,
+                                 max_seq_len=args.max_seq_len,
+                                 max_samples=args.max_samples,
+                                 shuffle_shards=shuffle)
+        ld = DataLoader(ds, batch_size=None, collate_fn=sockshop_collate_fn,
+                        num_workers=workers if workers is not None else args.num_workers,
+                        pin_memory=device.type=="cuda",
+                        prefetch_factor=2 if (workers or args.num_workers) > 0 else None,
+                        persistent_workers=(workers or args.num_workers) > 0)
+        return ds, ld
 
-    ood_valid_names = [s.strip() for s in args.ood_valid_splits.split(",") if s.strip()]
-    ood_test_names  = [s.strip() for s in args.ood_test_splits.split(",")  if s.strip()]
+    train_ds, train_loader = make_loader("train_id",  shuffle=True)
+    valid_ds, valid_loader = make_loader("valid_id",  shuffle=False)
+    log(f"Train shards: {len(train_ds._shards)}  Valid shards: {len(valid_ds._shards)}")
 
-    ood_valid_ds = {}
-    for name in ood_valid_names:
-        try:
-            ood_valid_ds[name] = make_dataset(
-                args.data_path, name, args.max_sample, args.max_token, False)
-        except FileNotFoundError:
-            print(f"  [WARN] OOD split not found: {name}")
+    # Model
+    model = build_model(args, n_syscall, n_process, device)
+    if args.load_model:
+        model.load_state_dict(torch.load(args.load_model, map_location=device))
+        log(f"Loaded checkpoint from {args.load_model}")
 
-    ood_test_ds = {}
-    for name in ood_test_names:
-        try:
-            ood_test_ds[name] = make_dataset(
-                args.data_path, name, args.max_sample, args.max_token, False)
-        except FileNotFoundError:
-            print(f"  [WARN] OOD test split not found: {name}")
+    if args.compile and torch.cuda.is_available():
+        log("Compiling model with torch.compile ...")
+        model = torch.compile(model, mode="reduce-overhead")
 
-    val_ood_to_test = {v: t for v, t in zip(ood_valid_names, ood_test_names)}
+    n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    log(f"Model: {args.model.upper()}  params={n_params:,}")
+    log(f"  n_hidden={args.n_hidden}  n_layer={args.n_layer}  n_head={args.n_head}")
+    log(f"  AMP(bf16)={args.amp}  compile={args.compile}  chk={args.chk}")
+    log(f"  batch={args.batch}  accum_steps={args.accum_steps}  "
+        f"eff_batch={args.batch * args.accum_steps}")
 
-    # ── GPU setup ───────────────────────────────────────────────────────────
-    gpus = list(map(int, args.gpu.split(",")))
+    # Loss criteria
+    crit_e = (nn.CrossEntropyLoss(ignore_index=0, label_smoothing=args.label_smoothing)
+              if args.train_event_model else None)
+    crit_l = ((nn.BCEWithLogitsLoss() if args.ordinal_latency
+               else nn.CrossEntropyLoss(ignore_index=0))
+              if args.train_latency_model else None)
+    _crit_e = crit_e or nn.CrossEntropyLoss(ignore_index=0)
+    _crit_l = crit_l or nn.CrossEntropyLoss(ignore_index=0)
 
-    # ── Training ─────────────────────────────────────────────────────────────
-    if args.load_model is None:
-        os.environ["MASTER_ADDR"] = "127.0.0.1"
-        os.environ["MASTER_PORT"] = "8889"
-        os.makedirs(os.path.join(args.log_folder, "training"), exist_ok=True)
+    # Optimizer + schedule
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr,
+                                   betas=(0.9, 0.98), eps=1e-8, weight_decay=0.01)
+    steps_per_epoch = len(train_ds)
+    total_steps     = steps_per_epoch * args.n_epochs // max(args.accum_steps, 1)
+    scheduler = torch.optim.lr_scheduler.LambdaLR(
+        optimizer,
+        lr_lambda=lambda s: lr_lambda(s, args.warmup_steps, total_steps))
+    scaler = torch.amp.GradScaler(enabled=args.amp and device.type == "cuda")
 
-        try:
-            mp.spawn(
-                train,
-                nprocs=len(gpus),
-                args=(
-                    args.model,
-                    n_syscall,
-                    args.n_categories,
-                    n_process,
-                    args.n_head,
-                    args.n_hidden,
-                    args.n_layer,
-                    args.dropout,
-                    args.dim_sys,
-                    args.dim_entry,
-                    args.dim_ret,
-                    args.dim_proc,
-                    args.dim_pid,
-                    args.dim_tid,
-                    args.dim_order,
-                    args.dim_time,
-                    args.dim_f_mean,
-                    args.activation,
-                    args.tfixup,
-                    train_ds,
-                    valid_ds,
-                    args.n_update,
-                    args.reduce_lr_patience,
-                    args.early_stopping_patience,
-                    args.warmup_steps,
-                    args.lr,
-                    args.ls,
-                    args.clip,
-                    args.eval,
-                    args.batch,
-                    gpus,
-                    args.chk,
-                    args.amp,
-                    args.log_folder,
-                    args.train_event_model,
-                    args.train_latency_model,
-                    args.ordinal_latency,
-                    args.continuous_latency,
-                ),
-            )
-        except Exception as e:
-            print(f"[ERROR] Training failed: {e}")
-            raise
+    with open(os.path.join(args.log_dir, "config.json"), "w") as f:
+        json.dump(vars(args), f, indent=2)
 
-    # ── Load best model ──────────────────────────────────────────────────────
-    device = gpus[0]
-    model_dir = args.load_model if args.load_model else args.log_folder
+    log("=" * 70)
+    log(f"Starting training  device={device}  total_steps~={total_steps}")
+    log("=" * 70)
 
-    if args.model == "lstm":
-        model = LSTM(
-            n_syscall, args.n_categories, n_process,
-            args.n_hidden, args.n_layer, args.dropout,
-            args.dim_sys, args.dim_entry, args.dim_ret, args.dim_proc,
-            args.dim_pid, args.dim_tid, args.dim_order, args.dim_time,
-            args.dim_f_mean,
-            args.train_event_model, args.train_latency_model,
-            args.ordinal_latency,  args.continuous_latency,
-        ).to(device)
-    else:
-        model = Transformer(
-            n_syscall, args.n_categories, n_process,
-            args.n_head, args.n_hidden, args.n_layer, args.dropout,
-            args.dim_sys, args.dim_entry, args.dim_ret, args.dim_proc,
-            args.dim_pid, args.dim_tid, args.dim_order, args.dim_time,
-            args.dim_f_mean, args.activation, args.tfixup,
-            args.train_event_model, args.train_latency_model,
-            args.ordinal_latency,
-        ).to(device)
+    global_step   = 0
+    best_val_loss = float("inf")
+    t_start       = time.time()
 
-    model_file = os.path.join(model_dir, "model")
-    with open(model_file, "rb") as f:
-        model.load_state_dict(torch.load(f, map_location=f"cuda:{device}"))
-    print("Model loaded from", model_file)
+    for epoch in range(1, args.n_epochs + 1):
+        train_ds.set_epoch(epoch)
+        model.train()
 
-    # ── Token prediction evaluation ──────────────────────────────────────────
-    criterion = nn.CrossEntropyLoss(ignore_index=0)
-    if args.continuous_latency:
-        criterion_latency = nn.MSELoss()
-    elif args.ordinal_latency:
-        criterion_latency = nn.BCEWithLogitsLoss()
-    else:
-        criterion_latency = nn.CrossEntropyLoss(ignore_index=0)
+        epoch_loss = 0.0
+        acc_e_sum = acc_e_cnt = 0.0
+        acc_l_sum = acc_l_cnt = 0.0
+        n_batches  = 0
+        optimizer.zero_grad(set_to_none=True)
 
-    print(f"\n{'='*80}\n{'Token Prediction Evaluation':^80}\n{'='*80}")
-    for name, ds in [("Train",   train_ds),
-                     ("Valid ID", valid_ds),
-                     ("Test ID",  test_ds)]:
-        loss, acc, ll, al, ml, _ = evaluate(
-            model, ds, args.batch, criterion, criterion_latency,
-            n_syscall, args.n_categories, device,
-            args.train_event_model, args.train_latency_model,
-            args.ordinal_latency, args.continuous_latency,
-        )
-        print(f"  {name:<12}: loss {loss:.4f}  acc {acc:.1%}  "
-              f"lat_loss {ll:.4f}  lat_acc {al:.1%}  lat_mae {ml:.4f}")
+        pbar = (tqdm(train_loader, desc=f"Ep{epoch:02d}/{args.n_epochs}",
+                     dynamic_ncols=True, leave=True)
+                if HAS_TQDM else train_loader)
 
-    # ── OOD detection ─────────────────────────────────────────────────────────
-    if args.analysis and ood_valid_ds and ood_test_ds:
-        print(f"\n{'='*80}\n{'OOD Detection':^80}\n{'='*80}")
+        for batch in pbar:
+            is_optim_step = ((n_batches + 1) % args.accum_steps == 0)
 
-        if args.train_event_model and args.train_latency_model:
-            ev_rc, dur_rc = True, False
-        elif args.train_event_model:
-            ev_rc, dur_rc = True, False
-        else:
-            ev_rc, dur_rc = False, True
+            with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16,
+                                    enabled=args.amp and device.type == "cuda"):
+                logits_e, logits_l = forward_batch(model, batch, device, args)
+                loss, loss_e, loss_l = compute_loss(
+                    logits_e, logits_l, batch, device, args, crit_e, crit_l)
+                loss = loss / args.accum_steps
 
-        adaptive_tracing_eval(
-            model,
-            (args.valid_split, valid_ds),
-            {n: ood_valid_ds[n] for n in ood_valid_names if n in ood_valid_ds},
-            val_ood_to_test,
-            (args.test_split, test_ds),
-            {n: ood_test_ds[n]  for n in ood_test_names  if n in ood_test_ds},
-            args.batch,
-            n_syscall,
-            args.n_categories,
-            device,
-            args.log_folder,
-            args.train_event_model,
-            args.train_latency_model,
-            args.ordinal_latency,
-            args.continuous_latency,
-            ev_rc, dur_rc,
-            unique_thresh=False,
-            analyze_rootCause=False,
-            test_random_cases=False,
-        )
+            scaler.scale(loss).backward()
 
-    print("=" * 80)
+            if is_optim_step:
+                scaler.unscale_(optimizer)
+                if args.clip:
+                    nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+                scaler.step(optimizer)
+                scaler.update()
+                scheduler.step()
+                optimizer.zero_grad(set_to_none=True)
+                global_step += 1
+
+            raw_loss = loss.item() * args.accum_steps
+            epoch_loss += raw_loss
+            tgt_call = batch["tgt_call"].to(device, dtype=torch.long, non_blocking=True)
+            tgt_lat  = batch["tgt_lat" ].to(device, dtype=torch.long, non_blocking=True)
+            if args.train_event_model and logits_e.numel() > 0:
+                v = token_accuracy(logits_e.detach(), tgt_call)
+                if not math.isnan(v):
+                    acc_e_sum += v; acc_e_cnt += 1
+            if args.train_latency_model and logits_l.numel() > 0:
+                v = token_accuracy(logits_l.detach(), tgt_lat)
+                if not math.isnan(v):
+                    acc_l_sum += v; acc_l_cnt += 1
+            n_batches += 1
+
+            epoch_acc_e = acc_e_sum / max(acc_e_cnt, 1)
+            epoch_acc_l = acc_l_sum / max(acc_l_cnt, 1)
+
+            cur_lr = scheduler.get_last_lr()[0]
+            if HAS_TQDM:
+                pbar.set_postfix(
+                    loss=f"{raw_loss:.3f}",
+                    acc_e=f"{epoch_acc_e:.2%}" if args.train_event_model else "-",
+                    lr=f"{cur_lr:.2e}",
+                    step=global_step)
+
+            # Log every 100 optimizer steps
+            if is_optim_step and global_step % 100 == 0:
+                metrics = {
+                    "train/loss":  epoch_loss / n_batches,
+                    "train/acc_e": epoch_acc_e,
+                    "train/acc_l": epoch_acc_l,
+                    "train/lr":    cur_lr,
+                    "train/epoch": epoch,
+                }
+                logger.log(metrics, step=global_step)
+                if global_step % 500 == 0:
+                    elapsed = timedelta(seconds=int(time.time() - t_start))
+                    log(f"step={global_step:6d}  epoch={epoch}  "
+                        f"loss={epoch_loss/n_batches:.4f}  "
+                        f"acc_e={epoch_acc_e:.2%}  "
+                        f"lr={cur_lr:.2e}  elapsed={elapsed}")
+
+            # Validation
+            if (valid_loader and is_optim_step and
+                    global_step > 0 and global_step % args.eval_every == 0):
+                log(f"--- Validation @ step {global_step} ---")
+                res = evaluate_split(model, valid_loader, device, args, _crit_e, _crit_l)
+                log(f"  val loss={res['loss']:.4f}  "
+                    f"loss_e={res['loss_e']:.4f}  acc_e={res['acc_e']:.2%}  "
+                    f"acc_l={res['acc_l']:.2%}")
+                logger.log({f"val/{k}": v for k, v in res.items()
+                             if not isinstance(v, np.ndarray)},
+                            step=global_step)
+                model.train()
+                if res["loss"] < best_val_loss:
+                    best_val_loss = res["loss"]
+                    best_path = os.path.join(args.log_dir, "model_best.pt")
+                    raw = model._orig_mod if hasattr(model, "_orig_mod") else model
+                    logger.save_model(raw, best_path)
+                    log(f"  New best val loss={best_val_loss:.4f} -> {best_path}")
+
+            # Periodic checkpoint
+            if (is_optim_step and global_step > 0 and
+                    global_step % args.save_every == 0):
+                ckpt = os.path.join(args.log_dir, f"ckpt_{global_step:07d}.pt")
+                raw  = model._orig_mod if hasattr(model, "_orig_mod") else model
+                logger.save_model(raw, ckpt)
+                log(f"  Checkpoint -> {ckpt}")
+
+        # End of epoch
+        elapsed = timedelta(seconds=int(time.time() - t_start))
+        log(f"Epoch {epoch:3d}/{args.n_epochs}  "
+            f"loss={epoch_loss/max(n_batches,1):.4f}  "
+            f"acc_e={epoch_acc_e:.2%}  "
+            f"acc_l={epoch_acc_l:.2%}  "
+            f"elapsed={elapsed}")
+        raw = model._orig_mod if hasattr(model, "_orig_mod") else model
+        logger.save_model(raw, os.path.join(args.log_dir, f"ckpt_epoch{epoch:03d}.pt"))
+
+    # Load best checkpoint for OOD eval
+    log("=" * 70)
+    log("Training complete — OOD evaluation")
+    log("=" * 70)
+    raw = model._orig_mod if hasattr(model, "_orig_mod") else model
+    best_path = os.path.join(args.log_dir, "model_best.pt")
+    if os.path.isfile(best_path):
+        raw.load_state_dict(torch.load(best_path, map_location=device))
+        log(f"Loaded best model from {best_path}")
+
+    ood_results = run_ood_eval(raw, args, device, _crit_e, _crit_l, log)
+    with open(os.path.join(args.log_dir, "ood_results.json"), "w") as f:
+        json.dump(ood_results, f, indent=2)
+    log(f"OOD results -> {os.path.join(args.log_dir, 'ood_results.json')}")
+
+    if use_wandb and ood_results:
+        wandb.log({"ood/" + at + "/" + m: v
+                   for at, metrics in ood_results.items()
+                   for m, v in metrics.items()})
+
+    logger.close()
+    log_file.close()
 
 
 if __name__ == "__main__":
