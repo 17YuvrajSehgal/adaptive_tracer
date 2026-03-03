@@ -49,6 +49,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.distributed as dist
+import torch._inductor.config
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 
@@ -487,7 +488,6 @@ def main():
     if args.compile and torch.cuda.is_available():
         log("Compiling model with torch.compile ...")
         # Disable CUDAGraphs to prevent the "overwritten by subsequent run" embedding bug
-        import torch._inductor.config
         torch._inductor.config.triton.cudagraphs = False
         model = torch.compile(model, mode="reduce-overhead")
 
