@@ -36,6 +36,14 @@ export NUMEXPR_NUM_THREADS=1
 # ---- WandB offline (safe on cluster) ----
 export WANDB_MODE=offline
 export WANDB_DIR="$LOG_DIR"
+export WANDB_CACHE_DIR="$SCRATCH/wandb_cache"
+
+# ---- Redirect caches that would otherwise write to read-only /home ----
+export TRITON_CACHE_DIR="$SCRATCH/.triton_cache"
+export TORCH_HOME="$SCRATCH/.torch"
+export HF_HOME="$SCRATCH/.hf_cache"
+
+mkdir -p "$TRITON_CACHE_DIR" "$TORCH_HOME"
 
 echo "============================================================"
 echo "Job ID       : $SLURM_JOB_ID"
