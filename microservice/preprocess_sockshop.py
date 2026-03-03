@@ -182,6 +182,28 @@ def parse_args():
         help="Random seed (for any stochastic steps)",
     )
     p.add_argument(
+        "--txt_dump_dir", type=str, default=None,
+        help="Directory containing pre-converted babeltrace2 text files "
+             "(produced by 'babeltrace2 <kernel_ctf> > file.txt').  "
+             "When a matching .txt file exists for a run, it is parsed "
+             "directly instead of using the slow Python bt2 API.  "
+             "File naming convention: {run_rel_with_slashes_as_underscores}_kernel.txt "
+             "e.g. normal_run01_kernel.txt",
+    )
+    p.add_argument(
+        "--load_vocab", type=str, default=None,
+        metavar="PREPROCESSED_DIR",
+        help="Load frozen vocab.pkl + delay_spans.pkl from this directory "
+             "instead of building them.  Use for all split jobs after the "
+             "vocab-build job completes.",
+    )
+    p.add_argument(
+        "--vocab_only", action="store_true", default=False,
+        help="Only build and save vocab.pkl + delay_spans.pkl, then exit. "
+             "No NPZ shards are written.  Use this for the dedicated vocab-build "
+             "job; all split jobs (including train) then use --load_vocab.",
+    )
+    p.add_argument(
         "--ust_event_name", type=str, default="otel.spans",
         help="LTTng Python event name used by the OTel relay",
     )
@@ -288,7 +310,164 @@ def _extract_ust_spans(ust_trace_dir, ust_event_name, warmup_ns):
 
 
 ###############################################################################
-# Kernel event iterator
+# Fast text-file kernel event parser (reads babeltrace2 CLI output)
+###############################################################################
+
+# babeltrace2 pretty-print format (default sink.text.pretty):
+# [HH:MM:SS.nnnnnnnnn] (+delta) hostname event_name: { cpu_id = N }, { field = val, ... }
+# Example:
+# [17:38:28.431685497] (+0.000000023) compute1 kernel:syscall_entry_read: { cpu_id = 2 }, { tid = 4567, pid = 4567, procname = "nginx" }
+
+import re
+
+# Compiled once at module load — matches the babeltrace2 pretty output line
+_BT2_LINE_RE = re.compile(
+    r'^\[\d+:\d+:\d+\.(?P<ns>\d+)\]'   # timestamp (we only need nanosecond part for ordering)
+    r'.*? (?P<event>[\w:]+):'           # event name (e.g. kernel:syscall_entry_read)
+    r'.*?tid = (?P<tid>\d+)'           # tid
+    r'.*?pid = (?P<pid>\d+)'           # pid
+    r'(?:.*?procname = "(?P<proc>[^"]+)")?'  # procname (optional)
+    r'(?:.*?ret = (?P<ret>-?\d+))?',   # ret (optional)
+    re.DOTALL,
+)
+
+# Faster split-based parser (no regex) — used in hot path
+_FIELD_RE = re.compile(r'(\w+) = (?:"([^"]*)"|(-?\d+))')
+
+
+def _kernel_events_from_text(txt_path: str, warmup_s: float):
+    """Parse a babeltrace2 CLI text dump and yield normalised event dicts.
+
+    This is ~5-10x faster than the Python bt2 API because:
+    - No per-event Python object allocation from C extensions
+    - Bulk file I/O instead of bt2 iterator callbacks
+    - We parse only the fields we actually need
+
+    The text file must have been produced by:
+        babeltrace2 <kernel_ctf_dir> > output.txt
+
+    Yields the same dict structure as _kernel_events().
+    """
+    log(f"[TEXT] Reading pre-converted text: {txt_path}", prefix="PARSE")
+    t0 = time()
+    _count   = 0
+    _skipped = 0
+    _LOG_EVERY = 1_000_000   # log every 1M lines
+
+    # Warm-up tracking
+    first_abs_ts = None
+    warmup_ns    = int(warmup_s * 1e9)
+
+    # ── Timestamp strategy ───────────────────────────────────────────────────
+    # babeltrace2 pretty output shows HH:MM:SS.nnnnnnnnn which WRAPS at
+    # midnight and also loses the date. For a multi-hour trace that starts
+    # near midnight this would cause non-monotonic timestamps and break
+    # TID-window segmentation.
+    #
+    # Fix: track the previous decoded second count and detect backward jumps
+    # (midnight wrap). Add 86400s of offset each time we see a wrap.
+    _prev_sec   = -1
+    _day_offset = 0   # seconds added for each midnight crossing
+
+    with open(txt_path, "r", errors="replace") as fh:
+        for line in fh:
+            _count += 1
+
+            # ── Parse timestamp ─────────────────────────────────────────────
+            ts_start = line.find("[")
+            ts_end   = line.find("]", ts_start)
+            if ts_start < 0 or ts_end < 0:
+                continue
+            ts_str = line[ts_start+1:ts_end]   # "HH:MM:SS.NNNNNNNNN"
+            dot = ts_str.rfind(".")
+            if dot < 0:
+                continue
+            try:
+                parts = ts_str[:dot].split(":")
+                cur_sec = int(parts[0])*3600 + int(parts[1])*60 + int(parts[2])
+                # Detect midnight wrap: if current second is much less than
+                # previous (e.g. jumped from 86399 back to 0)
+                if _prev_sec >= 0 and cur_sec < _prev_sec - 3600:
+                    _day_offset += 86400
+                _prev_sec = cur_sec
+                sec = cur_sec + _day_offset
+                nsec_part = int(ts_str[dot+1:].ljust(9, '0'))
+                ns = sec * 1_000_000_000 + nsec_part
+            except (ValueError, IndexError):
+                continue
+
+            # ── Warm-up skip ────────────────────────────────────────────────
+            if first_abs_ts is None:
+                first_abs_ts = ns
+            if ns - first_abs_ts < warmup_ns:
+                _skipped += 1
+                if _count % _LOG_EVERY == 0:
+                    rate = _count / max(1, time() - t0)
+                    log(f"  text read: {_count:>12,}  (skipping warm-up)  "
+                        f"{rate:,.0f} lines/s", prefix="PARSE")
+                continue
+
+            # ── Extract event name ──────────────────────────────────────────
+            after_delta = line.find(")", ts_end)
+            if after_delta < 0:
+                continue
+            rest = line[after_delta+2:]
+            sp1 = rest.find(" ")
+            sp2 = rest.find(" ", sp1+1)
+            if sp1 < 0 or sp2 < 0:
+                continue
+            raw_name = rest[sp1+1:sp2].rstrip(":")
+
+            name     = raw_name.replace("kernel:", "")
+            name     = name.replace("syscall_", "").replace("entry_", "").replace("exit_", "")
+            is_entry = "entry" in raw_name
+            is_exit  = "exit"  in raw_name
+
+            # ── Extract fields (tid, pid, procname, ret) ────────────────────
+            payload = rest[sp2:]
+            pid, tid, procname, ret_enc = 0, 0, "unknown", 0
+            for m in _FIELD_RE.finditer(payload):
+                fname = m.group(1)
+                sval  = m.group(2)
+                ival  = m.group(3)
+                if fname == "tid" and ival:
+                    tid = int(ival)
+                elif fname == "pid" and ival:
+                    pid = int(ival)
+                elif fname == "procname" and sval:
+                    procname = sval
+                elif fname == "ret" and ival:
+                    v = int(ival)
+                    ret_enc = 1 if v >= 0 else 2
+
+            if _count % _LOG_EVERY == 0:
+                elapsed = timedelta(seconds=int(time() - t0))
+                kept    = _count - _skipped
+                rate    = _count / max(1, time() - t0)
+                log(f"  text read: {_count:>12,} total  {kept:>12,} kept  "
+                    f"{_skipped:>8,} warm-up  {rate:,.0f} lines/s  "
+                    f"elapsed {elapsed}", prefix="PARSE")
+
+            yield {
+                "name":      name,
+                "raw_name":  raw_name,
+                "timestamp": ns,
+                "pid":       pid,
+                "tid":       tid,
+                "procname":  procname,
+                "ret":       ret_enc,
+                "is_entry":  is_entry,
+                "is_exit":   is_exit,
+            }
+
+    elapsed = timedelta(seconds=int(time() - t0))
+    rate    = _count / max(1, time() - t0)
+    log(f"  text parse complete: {_count:,} lines  {rate:,.0f} lines/s  "
+        f"elapsed {elapsed}", prefix="PARSE")
+
+
+###############################################################################
+# babeltrace2 Python API kernel event iterator (slow path / fallback)
 ###############################################################################
 
 def _kernel_events(kernel_trace_dir, warmup_ns):
@@ -428,6 +607,62 @@ def segment_ust(kernel_events_list, spans, min_events):
         if len(bucket) >= min_events:
             span_dur_ms = (ends[i] - starts[i]) / 1e6
             sequences.append((bucket, span_dur_ms, spans[i].get("op", "")))
+    return sequences
+
+
+def _segment_time_streaming(event_gen, window_ms, min_events):
+    """TID-based fixed-duration segmentation that consumes a *generator*.
+
+    Identical output to segment_time() but never holds all events in RAM:
+    only the per-TID rolling buffers are kept in memory (order of tens of
+    thousands of events across all active TIDs at once, not 500M).
+
+    Returns list of (events, duration_ms, label_str).
+    """
+    window_ns    = int(window_ms * 1e6)
+    tid_buffers  = defaultdict(list)
+    tid_starts   = {}
+    sequences    = []
+    _count       = 0
+    _t0          = time()
+    _LOG_EVERY   = 5_000_000   # log every 5M events during segmentation
+
+    for ev in event_gen:
+        _count += 1
+        tid = ev["tid"]
+        ts  = ev["timestamp"]
+
+        if tid not in tid_starts:
+            tid_starts[tid] = ts
+
+        elapsed = ts - tid_starts[tid]
+        if elapsed >= window_ns and len(tid_buffers[tid]) >= 1:
+            buf = tid_buffers[tid]
+            dur_ms = elapsed / 1e6
+            if len(buf) >= min_events:
+                sequences.append((list(buf), dur_ms, f"tid_{tid}"))
+            tid_buffers[tid] = [ev]
+            tid_starts[tid]  = ts
+        else:
+            tid_buffers[tid].append(ev)
+
+        if _count % _LOG_EVERY == 0:
+            elapsed_wall = timedelta(seconds=int(time() - _t0))
+            rate = _count / max(1, time() - _t0)
+            log(f"  streaming seg: {_count:>12,} events read  "
+                f"{len(sequences):>7,} seqs so far  "
+                f"{rate:,.0f} ev/s  elapsed {elapsed_wall}",
+                prefix="SEG")
+
+    # Flush remaining partial windows
+    for tid, buf in tid_buffers.items():
+        if len(buf) >= min_events and tid in tid_starts:
+            dur_ms = (buf[-1]["timestamp"] - tid_starts[tid]) / 1e6
+            sequences.append((list(buf), dur_ms, f"tid_{tid}"))
+
+    total_wall = timedelta(seconds=int(time() - _t0))
+    log(f"  streaming seg done: {_count:,} events → {len(sequences):,} seqs  "
+        f"elapsed {total_wall}", prefix="SEG")
     return sequences
 
 
@@ -739,11 +974,14 @@ def write_shards(sequences, split_dir, shard_size, delay_spans, is_anomaly):
 
 def process_run(run_dir, seg_mode, window_ms, warmup_s, min_events,
                 max_seq_len, n_categories, dict_sys, dict_proc, is_train,
-                delay_spans, is_anomaly, ust_event_name):
+                delay_spans, is_anomaly, ust_event_name, txt_dump_dir=None):
     """Process one LTTng run directory.
 
     Returns (sequences_with_latcat, updated_delay_spans)
     where sequences_with_latcat is a list of encoded sequence dicts.
+
+    If txt_dump_dir is set and a pre-converted text file for this run exists,
+    the fast text-file parser is used instead of the Python bt2 API.
     """
     kernel_dir = os.path.join(run_dir, "kernel")
     ust_dir    = os.path.join(run_dir, "ust")
@@ -756,53 +994,88 @@ def process_run(run_dir, seg_mode, window_ms, warmup_s, min_events,
         f"window_ms={window_ms}  is_train={is_train}", prefix="RUN")
 
     # ── 1. Collect kernel events ─────────────────────────────────────────────
+    # Determine whether a pre-converted text file is available (fast path)
+    txt_file = None
+    if txt_dump_dir:
+        # Convention matches the dump script: <txt_dump_dir>/TYPE/RUN/kernel.txt
+        # e.g.  .../normal/run01/kernel.txt
+        #       .../anomaly_cpu/ultra_01/kernel.txt
+        # run_dir is absolute — take the last two path components.
+        parts = run_dir.replace("\\", "/").rstrip("/").split("/")
+        candidate = os.path.join(txt_dump_dir, parts[-2], parts[-1], "kernel.txt")
+        if os.path.isfile(candidate):
+            txt_file = candidate
+            log(f"Text dump found: {parts[-2]}/{parts[-1]}/kernel.txt", prefix="PARSE")
+        else:
+            log(f"No text dump at {candidate} — falling back to bt2 API",
+                prefix="WARN")
+
     t0 = time()
     kernel_evs = []
-    if BT2_AVAILABLE and os.path.isdir(kernel_dir):
-        log(f"Reading kernel trace from {kernel_dir} ...", prefix="PARSE")
-        first_ts = None
-        for ev in _kernel_events(kernel_dir, warmup_ns=0):
-            if first_ts is None:
-                first_ts = ev["timestamp"]
-            if ev["timestamp"] - (first_ts or 0) < int(warmup_s * 1e9):
-                continue
-            kernel_evs.append(ev)
+
+    if txt_file:
+        # ── Fast path: read pre-converted text file ──────────────────────────
+        # IMPORTANT: we collect into a list here because segment_time needs
+        # random access (TID-keyed buffers).  For a 500M-event trace this is
+        # ~150GB of Python dicts which will OOM.  Instead, run segmentation
+        # *streaming* directly from the generator.
+        log(f"Streaming text → segmentation (no full in-memory list) ...",
+            prefix="PARSE")
+        event_gen = _kernel_events_from_text(txt_file, warmup_s)
+    elif BT2_AVAILABLE and os.path.isdir(kernel_dir):
+        # ── Slow path: Python bt2 API ────────────────────────────────────────
+        log(f"Reading kernel trace via bt2 from {kernel_dir} ...", prefix="PARSE")
+        def _bt2_gen():
+            first_ts = None
+            for ev in _kernel_events(kernel_dir, warmup_ns=0):
+                if first_ts is None:
+                    first_ts = ev["timestamp"]
+                if ev["timestamp"] - (first_ts or 0) < int(warmup_s * 1e9):
+                    continue
+                yield ev
+        event_gen = _bt2_gen()
     else:
         log(f"[SKIP] kernel dir not found or bt2 unavailable: {kernel_dir}",
             prefix="WARN")
-
-    parse_dur = timedelta(seconds=round(time() - t0))
-    log(f"Kernel events collected: {len(kernel_evs):,}  "
-        f"(parse time {parse_dur})", prefix="PARSE")
-
-    if not kernel_evs:
-        log(f"[SKIP] No kernel events — skipping run.", prefix="WARN")
         return [], delay_spans
 
-    trace_start_ns = kernel_evs[0]["timestamp"]
-
-    # ── 2. Segment ───────────────────────────────────────────────────────────
-    t0 = time()
-    if seg_mode == "ust" and os.path.isdir(ust_dir):
-        log(f"Extracting UST OTel spans from {ust_dir} ...", prefix="SEG")
-        warmup_abs_ns = trace_start_ns + int(warmup_s * 1e9)
-        spans = _extract_ust_spans(ust_dir, ust_event_name, warmup_abs_ns)
-        log(f"UST spans extracted: {len(spans):,}", prefix="SEG")
-        if spans:
-            log(f"Matching kernel events to {len(spans):,} spans ...", prefix="SEG")
-            raw_segments = segment_ust(kernel_evs, spans, min_events)
-        else:
-            log("No UST spans — falling back to TID time-window segmentation",
-                prefix="WARN")
-            raw_segments = segment_time(kernel_evs, window_ms, min_events)
-    else:
-        log(f"TID time-window segmentation (window_ms={window_ms}) ...",
+    # ── 2. Segment (streaming — never holds all events in RAM) ───────────────
+    t0_seg = time()
+    if seg_mode == "time":
+        log(f"TID time-window segmentation (window_ms={window_ms}, streaming) ...",
             prefix="SEG")
-        raw_segments = segment_time(kernel_evs, window_ms, min_events)
+        raw_segments = _segment_time_streaming(event_gen, window_ms, min_events)
+    else:
+        # UST mode still needs full list for binary search; collect first.
+        log(f"Collecting events for UST segmentation ...", prefix="SEG")
+        kernel_evs = list(event_gen)
+        parse_dur = timedelta(seconds=round(time() - t0))
+        log(f"Kernel events collected: {len(kernel_evs):,}  "
+            f"(parse time {parse_dur})", prefix="PARSE")
+        if not kernel_evs:
+            log("[SKIP] No kernel events.", prefix="WARN")
+            return [], delay_spans
+        trace_start_ns = kernel_evs[0]["timestamp"]
+        if os.path.isdir(ust_dir):
+            log(f"Extracting UST OTel spans from {ust_dir} ...", prefix="SEG")
+            warmup_abs_ns = trace_start_ns + int(warmup_s * 1e9)
+            spans = _extract_ust_spans(ust_dir, ust_event_name, warmup_abs_ns)
+            log(f"UST spans extracted: {len(spans):,}", prefix="SEG")
+            if spans:
+                raw_segments = segment_ust(kernel_evs, spans, min_events)
+            else:
+                log("No UST spans — falling back to time-window", prefix="WARN")
+                raw_segments = segment_time(kernel_evs, window_ms, min_events)
+        else:
+            raw_segments = segment_time(kernel_evs, window_ms, min_events)
+        kernel_evs = []   # free memory immediately
 
-    seg_dur = timedelta(seconds=round(time() - t0))
+    seg_dur = timedelta(seconds=round(time() - t0_seg))
     log(f"Segments produced: {len(raw_segments):,}  "
         f"(min_events={min_events}  seg time {seg_dur})", prefix="SEG")
+
+    parse_dur = timedelta(seconds=round(time() - t0))
+    log(f"Parse+segment total time: {parse_dur}", prefix="PARSE")
 
     if not raw_segments:
         log("[SKIP] Zero segments after filtering — check --min_events.",
@@ -914,111 +1187,141 @@ def main():
         print("[ERROR] No splits specified.", file=sys.stderr)
         sys.exit(1)
 
-    train_spec = split_specs[0]
+    train_spec  = split_specs[0]
     other_specs = split_specs[1:]
 
-    # ── STEP 1: Process training split ───────────────────────────────────────
-    print(f"\n{'='*60}", file=sys.stderr)
-    print(f"[TRAIN] Processing split '{train_spec['name']}'", file=sys.stderr)
-    print(f"{'='*60}", file=sys.stderr)
-
-    dict_sys  = Dictionary()
-    dict_proc = Dictionary()
-    delay_spans = None
-    train_sequences = []
-
-    for run_rel in train_spec["dirs"]:
-        run_dir = os.path.join(args.trace_root, run_rel)
-        if not os.path.isdir(run_dir):
-            print(f"[WARN] Run dir not found: {run_dir}", file=sys.stderr)
-            continue
-        seqs, delay_spans = process_run(
-            run_dir,
-            seg_mode    = args.seg_mode,
-            window_ms   = args.window_ms,
-            warmup_s    = args.warmup_s,
-            min_events  = args.min_events,
-            max_seq_len = args.max_seq_len,
-            n_categories= args.n_categories,
-            dict_sys    = dict_sys,
-            dict_proc   = dict_proc,
-            is_train    = True,
-            delay_spans = delay_spans,
-            is_anomaly  = train_spec["label"],
-            ust_event_name = args.ust_event_name,
-        )
-        train_sequences.extend(seqs)
-
-    print(f"\n[TRAIN] Total sequences: {len(train_sequences):,}", file=sys.stderr)
-
-    if not train_sequences:
-        print("[ERROR] Training split produced zero sequences — check trace paths.",
-              file=sys.stderr)
-        sys.exit(1)
-
-    # Save vocab and delay spans
     vocab_path = os.path.join(args.output_dir, "vocab.pkl")
     delay_path = os.path.join(args.output_dir, "delay_spans.pkl")
 
-    with open(vocab_path, "wb") as f:
-        pickle.dump((dict_sys, dict_proc), f)
-    with open(delay_path, "wb") as f:
-        pickle.dump(delay_spans, f)
+    # ── STEP 1: Training split (builds vocab) OR load frozen vocab ────────────
+    if args.load_vocab:
+        # ── Fast path: anomaly job — load vocab frozen by the training job ───
+        frozen_dir = args.load_vocab
+        _vp = os.path.join(frozen_dir, "vocab.pkl")
+        _dp = os.path.join(frozen_dir, "delay_spans.pkl")
+        if not os.path.isfile(_vp) or not os.path.isfile(_dp):
+            log(f"--load_vocab: vocab.pkl or delay_spans.pkl not found in {frozen_dir}",
+                prefix="ERROR")
+            sys.exit(1)
+        with open(_vp, "rb") as f:
+            dict_sys, dict_proc = pickle.load(f)
+        with open(_dp, "rb") as f:
+            delay_spans = pickle.load(f)
+        log(f"Loaded frozen vocab from {frozen_dir}  "
+            f"({len(dict_sys)} syscalls / {len(dict_proc)} procs)",
+            prefix="VOCAB")
+        log(f"Loaded delay_spans: {len(delay_spans)} event types", prefix="VOCAB")
+        # In anomaly-only mode all supplied splits go to other_specs
+        # (there is no training split to process)
+        other_specs = split_specs
+        train_spec  = None
+    else:
+        # ── Normal path: process the first (training) split, build vocab ─────
+        log(f"\n{'='*60}", prefix="TRAIN")
+        log(f"Processing training split '{train_spec['name']}'", prefix="TRAIN")
+        log(f"{'='*60}", prefix="TRAIN")
 
-    print(f"\n[INFO] Vocabulary size: {len(dict_sys):,} syscalls, "
-          f"{len(dict_proc):,} process names", file=sys.stderr)
-    print(f"[INFO] Latency spans for {len(delay_spans or {}):,} event types",
-          file=sys.stderr)
+        dict_sys    = Dictionary()
+        dict_proc   = Dictionary()
+        delay_spans = None
+        train_sequences = []
 
-    # Write train shards
-    train_dir = os.path.join(args.output_dir, train_spec["name"])
-    n = write_shards(train_sequences, train_dir, args.shard_size,
-                     delay_spans, train_spec["label"])
+        for run_rel in train_spec["dirs"]:
+            run_dir = os.path.join(args.trace_root, run_rel)
+            if not os.path.isdir(run_dir):
+                log(f"Run dir not found: {run_dir}", prefix="WARN")
+                continue
+            seqs, delay_spans = process_run(
+                run_dir,
+                seg_mode       = args.seg_mode,
+                window_ms      = args.window_ms,
+                warmup_s       = args.warmup_s,
+                min_events     = args.min_events,
+                max_seq_len    = args.max_seq_len,
+                n_categories   = args.n_categories,
+                dict_sys       = dict_sys,
+                dict_proc      = dict_proc,
+                is_train       = True,
+                delay_spans    = delay_spans,
+                is_anomaly     = train_spec["label"],
+                ust_event_name = args.ust_event_name,
+                txt_dump_dir   = args.txt_dump_dir,
+            )
+            train_sequences.extend(seqs)
 
-    meta = {
-        "split": train_spec["name"],
-        "n_sequences": n,
-        "n_vocab_sys": len(dict_sys),
-        "n_vocab_proc": len(dict_proc),
-        "n_categories": args.n_categories,
-        "seg_mode": args.seg_mode,
-        "is_anomaly": train_spec["label"],
-        "dirs": train_spec["dirs"],
-    }
-    with open(os.path.join(train_dir, "meta.json"), "w") as f:
-        json.dump(meta, f, indent=2)
+        log(f"TRAIN total sequences: {len(train_sequences):,}", prefix="TRAIN")
 
-    # ── STEP 2: Process remaining splits (vocab + delay_spans frozen) ────────
+        if not train_sequences:
+            log("Training split produced zero sequences — check trace paths.",
+                prefix="ERROR")
+            sys.exit(1)
+
+        # Save vocab and delay spans (other jobs will load these)
+        os.makedirs(args.output_dir, exist_ok=True)
+        with open(vocab_path, "wb") as f:
+            pickle.dump((dict_sys, dict_proc), f)
+        with open(delay_path, "wb") as f:
+            pickle.dump(delay_spans, f)
+
+        log(f"Vocabulary: {len(dict_sys):,} syscalls / {len(dict_proc):,} process names",
+            prefix="VOCAB")
+        log(f"Latency spans: {len(delay_spans or {}):,} event types", prefix="VOCAB")
+        log(f"Saved vocab  → {vocab_path}", prefix="VOCAB")
+        log(f"Saved delays → {delay_path}", prefix="VOCAB")
+
+        if args.vocab_only:
+            log("--vocab_only set: vocab saved, skipping shard writing.", prefix="DONE")
+            log(f"Submit split jobs with --load_vocab {args.output_dir}", prefix="DONE")
+            return   # no NPZ shards written
+
+        # Write train shards
+        train_dir = os.path.join(args.output_dir, train_spec["name"])
+        n = write_shards(train_sequences, train_dir, args.shard_size,
+                         delay_spans, train_spec["label"])
+        meta = {
+            "split":        train_spec["name"],
+            "n_sequences":  n,
+            "n_vocab_sys":  len(dict_sys),
+            "n_vocab_proc": len(dict_proc),
+            "n_categories": args.n_categories,
+            "seg_mode":     args.seg_mode,
+            "is_anomaly":   train_spec["label"],
+            "dirs":         train_spec["dirs"],
+        }
+        with open(os.path.join(train_dir, "meta.json"), "w") as f:
+            json.dump(meta, f, indent=2)
+
+    # STEP 2: Process remaining splits (vocab + delay_spans frozen)
     for spec in other_specs:
-        print(f"\n{'='*60}", file=sys.stderr)
-        print(f"[SPLIT] Processing split '{spec['name']}'", file=sys.stderr)
-        print(f"{'='*60}", file=sys.stderr)
+        log(f"{'='*60}", prefix="SPLIT")
+        log(f"Processing split '{spec['name']}'", prefix="SPLIT")
 
         split_sequences = []
         for run_rel in spec["dirs"]:
             run_dir = os.path.join(args.trace_root, run_rel)
             if not os.path.isdir(run_dir):
-                print(f"[WARN] Run dir not found: {run_dir}", file=sys.stderr)
+                log(f"Run dir not found: {run_dir}", prefix="WARN")
                 continue
             seqs, _ = process_run(
                 run_dir,
-                seg_mode    = args.seg_mode,
-                window_ms   = args.window_ms,
-                warmup_s    = args.warmup_s,
-                min_events  = args.min_events,
-                max_seq_len = args.max_seq_len,
-                n_categories= args.n_categories,
-                dict_sys    = dict_sys,
-                dict_proc   = dict_proc,
-                is_train    = False,      # ← vocab frozen
-                delay_spans = delay_spans, # ← boundaries frozen
-                is_anomaly  = spec["label"],
+                seg_mode       = args.seg_mode,
+                window_ms      = args.window_ms,
+                warmup_s       = args.warmup_s,
+                min_events     = args.min_events,
+                max_seq_len    = args.max_seq_len,
+                n_categories   = args.n_categories,
+                dict_sys       = dict_sys,
+                dict_proc      = dict_proc,
+                is_train       = False,
+                delay_spans    = delay_spans,
+                is_anomaly     = spec["label"],
                 ust_event_name = args.ust_event_name,
+                txt_dump_dir   = args.txt_dump_dir,
             )
             split_sequences.extend(seqs)
 
-        print(f"\n[{spec['name'].upper()}] Total sequences: {len(split_sequences):,}",
-              file=sys.stderr)
+        log(f"{spec['name'].upper()} total sequences: {len(split_sequences):,}",
+            prefix="SPLIT")
 
         split_dir = os.path.join(args.output_dir, spec["name"])
         n = write_shards(split_sequences, split_dir, args.shard_size,
