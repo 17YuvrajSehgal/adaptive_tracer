@@ -10,8 +10,18 @@
 #SBATCH --mail-type=BEGIN,END,FAIL
 
 # ── Vocab-Build Job ────────────────────────────────────────────────────────────
-# Reads normal/run01, builds vocab.pkl + delay_spans.pkl, then exits.
-# No NPZ shards are written (--vocab_only).
+# Reads ALL 5 datasets (normal + 4 anomaly types) to build a comprehensive
+# vocab.pkl + delay_spans.pkl, then exits.  No NPZ shards are written.
+#
+# Rationale: anomaly injection (cpu/disk/mem/net stress) may introduce kernel
+# events (e.g. specific IRQ/scheduler calls) not seen in normal operation.
+# Including all data ensures those events are in the vocabulary rather than
+# mapped to <UNK>, which would throw away discriminative information.
+#
+# Note: delay_spans (latency boundaries) are still computed from normal/run01
+# ONLY (it is listed first and is_train=True applies to the first dir group).
+# Anomaly latencies are categorised against those normal boundaries — this is
+# the intended OOD signal.
 #
 # Once this job completes, launch all 5 split jobs in parallel:
 #
@@ -39,13 +49,19 @@ module load python/3.11.5
 module load babeltrace2 2>/dev/null || true
 source $PROJECT/.venv/bin/activate
 
-echo "[$(date +%T)] Building vocabulary from normal/run01 ..."
+echo "[$(date +%T)] Building vocabulary from ALL 5 datasets ..."
 
+# All 5 run dirs are passed as comma-separated dirs in a single split spec.
+# delay_spans are built only from the first listed dir (normal/run01) because
+# the script treats the first split as the training (is_train=True) split.
+# The remaining dirs expand the syscall vocabulary without affecting latency
+# boundaries.
 srun python -u microservice/preprocess_sockshop.py \
     --trace_root   "$TRACE_ROOT" \
     --output_dir   "$OUTPUT_DIR" \
     --txt_dump_dir "$TXT_DUMP" \
-    --splits       "train_id:normal/run01:0" \
+    --splits \
+        "vocab_scan:normal/run01,anomaly_cpu/ultra_01,anomaly_disk/ultra_01,anomaly_mem/ultra_01,anomaly_net/ultra_01:0" \
     --seg_mode     time \
     --window_ms    100 \
     --warmup_s     5 \
@@ -56,6 +72,6 @@ srun python -u microservice/preprocess_sockshop.py \
     --vocab_only
 
 echo "[$(date +%T)] Vocab build complete."
-echo "  vocab.pkl      → $OUTPUT_DIR/vocab.pkl"
+echo "  vocab.pkl       → $OUTPUT_DIR/vocab.pkl"
 echo "  delay_spans.pkl → $OUTPUT_DIR/delay_spans.pkl"
 echo "All 5 split jobs can now start in parallel."
