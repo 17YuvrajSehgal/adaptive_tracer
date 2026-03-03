@@ -9,9 +9,6 @@
 #SBATCH --output=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/%x-%j.out
 #SBATCH --mail-type=BEGIN,END,FAIL
 
-# Writes train_id / valid_id / test_id NPZ shards using frozen vocab.
-# Run AFTER run_build_vocab.sh completes (use --dependency=afterok).
-
 set -euo pipefail
 
 SCRATCH=/scratch/yuvraj17/adaptive_tracing_scratch
