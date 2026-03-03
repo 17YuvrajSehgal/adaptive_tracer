@@ -4,12 +4,10 @@
 # Submit LMAT training on a single H100 GPU (Narval / CC cluster)
 # =============================================================================
 #SBATCH --job-name=sockshop_train
-#SBATCH --account=def-aloise
+#SBATCH --account=def-naser2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --gres=gpu:h100:1
-#SBATCH --mem=64G
 #SBATCH --time=24:00:00
 #SBATCH --output=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/%x-%j.out
 #SBATCH --mail-type=BEGIN,END,FAIL
