@@ -1,12 +1,12 @@
 #!/bin/bash
+#SBATCH --job-name=sockshop_transformer
 #SBATCH --account=def-naser2
 #SBATCH --partition=compute
-#SBATCH --job-name=sockshop_transformer
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=12
-#SBATCH --time=08:00:00
+#SBATCH --time=06:00:00
 #SBATCH --output=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/%x-%j.out
 #SBATCH --mail-type=BEGIN,END,FAIL
 
@@ -91,28 +91,28 @@ cd "$PROJECT"
 python -u microservice/train_sockshop.py \
     --preprocessed_dir "$DATA" \
     --model transformer \
-    --n_head    4 \
-    --n_hidden  256 \
-    --n_layer   4 \
-    --dropout   0.01 \
+    --n_head    8 \
+    --n_hidden  1024 \
+    --n_layer   6 \
+    --dropout   0.1 \
     --activation gelu \
-    --dim_sys   48 \
-    --dim_entry 12 \
-    --dim_ret   12 \
-    --dim_proc  48 \
-    --dim_pid   12 \
-    --dim_tid   12 \
-    --dim_order 12 \
-    --dim_time  12 \
+    --dim_sys   64 \
+    --dim_entry  8 \
+    --dim_ret    8 \
+    --dim_proc   8 \
+    --dim_pid   16 \
+    --dim_tid   16 \
+    --dim_order 16 \
+    --dim_time  16 \
     --train_event_model \
     --train_latency_model \
     --n_categories 6 \
     --batch        512 \
     --accum_steps    4 \
     --n_epochs      20 \
-    --lr          1e-3 \
-    --warmup_steps 4000 \
-    --clip          10.0 \
+    --lr          3e-4 \
+    --warmup_steps 2000 \
+    --clip          1.0 \
     --num_workers     4 \
     --label_smoothing 0.1 \
     --amp \
