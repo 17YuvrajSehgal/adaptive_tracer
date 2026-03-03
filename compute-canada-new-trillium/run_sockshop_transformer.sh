@@ -12,58 +12,125 @@
 
 set -euo pipefail
 
-SCRATCH=/scratch/yuvraj17/adaptive_tracing_scratch
-PROJECT=$SCRATCH/adaptive_tracer
-DATA=$SCRATCH/micro-service-trace-data/preprocessed
-
-cd $PROJECT
-mkdir -p logs
-
+# ---- Modules (per Trillium docs) ----
 module purge
 module load StdEnv/2023
 module load cuda/12.6
 module load python/3.11.5
 
-source $PROJECT/.venv/bin/activate
+# ---- Paths (SCRATCH is writable on compute nodes; HOME/PROJECT are read-only) ----
+SCRATCH=/scratch/yuvraj17/adaptive_tracing_scratch
+PROJECT=$SCRATCH/adaptive_tracer
+DATA=$SCRATCH/micro-service-trace-data/preprocessed
+LOG_DIR=$PROJECT/logs/sockshop_transformer_${SLURM_JOB_ID}
 
+mkdir -p "$LOG_DIR"
+
+# ---- Optional: avoid CPU thread blowups ----
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+
+# ---- WandB offline (safe on cluster) ----
+export WANDB_MODE=offline
+export WANDB_DIR="$LOG_DIR"
+export WANDB_CACHE_DIR="$SCRATCH/wandb_cache"
+
+# ---- Redirect caches that would otherwise write to read-only /home ----
+export TRITON_CACHE_DIR="$SCRATCH/.triton_cache"
+export TORCH_HOME="$SCRATCH/.torch"
+export HF_HOME="$SCRATCH/.hf_cache"
+
+mkdir -p "$TRITON_CACHE_DIR" "$TORCH_HOME"
+
+echo "============================================================"
+echo "Job ID       : $SLURM_JOB_ID"
+echo "Partition    : $SLURM_JOB_PARTITION"
+echo "Node         : $SLURMD_NODENAME"
+echo "Submit dir   : $SLURM_SUBMIT_DIR"
+echo "Project dir  : $PROJECT"
+echo "Scratch dir  : $SCRATCH"
+echo "Preprocessed : $DATA"
+echo "Log dir      : $LOG_DIR"
+echo "============================================================"
+
+# ---- Sanity checks ----
+echo "[1/6] Module list"
+module list
+
+echo "[2/6] GPU visible to job"
 srun nvidia-smi
 
-srun python microservice/train_sockshop.py \
-    --data_path  "$DATA" \
-    --log_folder logs/sockshop-transformer-1 \
-    --model      transformer \
-    --train_split train_id \
-    --valid_split valid_id \
-    --test_split  test_id \
-    --ood_valid_splits "valid_ood_cpu,valid_ood_disk,valid_ood_mem" \
-    --ood_test_splits  "test_ood_cpu,test_ood_disk,test_ood_mem" \
-    --n_categories  6 \
+echo "[3/6] Python + CUDA sanity (PyTorch)"
+source "$PROJECT/.venv/bin/activate"
+
+srun python - <<'PY'
+import os, sys
+print("Python:", sys.version.split()[0])
+try:
+    import torch
+    print("torch:", torch.__version__)
+    print("cuda available:", torch.cuda.is_available())
+    if torch.cuda.is_available():
+        print("gpu count:", torch.cuda.device_count())
+        print("gpu name:", torch.cuda.get_device_name(0))
+        x = torch.randn(1024, 1024, device="cuda")
+        y = x @ x
+        print("matmul ok, y mean:", y.mean().item())
+except Exception as e:
+    print("ERROR importing/using torch:", e)
+    raise
+PY
+
+echo "[4/6] Check that preprocessed directory exists"
+srun bash -lc "ls -lah '$DATA' | head -50"
+
+cd "$PROJECT"
+
+python -u microservice/train_sockshop.py \
+    --preprocessed_dir "$DATA" \
+    --model transformer \
     --n_head    4 \
     --n_hidden  256 \
     --n_layer   4 \
+    --dropout   0.01 \
+    --activation gelu \
     --dim_sys   48 \
-    --dim_proc  48 \
     --dim_entry 12 \
     --dim_ret   12 \
+    --dim_proc  48 \
     --dim_pid   12 \
     --dim_tid   12 \
-    --dim_time  12 \
     --dim_order 12 \
-    --dim_f_mean 0 \
-    --activation gelu \
-    --n_update  1000000 \
-    --eval      1000 \
-    --lr        0.001 \
-    --ls        0.1 \
-    --batch     32 \
-    --clip      10 \
-    --dropout   0.01 \
-    --gpu       "0" \
-    --amp \
-    --reduce_lr_patience      5 \
-    --early_stopping_patience 20 \
-    --warmup_steps 4000 \
-    --seed      2 \
+    --dim_time  12 \
     --train_event_model \
     --train_latency_model \
-    --analysis
+    --n_categories 6 \
+    --batch        512 \
+    --accum_steps    4 \
+    --n_epochs      20 \
+    --lr          1e-3 \
+    --warmup_steps 4000 \
+    --clip          10.0 \
+    --num_workers     4 \
+    --label_smoothing 0.1 \
+    --amp \
+    --eval_every  2000 \
+    --save_every  5000 \
+    --wandb_project sockshop_lmat \
+    --wandb_run_name "transformer_h100_${SLURM_JOB_ID}" \
+    --log_dir "$LOG_DIR" \
+    --gpu 0
+
+EXIT_CODE=$?
+echo "============================================================"
+echo "Training finished with exit code: $EXIT_CODE"
+echo "Log dir: $LOG_DIR"
+echo "OOD results: $LOG_DIR/ood_results.json"
+
+# Sync WandB offline run once training is done (optional, might fail if no inet)
+wandb sync "$LOG_DIR/wandb/latest-run" 2>/dev/null || true
+
+echo "============================================================"
+exit $EXIT_CODE
