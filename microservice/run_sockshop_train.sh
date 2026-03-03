@@ -3,13 +3,14 @@
 # run_sockshop_train.sh
 # Submit LMAT training on a single H100 GPU (Narval / CC cluster)
 # =============================================================================
+#!/bin/bash
 #SBATCH --job-name=sockshop_train
 #SBATCH --account=def-naser2
+#SBATCH --partition=compute
 #SBATCH --nodes=1
-#SBATCH --partition=compute_full_node
-#SBATCH --ntasks-per-node=4
-#SBATCH --gres=gpu:4
-#SBATCH --cpus-per-task=8
+#SBATCH --gpus-per-node=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=24
 #SBATCH --time=24:00:00
 #SBATCH --output=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/%x-%j.out
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -31,6 +32,14 @@ mkdir -p "$LOG_DIR"
 # ── WandB (offline mode is safe on cluster — sync later with `wandb sync`) ──
 export WANDB_MODE=offline
 export WANDB_DIR="$LOG_DIR"
+export WANDB_CACHE_DIR="$SCRATCH/wandb_cache"
+
+# ── Redirect caches that would otherwise write to read-only /home ─────────────
+export TRITON_CACHE_DIR="$SCRATCH/.triton_cache"
+export TORCH_HOME="$SCRATCH/.torch"
+export HF_HOME="$SCRATCH/.hf_cache"
+
+mkdir -p "$TRITON_CACHE_DIR" "$TORCH_HOME"
 
 echo "============================================================"
 echo "Job ID      : $SLURM_JOB_ID"
@@ -45,7 +54,6 @@ cd $PROJECT
 
 python -u microservice/train_sockshop.py \
     --preprocessed_dir "$PREPROCESSED" \
-    \
     --model transformer \
     --n_head    8 \
     --n_hidden  1024 \
@@ -60,11 +68,9 @@ python -u microservice/train_sockshop.py \
     --dim_tid   16 \
     --dim_order 16 \
     --dim_time  16 \
-    \
     --train_event_model \
     --train_latency_model \
     --n_categories 6 \
-    \
     --batch        512 \
     --accum_steps    4 \
     --n_epochs      20 \
@@ -73,13 +79,9 @@ python -u microservice/train_sockshop.py \
     --clip          1.0 \
     --num_workers     4 \
     --label_smoothing 0.1 \
-    \
     --amp \
-    --compile \
-    \
     --eval_every  2000 \
     --save_every  5000 \
-    \
     --wandb_project sockshop_lmat \
     --wandb_run_name "transformer_h100_${SLURM_JOB_ID}" \
     --log_dir "$LOG_DIR" \
