@@ -84,21 +84,41 @@ cd "$PROJECT"
 
 # NOTE: This mirrors the command you ran interactively, but keeps it small for debug.
 # If your script has a flag to skip OOD eval, add it here (e.g., --skip_ood).
-srun python -u microservice/train_sockshop.py \
-  --preprocessed_dir "$PREPROCESSED" \
-  --model transformer \
-  --n_head 4 --n_hidden 256 --n_layer 3 \
-  --dim_sys 32 --dim_entry 4 --dim_ret 4 --dim_proc 4 \
-  --dim_pid 8 --dim_tid 8 --dim_order 8 --dim_time 8 \
-  --train_event_model --train_latency_model \
-  --batch 128 --accum_steps 2 \
-  --n_epochs 1 \
-  --lr 1e-3 --warmup_steps 20 \
-  --num_workers 0 \
-  --max_samples 2000 \
-  --eval_every 999999 --save_every 999999 \
-  --log_dir "$LOG_DIR" \
-  --gpu 0
+python -u microservice/train_sockshop.py \
+    --preprocessed_dir "$PREPROCESSED" \
+    --model transformer \
+    --n_head    8 \
+    --n_hidden  1024 \
+    --n_layer   6 \
+    --dropout   0.1 \
+    --activation gelu \
+    --dim_sys   64 \
+    --dim_entry  8 \
+    --dim_ret    8 \
+    --dim_proc   8 \
+    --dim_pid   16 \
+    --dim_tid   16 \
+    --dim_order 16 \
+    --dim_time  16 \
+    --train_event_model \
+    --train_latency_model \
+    --n_categories 6 \
+    --batch        512 \
+    --accum_steps    4 \
+    --n_epochs      1 \
+    --lr          3e-4 \
+    --warmup_steps 2000 \
+    --clip          1.0 \
+    --num_workers     4 \
+    --label_smoothing 0.1 \
+    --amp \
+    --compile \
+    --eval_every  2000 \
+    --save_every  5000 \
+    --wandb_project sockshop_lmat \
+    --wandb_run_name "transformer_h100_${SLURM_JOB_ID}" \
+    --log_dir "$LOG_DIR" \
+    --gpu 0
 
 echo "[6/6] Done."
 echo "Outputs: $LOG_DIR"
