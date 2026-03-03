@@ -8,7 +8,7 @@
 #SBATCH --nodes=1
 #SBATCH --partition=compute_full_node
 #SBATCH --ntasks-per-node=4
-#SBATCH --gpus-per-nodes=4
+#SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=8
 #SBATCH --time=24:00:00
 #SBATCH --output=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/%x-%j.out
