@@ -6,7 +6,7 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=12
-#SBATCH --time=08:00:00
+#SBATCH --time=02:00:00
 #SBATCH --output=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/%x-%j.out
 #SBATCH --mail-type=BEGIN,END,FAIL
 
@@ -117,6 +117,7 @@ python -u microservice/train_sockshop.py \
     --amp \
     --eval_every  100 \
     --save_every  5000 \
+    --lat_score_weight 0.3 \
     --wandb_project sockshop_lmat \
     --wandb_run_name "lstm_h100_${SLURM_JOB_ID}" \
     --log_dir "$LOG_DIR" \

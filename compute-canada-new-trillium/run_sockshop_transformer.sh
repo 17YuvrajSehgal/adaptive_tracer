@@ -117,8 +117,9 @@ python -u microservice/train_sockshop.py \
     --num_workers     4 \
     --label_smoothing 0.1 \
     --amp \
-    --eval_every  2000 \
+    --eval_every  100 \
     --save_every  5000 \
+    --lat_score_weight 0.3 \
     --wandb_project sockshop_lmat \
     --wandb_run_name "transformer_h100_${SLURM_JOB_ID}" \
     --log_dir "$LOG_DIR" \

@@ -92,6 +92,9 @@ def get_args():
     p.add_argument("--n_categories", type=int, default=6)
     p.add_argument("--max_seq_len",  type=int, default=512)
     p.add_argument("--max_samples",  type=int, default=None)
+    p.add_argument("--lat_score_weight", type=float, default=0.3,
+                   help="Weight [0,1] for latency cross-entropy in anomaly scoring. "
+                        "Final score = (1-w)*event_xe + w*latency_xe. Default 0.3.")
 
     # Model
     p.add_argument("--model", choices=["lstm", "transformer"], default="transformer")
@@ -333,13 +336,37 @@ def evaluate_split(model, loader, device, args, crit_e, crit_l,
             v = token_accuracy(ll, tgt_lat)
             if not math.isnan(v): al_sum += v; al_cnt += 1
 
-        if return_scores and args.train_event_model and le.numel() > 0:
+        if return_scores and le.numel() > 0:
+            tgt_call_sc = batch["tgt_call"].to(device, dtype=torch.long, non_blocking=True)
+            tgt_lat_sc  = batch["tgt_lat"].to(device, dtype=torch.long, non_blocking=True)
             B, L, V = le.shape
-            per_tok = nn.CrossEntropyLoss(ignore_index=0, reduction="none")(
-                le.reshape(B*L, V), tgt_call.reshape(B*L)).reshape(B, L)
-            mask = tgt_call != 0
-            seq_sc = (per_tok * mask).sum(1) / mask.sum(1).clamp(min=1)
-            scores.append(seq_sc.float().cpu().numpy())
+            # Event score: per-sequence mean cross-entropy over non-pad tokens
+            per_tok_e = nn.CrossEntropyLoss(ignore_index=0, reduction="none")(
+                le.reshape(B*L, V), tgt_call_sc.reshape(B*L)).reshape(B, L)
+            mask_e = tgt_call_sc != 0
+            seq_sc_e = (per_tok_e * mask_e).sum(1) / mask_e.sum(1).clamp(min=1)
+
+            # Latency score: per-sequence mean cross-entropy of latency head
+            # Only computed when latency model is trained and ll is valid
+            w = args.lat_score_weight
+            if args.train_latency_model and ll.numel() > 0 and w > 0.0:
+                _, _, C = ll.shape
+                mask_l = tgt_lat_sc != 0
+                if args.ordinal_latency:
+                    per_tok_l = nn.BCEWithLogitsLoss(reduction="none")(
+                        ll.reshape(B*L, C),
+                        tgt_lat_sc.reshape(B*L, 1).float().expand(B*L, C)
+                    ).mean(-1).reshape(B, L)
+                else:
+                    per_tok_l = nn.CrossEntropyLoss(ignore_index=0, reduction="none")(
+                        ll.reshape(B*L, C), tgt_lat_sc.reshape(B*L)).reshape(B, L)
+                seq_sc_l = (per_tok_l * mask_l).sum(1) / mask_l.sum(1).clamp(min=1)
+                # Normalise latency score to same scale as event score before mixing
+                seq_sc = (1.0 - w) * seq_sc_e.float() + w * seq_sc_l.float()
+            else:
+                seq_sc = seq_sc_e.float()
+
+            scores.append(seq_sc.cpu().numpy())
             labels.append(batch["is_anomaly"].numpy())
 
 
