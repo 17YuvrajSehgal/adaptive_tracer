@@ -8,6 +8,46 @@
 
 ---
 
+## Evaluation Metrics
+
+The LMAT model is jointly trained on two prediction tasks: **next syscall prediction** (event model) and **syscall duration bucket prediction** (latency model). Each task and evaluation phase uses a tailored metric.
+
+### Training Phase
+
+| Metric | Symbol | Description | Why used |
+|---|---|---|---|
+| **Cross-entropy loss** | `loss` | Weighted sum of event CE + latency CE, divided by accumulation steps | Directly optimized during training. Measures how surprised the model is by the next observed syscall and its duration. Decreasing loss indicates the model is learning the normal trace distribution. |
+| **Token accuracy (event)** | `acc_e` | Fraction of non-padding syscall tokens where `argmax(logits) == ground truth` | Provides an interpretable measure of next-syscall prediction quality. At 84–86%, the model correctly predicts 5 in 6 syscalls — showing it has learned the dominant control-flow patterns. |
+| **Token accuracy (latency)** | `acc_l` | Same as `acc_e` but for predicted duration bucket | Shows how well the model has internalized typical timing per syscall. High `acc_l` (particularly for LSTM at 99.6%) signals that the model has learned fine-grained latency timing patterns — essential for detecting resource anomalies. |
+
+### Validation Phase
+
+The same three metrics (`loss`, `acc_e`, `acc_l`) are computed on the held-out `valid_id` (normal) split after every 100 optimizer steps:
+
+- **Val loss** is used as the **model selection criterion** — the checkpoint with the lowest validation loss is saved as `model_best.pt` and is later used for OOD evaluation. Using validation loss (rather than training loss) guards against overfitting to the training shards.
+- Val `acc_e` / `acc_l` serve as sanity checks to confirm the model is genuinely generalizing rather than memorizing.
+
+### OOD Evaluation Phase (Test)
+
+After training, the **best checkpoint** is loaded and scored against each anomaly split. Since no ground-truth labels exist during inference, the anomaly score per sequence is a **weighted cross-entropy**:
+
+```
+score = (1 - w) * mean_event_CE  +  w * mean_latency_CE
+      = 0.7 * event_XE + 0.3 * latency_XE    (default w=0.3)
+```
+
+Sequences with higher cross-entropy are deemed more anomalous (the model is more "surprised" by them). The scores are then ranked against normal baseline scores to produce binary labels, and evaluated with:
+
+| Metric | Description | Why used |
+|---|---|---|
+| **AUROC** (Area Under ROC Curve) | Probability that a randomly chosen anomalous trace scores higher than a randomly chosen normal trace. 0.5 = random, 1.0 = perfect. | **Threshold-free** — measures discrimination quality across all possible thresholds. Standard metric for unsupervised anomaly detection where no threshold is fixed a priori. |
+| **AUPR** (Area Under Precision-Recall Curve) | Area under the Precision vs. Recall curve, weighted toward behaviour at high-precision operating points. | More informative than AUROC when classes are **heavily imbalanced** (normal traces typically outnumber anomalous ones in production). High AUPR means the model can identify anomalies with very few false positives. |
+
+> [!TIP]
+> The choice to combine event + latency cross-entropy as the scoring function (rather than event alone) is motivated by the nature of resource anomalies: CPU/disk/mem stress does not always change *which* syscalls are called, but reliably increases their *duration*. The latency component gives the scoring function complementary signal for these anomaly types.
+
+---
+
 ## Model Configurations
 
 | Parameter | Transformer | LSTM |
