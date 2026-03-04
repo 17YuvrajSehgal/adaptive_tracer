@@ -109,7 +109,7 @@ python -u microservice/train_sockshop.py \
     --n_categories 6 \
     --batch        512 \
     --accum_steps    4 \
-    --n_epochs      20 \
+    --n_epochs      50 \
     --lr          3e-4 \
     --warmup_steps 2000 \
     --clip          1.0 \

@@ -91,8 +91,8 @@ cd "$PROJECT"
 python -u microservice/train_sockshop.py \
     --preprocessed_dir "$DATA" \
     --model     lstm \
-    --n_hidden  256 \
-    --n_layer   2 \
+    --n_hidden  1024 \
+    --n_layer   6 \
     --dropout   0.01 \
     --dim_sys   48 \
     --dim_entry 12 \
@@ -107,14 +107,14 @@ python -u microservice/train_sockshop.py \
     --n_categories 6 \
     --batch        512 \
     --accum_steps    4 \
-    --n_epochs      20 \
+    --n_epochs      50 \
     --lr          1e-3 \
     --warmup_steps 2000 \
     --clip          10.0 \
     --num_workers     4 \
     --label_smoothing 0.1 \
     --amp \
-    --eval_every  2000 \
+    --eval_every  100 \
     --save_every  5000 \
     --wandb_project sockshop_lmat \
     --wandb_run_name "lstm_h100_${SLURM_JOB_ID}" \
