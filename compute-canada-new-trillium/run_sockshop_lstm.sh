@@ -91,6 +91,7 @@ cd "$PROJECT"
 python -u microservice/train_sockshop.py \
     --preprocessed_dir "$DATA" \
     --model     lstm \
+    --max_seq_len 4096 \
     --n_hidden  1024 \
     --n_layer   6 \
     --dropout   0.01 \
