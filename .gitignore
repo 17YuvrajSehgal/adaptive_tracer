@@ -12,3 +12,4 @@ __pycache__/
 experiments.tar.gz
 
 micro-service-trace-data
+logs
