@@ -10,3 +10,5 @@ __pycache__/
 .venv
 /grafana-pdfs
 experiments.tar.gz
+
+micro-service-trace-data
