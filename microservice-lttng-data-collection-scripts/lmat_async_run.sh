@@ -1,11 +1,15 @@
 #!/bin/bash
-# lmat_async_run.sh — LTTng tracing ON + LMAT running asynchronously (parallel inference)
+# lmat_async_run.sh — LTTng tracing ON + LMAT co-located async inference
 #
-# Same structure as lmat_sync_run.sh but passes --mode async to online_inference.py.
-# Inference runs in a background thread; collection never blocks for model forward pass.
+# Two-phase approach (avoids lttng flush requirement):
+#   Phase 1: LTTng + load generator run concurrently (captures load_results.csv)
+#   Phase 2: online_inference.py --replay processes the completed trace in async
+#            mode while a second load generator run is active, so SockShop
+#            experiences the CPU pressure from co-located LMAT inference.
+#            The phase-2 load_results_with_inference.csv is the measurement.
 #
-# Usage: ./lmat_async_run.sh <run_id> [duration_seconds]
-#   e.g. ./lmat_async_run.sh run01 300
+# Usage: ./lmat_async_run.sh <run_id> [duration_seconds] [--quiet]
+#   e.g. ./lmat_async_run.sh run01 300 --quiet
 set -e
 
 RUN_ID=${1:-run01}
@@ -16,7 +20,7 @@ FRONTEND_HOST=${FRONTEND_HOST:-http://localhost:80}
 LOAD_USERS=${LOAD_USERS:-200}
 
 # ── Edit these paths before running on the GCP VM ────────────────────────────
-MODEL_PATH=${MODEL_PATH:-~/adaptive_tracer/checkpoints/model_best.pt}
+MODEL_PATH=${MODEL_PATH:-~/adaptive_tracer/checkpoints/model_best_lstm.pt}
 VOCAB_PATH=${VOCAB_PATH:-~/adaptive_tracer/micro-service-trace-data/preprocessed/vocab.pkl}
 DELAY_PATH=${DELAY_PATH:-~/adaptive_tracer/micro-service-trace-data/preprocessed/delay_spans.pkl}
 MODEL_TYPE=${MODEL_TYPE:-lstm}
@@ -26,18 +30,24 @@ DIM_PROC=${DIM_PROC:-48};   DIM_PID=${DIM_PID:-12};     DIM_TID=${DIM_TID:-12}
 DIM_ORDER=${DIM_ORDER:-12}; DIM_TIME=${DIM_TIME:-12}
 # ─────────────────────────────────────────────────────────────────────────────
 
-mkdir -p "$EXPERIMENT_DIR"/load_logs
+mkdir -p "$EXPERIMENT_DIR"
+
+# Fix traces dir permissions (may be root-owned from previous sudo lttng run)
+TRACE_DIR=~/traces/lmat_async/$RUN_ID
+sudo mkdir -p "$TRACE_DIR"/{kernel,ust} 2>/dev/null || true
+sudo chown -R "$(whoami)" ~/traces/lmat_async 2>/dev/null || true
 
 echo "🚀 LMAT ASYNC: $RUN_ID (${DURATION}s, ${LOAD_USERS} users)"
 
-TRACE_DIR=~/traces/lmat_async/$RUN_ID
+# ── PHASE 1: Collect trace + load data (no inference yet) ───────────────────
+echo "📡 Phase 1: LTTng tracing + load generator ($DURATION s)..."
 RUN_START_EPOCH=$(date -u +%s)
 
-# Process 1: LTTng collection
+# LTTng collection
 (~/adaptive_tracer/microservice-lttng-data-collection-scripts/collect_trace.sh lmat_async "$RUN_ID" "$DURATION" $QUIET_FLAG) &
 TRACE_PID=$!
 
-# Process 2: Load generator
+# Load generator (primary latency measurement)
 python3 ~/load_generator.py \
     --host "$FRONTEND_HOST" \
     --users "$LOAD_USERS" \
@@ -48,17 +58,26 @@ python3 ~/load_generator.py \
     --output "$EXPERIMENT_DIR/load_results.csv" &
 LOAD_PID=$!
 
-# Give LTTng 3s to start writing before LMAT starts reading
-sleep 10
+wait "$TRACE_PID" "$LOAD_PID"
+sudo chown -R "$(whoami)" "$TRACE_DIR" 2>/dev/null || true
 
-# Process: periodic LTTng ring-buffer flush so babeltrace2 can read new data
-(while true; do
-    sudo lttng flush sockshop-kernel 2>/dev/null || true
-    sleep 2
-done) &
-FLUSH_PID=$!
+RUN_END_EPOCH=$(date -u +%s)
 
-# Process 3: LMAT asynchronous inference (inference thread separate from collection)
+# ── PHASE 2: Replay inference + concurrent load (CPU interference measurement)
+echo "🧠 Phase 2: Replaying trace through model + concurrent load ($DURATION s)..."
+
+# Fresh load run concurrent with inference so SockShop feels the CPU impact
+python3 ~/load_generator.py \
+    --host "$FRONTEND_HOST" \
+    --users "$LOAD_USERS" \
+    --duration "$DURATION" \
+    --think-min 0.2 \
+    --think-max 1.0 \
+    --log-level WARNING \
+    --output "$EXPERIMENT_DIR/load_results_with_inference.csv" &
+LOAD2_PID=$!
+
+# Replay the completed trace through the model in async mode
 python3 ~/adaptive_tracer/microservice-lttng-data-collection-scripts/online_inference.py \
     --model_path       "$MODEL_PATH" \
     --vocab_path       "$VOCAB_PATH" \
@@ -70,29 +89,34 @@ python3 ~/adaptive_tracer/microservice-lttng-data-collection-scripts/online_infe
     --dim_proc "$DIM_PROC" --dim_pid "$DIM_PID" --dim_tid "$DIM_TID" \
     --dim_order "$DIM_ORDER" --dim_time "$DIM_TIME" \
     --mode async \
+    --replay \
     --queue_maxsize 50 \
     --window_ms 100 \
     --log_file "$EXPERIMENT_DIR/inference.log" &
 INFER_PID=$!
 
-# Wait for load and tracing to finish; then stop inference and flush loop
-wait "$TRACE_PID" "$LOAD_PID"
-kill "$INFER_PID"  2>/dev/null && wait "$INFER_PID"  2>/dev/null || true
-kill "$FLUSH_PID" 2>/dev/null && wait "$FLUSH_PID" 2>/dev/null || true
+# Wait for inference to finish (replay ends when trace is exhausted); then kill load
+wait "$INFER_PID" || true
+kill "$LOAD2_PID" 2>/dev/null && wait "$LOAD2_PID" 2>/dev/null || true
 
-RUN_END_EPOCH=$(date -u +%s)
-sudo chown -R "$(whoami)" "$TRACE_DIR" 2>/dev/null || true
-
-
-REQ_COUNT=$(tail -n +2 "$EXPERIMENT_DIR/load_results.csv" 2>/dev/null | wc -l || echo 0)
 ELAPSED=$((RUN_END_EPOCH - RUN_START_EPOCH))
+REQ_COUNT=$(tail -n +2 "$EXPERIMENT_DIR/load_results.csv" 2>/dev/null | wc -l || echo 0)
+REQ2_COUNT=$(tail -n +2 "$EXPERIMENT_DIR/load_results_with_inference.csv" 2>/dev/null | wc -l || echo 0)
 
 cat <<EOF
 
 ✅ LMAT ASYNC $RUN_ID COMPLETE
-📊 Requests   : $REQ_COUNT  (in ${ELAPSED}s)
-📈 Throughput : $(echo "scale=1; $REQ_COUNT / $ELAPSED" | bc) req/s (approx)
-🧠 Inference  : $EXPERIMENT_DIR/inference.log
-📁 Output     : $EXPERIMENT_DIR
+─────────────────────────────────────────────
+Phase 1 (LTTng only):
+  📊 Requests   : $REQ_COUNT  (in ${ELAPSED}s)
+  📈 Throughput : $(echo "scale=1; $REQ_COUNT / $ELAPSED" | bc) req/s
 
+Phase 2 (with co-located LMAT async inference replaying):
+  📊 Requests   : $REQ2_COUNT
+  🧠 Inference  : $EXPERIMENT_DIR/inference.log
+
+📁 Output dir  : $EXPERIMENT_DIR
+─────────────────────────────────────────────
+Use load_results.csv for LTTng overhead.
+Use load_results_with_inference.csv for LMAT co-located overhead.
 EOF
