@@ -11,5 +11,9 @@ __pycache__/
 /grafana-pdfs
 experiments.tar.gz
 
-micro-service-trace-data
 logs
+
+micro-service-trace-data/experiments
+micro-service-trace-data/preprocessed/*/
+!micro-service-trace-data/preprocessed/delay_spans.pkl
+!micro-service-trace-data/preprocessed/vocab.pkl
