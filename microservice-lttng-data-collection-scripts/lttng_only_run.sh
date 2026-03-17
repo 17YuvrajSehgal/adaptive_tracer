@@ -19,6 +19,11 @@ echo "🚀 LTTng ONLY (no LMAT): $RUN_ID (${DURATION}s, ${LOAD_USERS} users)"
 
 RUN_START_EPOCH=$(date -u +%s)
 
+# Fix traces dir permissions BEFORE collect_trace.sh tries to create it
+TRACE_DIR=~/traces/lttng_only/$RUN_ID
+sudo mkdir -p "$TRACE_DIR"/{kernel,ust} 2>/dev/null || true
+sudo chown -R "$(whoami)" ~/traces/lttng_only 2>/dev/null || true
+
 # ── Tracing (kernel + UST, same as normal runs) ──────────────────────────────
 (~/adaptive_tracer/microservice-lttng-data-collection-scripts/collect_trace.sh lttng_only "$RUN_ID" "$DURATION" $QUIET_FLAG) &
 TRACE_PID=$!
@@ -38,8 +43,7 @@ wait "$TRACE_PID" "$LOAD_PID"
 
 RUN_END_EPOCH=$(date -u +%s)
 
-# Fix perms
-TRACE_DIR=~/traces/lttng_only/"$RUN_ID"
+# Fix perms on kernel subdirectory (written by sudo lttng)
 sudo chown -R "$(whoami)" "$TRACE_DIR" 2>/dev/null || true
 
 
