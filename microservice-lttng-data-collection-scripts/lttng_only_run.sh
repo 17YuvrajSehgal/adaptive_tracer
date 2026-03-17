@@ -19,7 +19,7 @@ echo "🚀 LTTng ONLY (no LMAT): $RUN_ID (${DURATION}s, ${LOAD_USERS} users)"
 RUN_START_EPOCH=$(date -u +%s)
 
 # ── Tracing (kernel + UST, same as normal runs) ──────────────────────────────
-(cd ~ && ./collect_trace.sh lttng_only "$RUN_ID" "$DURATION") &
+(~/adaptive_tracer/microservice-lttng-data-collection-scripts/collect_trace.sh lttng_only "$RUN_ID" "$DURATION") &
 TRACE_PID=$!
 
 # ── Load generator ───────────────────────────────────────────────────────────

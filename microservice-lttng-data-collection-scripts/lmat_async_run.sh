@@ -34,7 +34,7 @@ TRACE_DIR=~/traces/lmat_async/$RUN_ID
 RUN_START_EPOCH=$(date -u +%s)
 
 # Process 1: LTTng collection
-(cd ~ && ./collect_trace.sh lmat_async "$RUN_ID" "$DURATION" $QUIET_FLAG) &
+(~/adaptive_tracer/microservice-lttng-data-collection-scripts/collect_trace.sh lmat_async "$RUN_ID" "$DURATION" $QUIET_FLAG) &
 TRACE_PID=$!
 
 # Process 2: Load generator

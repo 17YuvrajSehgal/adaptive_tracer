@@ -17,7 +17,8 @@ sudo lttng enable-event -k --all '*'
 sudo lttng start
 
 # OTel relay
-python3 /home/sehgaluv17/agents/otel-to-lttng.py $4 &
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+python3 "$SCRIPT_DIR/agents/otel-to-lttng.py" $4 &
 RELAY_PID=$!
 
 echo "[$TYPE/$RUN] FULL TRACING (Kernel+UST) for ${DURATION}s..."
