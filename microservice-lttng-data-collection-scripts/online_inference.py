@@ -391,8 +391,14 @@ def encode_window(events: list, dict_sys, dict_proc, delay_spans: dict,
             raw_lat = max(0, ts - entry_time_map.pop(key))
             if name in delay_spans:
                 boundaries = delay_spans[name]
-                cat = int(np.searchsorted(boundaries, raw_lat)) + 1
-                lat_val = min(cat, n_categories - 1)
+                # delay_spans values may be (boundaries_array, other) tuples
+                if isinstance(boundaries, tuple):
+                    boundaries = boundaries[0]
+                try:
+                    cat = int(np.searchsorted(np.asarray(boundaries, dtype=np.float64), raw_lat)) + 1
+                    lat_val = min(cat, n_categories - 1)
+                except Exception:
+                    lat_val = 0
             else:
                 lat_val = 0
         else:
@@ -651,6 +657,11 @@ def main():
     # delay_spans may be a dict name→boundaries or a tuple (boundaries_dict, ...)
     if isinstance(delay_spans, tuple):
         delay_spans = delay_spans[0]
+    # Normalise any per-entry tuples: (boundaries, other) → boundaries
+    delay_spans = {
+        k: (v[0] if isinstance(v, tuple) else v)
+        for k, v in delay_spans.items()
+    }
     log.info("Latency boundaries loaded for %d event types", len(delay_spans))
 
     # ── Load model ───────────────────────────────────────────────────────────
