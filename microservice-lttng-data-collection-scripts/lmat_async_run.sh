@@ -10,6 +10,7 @@ set -e
 
 RUN_ID=${1:-run01}
 DURATION=${2:-300}
+QUIET_FLAG=${3:-}    # pass --quiet to silence the OTel span printing
 EXPERIMENT_DIR=~/experiments/lmat_async/$RUN_ID
 FRONTEND_HOST=${FRONTEND_HOST:-http://localhost:80}
 LOAD_USERS=${LOAD_USERS:-200}
@@ -33,7 +34,7 @@ TRACE_DIR=~/traces/lmat_async/$RUN_ID
 RUN_START_EPOCH=$(date -u +%s)
 
 # Process 1: LTTng collection
-(cd ~ && ./collect_trace.sh lmat_async "$RUN_ID" "$DURATION") &
+(cd ~ && ./collect_trace.sh lmat_async "$RUN_ID" "$DURATION" $QUIET_FLAG) &
 TRACE_PID=$!
 
 # Process 2: Load generator

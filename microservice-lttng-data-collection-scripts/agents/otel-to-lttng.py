@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
+import argparse
 import subprocess
 import re
 import lttngust.loghandler
 import logging
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--quiet", action="store_true", help="Suppress printing spans to stdout")
+args = parser.parse_args()
 
 logger = logging.getLogger("otel.spans")
 lttng_handler = lttngust.loghandler._Handler()
@@ -24,7 +29,8 @@ procs = [
     for c in containers
 ]
 
-print("Relaying OTel spans to LTTng... (Ctrl+C to stop)")
+if not args.quiet:
+    print("Relaying OTel spans to LTTng... (Ctrl+C to stop)")
 try:
     import select
     while True:
@@ -36,8 +42,10 @@ try:
                 op, trace_id, span_id, kind = m.groups()
                 msg = f"op={op} trace_id={trace_id} span_id={span_id} kind={kind}"
                 logger.info(msg)
-                print(f"[LTTng] {msg}")
+                if not args.quiet:
+                    print(f"[LTTng] {msg}")
 except KeyboardInterrupt:
-    print("Stopped.")
+    if not args.quiet:
+        print("Stopped.")
     for p in procs:
         p.terminate()
