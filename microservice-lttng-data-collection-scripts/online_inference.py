@@ -183,95 +183,126 @@ def stream_events_from_bt2(trace_dir: str, replay: bool):
     """
     Yield event dicts from babeltrace2 subprocess output.
 
-    In live mode: babeltrace2 blocks until new CTF data is flushed by LTTng.
-    In replay mode: reads existing CTF at full I/O speed.
+    In live mode: babeltrace2 may exit at EOF because LTTng hasn't flushed the
+    ring buffer yet. We retry in a loop, skipping events already yielded (dedup
+    by timestamp). The shell wrapper runs `sudo lttng flush` every 2s so new data
+    appears on disk between retries.
+
+    In replay mode (--replay): reads the finished CTF once at full speed and exits.
 
     Each dict: {name, raw_name, timestamp_ns, pid, tid, procname, ret, is_entry, is_exit}
     """
     ctf_root = _find_ctf_root(trace_dir)
     cmd = ["babeltrace2", "--output-format=text", ctf_root]
-    log.info("Starting babeltrace2: %s", " ".join(cmd))
 
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-        bufsize=1,    # line buffered
-    )
+    _last_ns    = 0        # highest timestamp yielded so far (dedup checkpoint)
+    _retry      = 0
+    _RETRY_WAIT = 2.0      # seconds between retries in live mode
 
-    # Timestamp state (same midnight-wrap logic as preprocess_sockshop.py)
-    _prev_sec   = -1
-    _day_offset = 0
-    first_abs_ts = None
+    while True:
+        log.info("babeltrace2 pass #%d — ctf_root=%s  last_ns=%d", _retry, ctf_root, _last_ns)
+        _retry += 1
 
-    try:
-        for line in proc.stdout:
-            line = line.rstrip()
-            if not line:
-                continue
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            bufsize=1,
+        )
 
-            # ── Parse timestamp ──────────────────────────────────────────────
-            ts_start = line.find("[")
-            ts_end   = line.find("]", ts_start)
-            if ts_start < 0 or ts_end < 0:
-                continue
-            ts_str = line[ts_start + 1:ts_end]
-            dot = ts_str.rfind(".")
-            if dot < 0:
-                continue
-            try:
-                parts   = ts_str[:dot].split(":")
-                cur_sec = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-                if _prev_sec >= 0 and cur_sec < _prev_sec - 3600:
-                    _day_offset += 86400
-                _prev_sec = cur_sec
-                sec  = cur_sec + _day_offset
-                nsec = int(ts_str[dot + 1:].ljust(9, "0"))
-                ns   = sec * 1_000_000_000 + nsec
-            except (ValueError, IndexError):
-                continue
+        # ── Timestamp state (midnight-wrap logic, same as preprocess_sockshop.py) ──
+        _prev_sec   = -1
+        _day_offset = 0
+        n_new       = 0     # events yielded in this pass (after dedup)
 
-            if first_abs_ts is None:
-                first_abs_ts = ns
+        try:
+            for line in proc.stdout:
+                line = line.rstrip()
+                if not line:
+                    continue
 
-            # ── Parse event name ─────────────────────────────────────────────
-            after_delta = line.find(")", ts_end)
-            if after_delta < 0:
-                continue
-            rest = line[after_delta + 2:]
-            sp1 = rest.find(" ")
-            sp2 = rest.find(" ", sp1 + 1)
-            if sp1 < 0 or sp2 < 0:
-                continue
-            raw_name = rest[sp1 + 1:sp2].rstrip(":")
-            name     = raw_name.replace("kernel:", "")
-            name     = name.replace("syscall_", "").replace("entry_", "").replace("exit_", "")
-            is_entry = "entry" in raw_name
-            is_exit  = "exit"  in raw_name
+                # ── Parse timestamp ──────────────────────────────────────────
+                ts_start = line.find("[")
+                ts_end   = line.find("]", ts_start)
+                if ts_start < 0 or ts_end < 0:
+                    continue
+                ts_str = line[ts_start + 1:ts_end]
+                dot = ts_str.rfind(".")
+                if dot < 0:
+                    continue
+                try:
+                    parts   = ts_str[:dot].split(":")
+                    cur_sec = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+                    if _prev_sec >= 0 and cur_sec < _prev_sec - 3600:
+                        _day_offset += 86400
+                    _prev_sec = cur_sec
+                    sec  = cur_sec + _day_offset
+                    nsec = int(ts_str[dot + 1:].ljust(9, "0"))
+                    ns   = sec * 1_000_000_000 + nsec
+                except (ValueError, IndexError):
+                    continue
 
-            # ── Parse fields ─────────────────────────────────────────────────
-            payload  = rest[sp2:]
-            pid, tid, procname, ret_enc = 0, 0, "unknown", 0
-            for m in _FIELD_RE.finditer(payload):
-                fname = m.group(1)
-                sval  = m.group(2)
-                ival  = m.group(3)
-                if   fname == "tid"     and ival: tid  = int(ival)
-                elif fname == "pid"     and ival: pid  = int(ival)
-                elif fname == "procname" and sval: procname = sval
-                elif fname == "ret"     and ival:
-                    v = int(ival)
-                    ret_enc = 1 if v >= 0 else 2
+                # ── Dedup: skip events already yielded in a previous pass ────
+                if ns <= _last_ns:
+                    continue
 
-            yield {
-                "name": name, "raw_name": raw_name, "timestamp_ns": ns,
-                "pid": pid, "tid": tid, "procname": procname,
-                "ret": ret_enc, "is_entry": is_entry, "is_exit": is_exit,
-            }
-    finally:
-        proc.terminate()
-        proc.wait()
+                # ── Parse event name ─────────────────────────────────────────
+                after_delta = line.find(")", ts_end)
+                if after_delta < 0:
+                    continue
+                rest = line[after_delta + 2:]
+                sp1 = rest.find(" ")
+                sp2 = rest.find(" ", sp1 + 1)
+                if sp1 < 0 or sp2 < 0:
+                    continue
+                raw_name = rest[sp1 + 1:sp2].rstrip(":")
+                name     = raw_name.replace("kernel:", "")
+                name     = name.replace("syscall_", "").replace("entry_", "").replace("exit_", "")
+                is_entry = "entry" in raw_name
+                is_exit  = "exit"  in raw_name
+
+                # ── Parse fields ─────────────────────────────────────────────
+                payload  = rest[sp2:]
+                pid, tid, procname, ret_enc = 0, 0, "unknown", 0
+                for m in _FIELD_RE.finditer(payload):
+                    fname = m.group(1)
+                    sval  = m.group(2)
+                    ival  = m.group(3)
+                    if   fname == "tid"      and ival: tid  = int(ival)
+                    elif fname == "pid"      and ival: pid  = int(ival)
+                    elif fname == "procname" and sval: procname = sval
+                    elif fname == "ret"      and ival:
+                        v = int(ival)
+                        ret_enc = 1 if v >= 0 else 2
+
+                _last_ns = ns
+                n_new   += 1
+                yield {
+                    "name": name, "raw_name": raw_name, "timestamp_ns": ns,
+                    "pid": pid, "tid": tid, "procname": procname,
+                    "ret": ret_enc, "is_entry": is_entry, "is_exit": is_exit,
+                }
+        finally:
+            proc.terminate()
+            proc.wait()
+
+        if replay:
+            break   # single-pass for offline replay
+
+        # Live mode: sleep to allow LTTng to flush more ring-buffer data, then retry.
+        # If we got zero new events on this pass and have yielded some previously,
+        # the session has likely ended — exit gracefully.
+        if n_new == 0 and _last_ns > 0:
+            log.info("No new events on pass #%d — session likely ended. Exiting.", _retry)
+            break
+        if n_new == 0:
+            log.info("No events yet on pass #%d — waiting for ring buffer flush ...", _retry)
+        else:
+            log.info("Pass #%d yielded %d new events (last_ns=%d). Waiting %.1fs for next flush.",
+                     _retry, n_new, _last_ns, _RETRY_WAIT)
+        time.sleep(_RETRY_WAIT)
+
 
 
 ###############################################################################

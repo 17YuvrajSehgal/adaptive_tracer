@@ -50,6 +50,13 @@ LOAD_PID=$!
 # Give LTTng 3s to start writing before LMAT starts reading
 sleep 3
 
+# Process: periodic LTTng ring-buffer flush so babeltrace2 can read new data
+(while true; do
+    sudo lttng flush sockshop-kernel 2>/dev/null || true
+    sleep 2
+done) &
+FLUSH_PID=$!
+
 # Process 3: LMAT asynchronous inference (inference thread separate from collection)
 python3 ~/adaptive_tracer/microservice-lttng-data-collection-scripts/online_inference.py \
     --model_path       "$MODEL_PATH" \
@@ -67,9 +74,10 @@ python3 ~/adaptive_tracer/microservice-lttng-data-collection-scripts/online_infe
     --log_file "$EXPERIMENT_DIR/inference.log" &
 INFER_PID=$!
 
-# Wait for load and tracing to finish; then stop inference
+# Wait for load and tracing to finish; then stop inference and flush loop
 wait "$TRACE_PID" "$LOAD_PID"
-kill "$INFER_PID" 2>/dev/null && wait "$INFER_PID" 2>/dev/null || true
+kill "$INFER_PID"  2>/dev/null && wait "$INFER_PID"  2>/dev/null || true
+kill "$FLUSH_PID" 2>/dev/null && wait "$FLUSH_PID" 2>/dev/null || true
 
 RUN_END_EPOCH=$(date -u +%s)
 sudo chown -R "$(whoami)" "$TRACE_DIR" 2>/dev/null || true

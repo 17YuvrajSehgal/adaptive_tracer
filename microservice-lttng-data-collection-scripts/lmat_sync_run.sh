@@ -17,7 +17,7 @@ FRONTEND_HOST=${FRONTEND_HOST:-http://localhost:80}
 LOAD_USERS=${LOAD_USERS:-200}
 
 # ── Edit these paths before running on the GCP VM ────────────────────────────
-MODEL_PATH=${MODEL_PATH:-~/adaptive_tracer/checkpoints/model_best.pt}
+MODEL_PATH=${MODEL_PATH:-~/adaptive_tracer/checkpoints/model_best_lstm.pt}
 VOCAB_PATH=${VOCAB_PATH:-~/adaptive_tracer/micro-service-trace-data/preprocessed/vocab.pkl}
 DELAY_PATH=${DELAY_PATH:-~/adaptive_tracer/micro-service-trace-data/preprocessed/delay_spans.pkl}
 MODEL_TYPE=${MODEL_TYPE:-lstm}
@@ -53,6 +53,14 @@ LOAD_PID=$!
 # Give LTTng 3s to start writing before LMAT starts reading
 sleep 3
 
+# Process: periodic LTTng ring-buffer flush so babeltrace2 can read new data
+# (without this, babeltrace2 exits at EOF immediately and gets no events)
+(while true; do
+    sudo lttng flush sockshop-kernel 2>/dev/null || true
+    sleep 2
+done) &
+FLUSH_PID=$!
+
 # Process 3: LMAT synchronous inference (reads live CTF as it grows)
 python3 ~/adaptive_tracer/microservice-lttng-data-collection-scripts/online_inference.py \
     --model_path       "$MODEL_PATH" \
@@ -69,9 +77,10 @@ python3 ~/adaptive_tracer/microservice-lttng-data-collection-scripts/online_infe
     --log_file "$EXPERIMENT_DIR/inference.log" &
 INFER_PID=$!
 
-# Wait for load and tracing to finish; then stop inference
+# Wait for load and tracing to finish; then stop inference and flush loop
 wait "$TRACE_PID" "$LOAD_PID"
-kill "$INFER_PID" 2>/dev/null && wait "$INFER_PID" 2>/dev/null || true
+kill "$INFER_PID"  2>/dev/null && wait "$INFER_PID"  2>/dev/null || true
+kill "$FLUSH_PID" 2>/dev/null && wait "$FLUSH_PID" 2>/dev/null || true
 
 RUN_END_EPOCH=$(date -u +%s)
 sudo chown -R "$(whoami)" "$TRACE_DIR" 2>/dev/null || true
