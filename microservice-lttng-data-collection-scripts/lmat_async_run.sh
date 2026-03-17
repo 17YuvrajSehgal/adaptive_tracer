@@ -25,7 +25,7 @@ DIM_PROC=${DIM_PROC:-48};   DIM_PID=${DIM_PID:-12};     DIM_TID=${DIM_TID:-12}
 DIM_ORDER=${DIM_ORDER:-12}; DIM_TIME=${DIM_TIME:-12}
 # ─────────────────────────────────────────────────────────────────────────────
 
-mkdir -p "$EXPERIMENT_DIR"/{metrics,load_logs}
+mkdir -p "$EXPERIMENT_DIR"/load_logs
 
 echo "🚀 LMAT ASYNC: $RUN_ID (${DURATION}s, ${LOAD_USERS} users)"
 
@@ -74,12 +74,6 @@ kill "$INFER_PID" 2>/dev/null && wait "$INFER_PID" 2>/dev/null || true
 RUN_END_EPOCH=$(date -u +%s)
 sudo chown -R "$(whoami)" "$TRACE_DIR" 2>/dev/null || true
 
-echo "⏸️  Prometheus flush (30s)..."
-sleep 30
-
-START_ISO=$(date -u -d "@$((RUN_START_EPOCH-30))" '+%Y-%m-%dT%H:%M:%SZ')
-END_ISO=$(date -u   -d "@$((RUN_END_EPOCH+30))"   '+%Y-%m-%dT%H:%M:%SZ')
-./download_metrics.sh "$START_ISO" "$END_ISO" "$EXPERIMENT_DIR/metrics"
 
 REQ_COUNT=$(tail -n +2 "$EXPERIMENT_DIR/load_results.csv" 2>/dev/null | wc -l || echo 0)
 ELAPSED=$((RUN_END_EPOCH - RUN_START_EPOCH))

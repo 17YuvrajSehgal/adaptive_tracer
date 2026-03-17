@@ -12,7 +12,7 @@ EXPERIMENT_DIR=~/experiments/baseline/$RUN_ID
 FRONTEND_HOST=${FRONTEND_HOST:-http://localhost:80}
 LOAD_USERS=${LOAD_USERS:-200}
 
-mkdir -p "$EXPERIMENT_DIR"/{metrics,load_logs}
+mkdir -p "$EXPERIMENT_DIR"/load_logs
 
 echo "🚀 BASELINE (no tracing, no LMAT): $RUN_ID (${DURATION}s, ${LOAD_USERS} users)"
 
@@ -48,13 +48,6 @@ python3 ~/load_generator.py \
     --output "$EXPERIMENT_DIR/load_results.csv"
 
 RUN_END_EPOCH=$(date -u +%s)
-
-# ── Metrics ──────────────────────────────────────────────────────────────────
-echo "⏸️  Prometheus flush (30s)..."
-sleep 30
-START_ISO=$(date -u -d "@$((RUN_START_EPOCH-30))" '+%Y-%m-%dT%H:%M:%SZ')
-END_ISO=$(date -u   -d "@$((RUN_END_EPOCH+30))"   '+%Y-%m-%dT%H:%M:%SZ')
-./download_metrics.sh "$START_ISO" "$END_ISO" "$EXPERIMENT_DIR/metrics"
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 REQ_COUNT=$(tail -n +2 "$EXPERIMENT_DIR/load_results.csv" 2>/dev/null | wc -l || echo 0)

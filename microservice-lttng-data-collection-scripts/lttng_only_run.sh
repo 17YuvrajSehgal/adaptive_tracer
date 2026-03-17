@@ -12,7 +12,7 @@ EXPERIMENT_DIR=~/experiments/lttng_only/$RUN_ID
 FRONTEND_HOST=${FRONTEND_HOST:-http://localhost:80}
 LOAD_USERS=${LOAD_USERS:-200}
 
-mkdir -p "$EXPERIMENT_DIR"/{metrics,load_logs}
+mkdir -p "$EXPERIMENT_DIR"/load_logs
 
 echo "🚀 LTTng ONLY (no LMAT): $RUN_ID (${DURATION}s, ${LOAD_USERS} users)"
 
@@ -41,12 +41,6 @@ RUN_END_EPOCH=$(date -u +%s)
 TRACE_DIR=~/traces/lttng_only/"$RUN_ID"
 sudo chown -R "$(whoami)" "$TRACE_DIR" 2>/dev/null || true
 
-echo "⏸️  Prometheus flush (30s)..."
-sleep 30
-
-START_ISO=$(date -u -d "@$((RUN_START_EPOCH-30))" '+%Y-%m-%dT%H:%M:%SZ')
-END_ISO=$(date -u   -d "@$((RUN_END_EPOCH+30))"   '+%Y-%m-%dT%H:%M:%SZ')
-./download_metrics.sh "$START_ISO" "$END_ISO" "$EXPERIMENT_DIR/metrics"
 
 REQ_COUNT=$(tail -n +2 "$EXPERIMENT_DIR/load_results.csv" 2>/dev/null | wc -l || echo 0)
 ELAPSED=$((RUN_END_EPOCH - RUN_START_EPOCH))
