@@ -11,6 +11,7 @@ DURATION=${2:-300}
 EXPERIMENT_DIR=~/experiments/lttng_only/$RUN_ID
 FRONTEND_HOST=${FRONTEND_HOST:-http://localhost:80}
 LOAD_USERS=${LOAD_USERS:-200}
+QUIET_FLAG=${3:-}    # pass --quiet to silence the OTel span printing
 
 mkdir -p "$EXPERIMENT_DIR"/load_logs
 
@@ -19,7 +20,7 @@ echo "🚀 LTTng ONLY (no LMAT): $RUN_ID (${DURATION}s, ${LOAD_USERS} users)"
 RUN_START_EPOCH=$(date -u +%s)
 
 # ── Tracing (kernel + UST, same as normal runs) ──────────────────────────────
-(~/adaptive_tracer/microservice-lttng-data-collection-scripts/collect_trace.sh lttng_only "$RUN_ID" "$DURATION") &
+(~/adaptive_tracer/microservice-lttng-data-collection-scripts/collect_trace.sh lttng_only "$RUN_ID" "$DURATION" $QUIET_FLAG) &
 TRACE_PID=$!
 
 # ── Load generator ───────────────────────────────────────────────────────────
