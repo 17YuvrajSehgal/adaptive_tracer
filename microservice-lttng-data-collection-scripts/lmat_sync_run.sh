@@ -51,7 +51,7 @@ python3 ~/load_generator.py \
 LOAD_PID=$!
 
 # Give LTTng 3s to start writing before LMAT starts reading
-sleep 3
+sleep 10
 
 # Process: periodic LTTng ring-buffer flush so babeltrace2 can read new data
 # (without this, babeltrace2 exits at EOF immediately and gets no events)
