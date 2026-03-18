@@ -15,3 +15,5 @@ micro-service-trace-data/experiments
 micro-service-trace-data/preprocessed/*/
 !micro-service-trace-data/preprocessed/delay_spans.pkl
 !micro-service-trace-data/preprocessed/vocab.pkl
+
+logs/*/*.pt
