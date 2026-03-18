@@ -1,0 +1,301 @@
+[20:10:57][rank0] Vocab: 257 syscalls / 6 processes
+[20:10:57][rank0] Train shards for this rank: 64  (total=64)  Valid shards: 64
+[20:10:57][rank0] Model: TRANSFORMER  params=2,493,711
+[20:10:57][rank0]   n_hidden=1024  n_layer=6  n_head=8
+[20:10:57][rank0]   AMP(bf16)=True  compile=False  chk=False  DDP=False
+[20:10:57][rank0]   batch=512  accum_steps=4  world_size=1  eff_batch=2048
+[20:10:57][rank0] ======================================================================
+[20:10:57][rank0] Starting training  device=cuda:0  total_steps~=7712  world_size=1
+[20:10:57][rank0] ======================================================================
+[20:13:19][rank0] --- Validation @ step 100 ---
+[20:14:48][rank0]   val loss=3.8047  loss_e=2.6515  acc_e=33.35%  acc_l=56.60%
+[20:14:48][rank0]   New best val loss=3.8047 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[20:16:10][rank0] Epoch   1/50  loss=5.4897  acc_e=21.15%  acc_l=46.25%  elapsed=0:05:12
+[20:17:11][rank0] --- Validation @ step 200 ---
+[20:18:42][rank0]   val loss=3.2229  loss_e=2.1606  acc_e=51.37%  acc_l=58.19%
+[20:18:42][rank0]   New best val loss=3.2229 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[20:21:00][rank0] --- Validation @ step 300 ---
+[20:22:29][rank0]   val loss=2.5033  loss_e=1.4799  acc_e=80.17%  acc_l=59.04%
+[20:22:29][rank0]   New best val loss=2.5033 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[20:22:53][rank0] Epoch   2/50  loss=3.0998  acc_e=56.91%  acc_l=57.08%  elapsed=0:11:55
+[20:24:52][rank0] --- Validation @ step 400 ---
+[20:26:25][rank0]   val loss=2.3998  loss_e=1.3892  acc_e=81.08%  acc_l=61.46%
+[20:26:25][rank0]   New best val loss=2.3998 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[20:28:10][rank0] Epoch   3/50  loss=2.4394  acc_e=79.18%  acc_l=61.16%  elapsed=0:17:12
+[20:28:48][rank0] step=   500  epoch=4  loss=2.3518  acc_e=81.43%  lr=7.50e-05  elapsed=0:17:51
+[20:28:48][rank0] --- Validation @ step 500 ---
+[20:30:21][rank0]   val loss=2.2682  loss_e=1.3424  acc_e=81.53%  acc_l=65.49%
+[20:30:21][rank0]   New best val loss=2.2682 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[20:32:42][rank0] --- Validation @ step 600 ---
+[20:34:13][rank0]   val loss=2.2400  loss_e=1.3141  acc_e=81.68%  acc_l=64.89%
+[20:34:13][rank0]   New best val loss=2.2400 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[20:34:57][rank0] Epoch   4/50  loss=2.2908  acc_e=80.74%  acc_l=64.69%  elapsed=0:24:00
+[20:36:34][rank0] --- Validation @ step 700 ---
+[20:38:04][rank0]   val loss=2.1902  loss_e=1.3165  acc_e=81.86%  acc_l=67.75%
+[20:38:04][rank0]   New best val loss=2.1902 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[20:40:12][rank0] Epoch   5/50  loss=2.2117  acc_e=81.42%  acc_l=66.50%  elapsed=0:29:14
+[20:40:27][rank0] --- Validation @ step 800 ---
+[20:41:57][rank0]   val loss=2.1579  loss_e=1.2934  acc_e=81.83%  acc_l=67.84%
+[20:41:57][rank0]   New best val loss=2.1579 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[20:44:19][rank0] --- Validation @ step 900 ---
+[20:45:48][rank0]   val loss=2.1364  loss_e=1.2869  acc_e=82.11%  acc_l=68.43%
+[20:45:48][rank0]   New best val loss=2.1364 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[20:46:55][rank0] Epoch   6/50  loss=2.1728  acc_e=81.74%  acc_l=67.36%  elapsed=0:35:58
+[20:48:11][rank0] step=  1000  epoch=7  loss=2.1671  acc_e=82.38%  lr=1.50e-04  elapsed=0:37:14
+[20:48:11][rank0] --- Validation @ step 1000 ---
+[20:49:42][rank0]   val loss=2.1427  loss_e=1.2803  acc_e=82.31%  acc_l=67.99%
+[20:52:01][rank0] --- Validation @ step 1100 ---
+[20:53:30][rank0]   val loss=2.1044  loss_e=1.2791  acc_e=82.38%  acc_l=69.04%
+[20:53:30][rank0]   New best val loss=2.1044 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[20:53:39][rank0] Epoch   7/50  loss=2.1470  acc_e=82.02%  acc_l=67.85%  elapsed=0:42:42
+[20:55:52][rank0] --- Validation @ step 1200 ---
+[20:57:23][rank0]   val loss=2.0941  loss_e=1.2728  acc_e=82.55%  acc_l=69.18%
+[20:57:23][rank0]   New best val loss=2.0941 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[20:58:54][rank0] Epoch   8/50  loss=2.1289  acc_e=82.21%  acc_l=68.19%  elapsed=0:47:56
+[20:59:47][rank0] --- Validation @ step 1300 ---
+[21:01:18][rank0]   val loss=2.0855  loss_e=1.2682  acc_e=82.51%  acc_l=68.92%
+[21:01:18][rank0]   New best val loss=2.0855 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[21:03:36][rank0] --- Validation @ step 1400 ---
+[21:05:08][rank0]   val loss=2.0886  loss_e=1.2799  acc_e=82.06%  acc_l=69.44%
+[21:05:40][rank0] Epoch   9/50  loss=2.1136  acc_e=82.35%  acc_l=68.43%  elapsed=0:54:42
+[21:07:31][rank0] step=  1500  epoch=10  loss=2.1089  acc_e=82.49%  lr=2.25e-04  elapsed=0:56:34
+[21:07:31][rank0] --- Validation @ step 1500 ---
+[21:09:00][rank0]   val loss=2.0761  loss_e=1.2697  acc_e=82.74%  acc_l=69.55%
+[21:09:00][rank0]   New best val loss=2.0761 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[21:10:52][rank0] Epoch  10/50  loss=2.1003  acc_e=82.47%  acc_l=68.80%  elapsed=0:59:55
+[21:11:22][rank0] --- Validation @ step 1600 ---
+[21:12:52][rank0]   val loss=2.0702  loss_e=1.2625  acc_e=82.70%  acc_l=69.44%
+[21:12:52][rank0]   New best val loss=2.0702 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[21:15:14][rank0] --- Validation @ step 1700 ---
+[21:16:43][rank0]   val loss=2.0598  loss_e=1.2621  acc_e=82.78%  acc_l=69.72%
+[21:16:43][rank0]   New best val loss=2.0598 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[21:17:35][rank0] Epoch  11/50  loss=2.0902  acc_e=82.54%  acc_l=68.97%  elapsed=1:06:38
+[21:19:03][rank0] --- Validation @ step 1800 ---
+[21:20:32][rank0]   val loss=2.0653  loss_e=1.2695  acc_e=82.95%  acc_l=69.77%
+[21:22:48][rank0] Epoch  12/50  loss=2.0790  acc_e=82.69%  acc_l=69.21%  elapsed=1:11:51
+[21:22:54][rank0] --- Validation @ step 1900 ---
+[21:24:24][rank0]   val loss=2.0392  loss_e=1.2557  acc_e=82.93%  acc_l=70.42%
+[21:24:24][rank0]   New best val loss=2.0392 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[21:26:45][rank0] step=  2000  epoch=13  loss=2.0845  acc_e=82.76%  lr=3.00e-04  elapsed=1:15:48
+[21:26:45][rank0] --- Validation @ step 2000 ---
+[21:28:17][rank0]   val loss=2.0580  loss_e=1.2601  acc_e=82.84%  acc_l=69.23%
+[21:29:33][rank0] Epoch  13/50  loss=2.0718  acc_e=82.79%  acc_l=69.26%  elapsed=1:18:36
+[21:30:41][rank0] --- Validation @ step 2100 ---
+[21:32:10][rank0]   val loss=2.0386  loss_e=1.2508  acc_e=83.19%  acc_l=69.97%
+[21:32:10][rank0]   New best val loss=2.0386 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[21:34:28][rank0] --- Validation @ step 2200 ---
+[21:35:56][rank0]   val loss=2.0399  loss_e=1.2564  acc_e=83.13%  acc_l=70.43%
+[21:36:14][rank0] Epoch  14/50  loss=2.0625  acc_e=82.90%  acc_l=69.62%  elapsed=1:25:17
+[21:38:19][rank0] --- Validation @ step 2300 ---
+[21:39:49][rank0]   val loss=2.0323  loss_e=1.2481  acc_e=83.24%  acc_l=70.32%
+[21:39:49][rank0]   New best val loss=2.0323 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[21:41:27][rank0] Epoch  15/50  loss=2.0520  acc_e=82.96%  acc_l=69.89%  elapsed=1:30:30
+[21:42:11][rank0] --- Validation @ step 2400 ---
+[21:43:40][rank0]   val loss=2.0157  loss_e=1.2450  acc_e=83.30%  acc_l=70.96%
+[21:43:40][rank0]   New best val loss=2.0157 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[21:45:59][rank0] step=  2500  epoch=16  loss=2.0429  acc_e=83.07%  lr=2.95e-04  elapsed=1:35:01
+[21:45:59][rank0] --- Validation @ step 2500 ---
+[21:47:28][rank0]   val loss=2.0115  loss_e=1.2454  acc_e=83.35%  acc_l=71.14%
+[21:47:28][rank0]   New best val loss=2.0115 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[21:48:08][rank0] Epoch  16/50  loss=2.0440  acc_e=83.11%  acc_l=70.05%  elapsed=1:37:10
+[21:49:50][rank0] --- Validation @ step 2600 ---
+[21:51:21][rank0]   val loss=2.0075  loss_e=1.2466  acc_e=83.45%  acc_l=71.25%
+[21:51:21][rank0]   New best val loss=2.0075 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[21:53:22][rank0] Epoch  17/50  loss=2.0357  acc_e=83.22%  acc_l=70.27%  elapsed=1:42:25
+[21:53:43][rank0] --- Validation @ step 2700 ---
+[21:55:13][rank0]   val loss=1.9975  loss_e=1.2407  acc_e=83.49%  acc_l=71.40%
+[21:55:13][rank0]   New best val loss=1.9975 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[21:57:34][rank0] --- Validation @ step 2800 ---
+[21:59:03][rank0]   val loss=1.9967  loss_e=1.2417  acc_e=83.27%  acc_l=71.36%
+[21:59:03][rank0]   New best val loss=1.9967 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[22:00:05][rank0] Epoch  18/50  loss=2.0263  acc_e=83.23%  acc_l=70.50%  elapsed=1:49:07
+[22:01:25][rank0] --- Validation @ step 2900 ---
+[22:02:54][rank0]   val loss=1.9968  loss_e=1.2401  acc_e=83.56%  acc_l=71.08%
+[22:05:15][rank0] step=  3000  epoch=19  loss=2.0209  acc_e=83.31%  lr=2.79e-04  elapsed=1:54:17
+[22:05:15][rank0] --- Validation @ step 3000 ---
+[22:06:44][rank0]   val loss=1.9925  loss_e=1.2394  acc_e=83.54%  acc_l=71.35%
+[22:06:44][rank0]   New best val loss=1.9925 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[22:06:47][rank0] Epoch  19/50  loss=2.0204  acc_e=83.31%  acc_l=70.70%  elapsed=1:55:50
+[22:09:06][rank0] --- Validation @ step 3100 ---
+[22:10:35][rank0]   val loss=1.9851  loss_e=1.2403  acc_e=83.52%  acc_l=71.73%
+[22:10:35][rank0]   New best val loss=1.9851 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[22:11:59][rank0] Epoch  20/50  loss=2.0120  acc_e=83.34%  acc_l=70.86%  elapsed=2:01:02
+[22:12:58][rank0] --- Validation @ step 3200 ---
+[22:14:27][rank0]   val loss=1.9754  loss_e=1.2346  acc_e=83.65%  acc_l=71.88%
+[22:14:27][rank0]   New best val loss=1.9754 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[22:16:46][rank0] --- Validation @ step 3300 ---
+[22:18:15][rank0]   val loss=1.9755  loss_e=1.2404  acc_e=83.57%  acc_l=72.15%
+[22:18:41][rank0] Epoch  21/50  loss=2.0032  acc_e=83.42%  acc_l=71.20%  elapsed=2:07:44
+[22:20:37][rank0] --- Validation @ step 3400 ---
+[22:22:07][rank0]   val loss=1.9680  loss_e=1.2354  acc_e=83.68%  acc_l=72.10%
+[22:22:07][rank0]   New best val loss=1.9680 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[22:23:54][rank0] Epoch  22/50  loss=1.9989  acc_e=83.47%  acc_l=71.29%  elapsed=2:12:56
+[22:24:29][rank0] step=  3500  epoch=23  loss=2.0002  acc_e=83.71%  lr=2.54e-04  elapsed=2:13:31
+[22:24:29][rank0] --- Validation @ step 3500 ---
+[22:25:58][rank0]   val loss=1.9535  loss_e=1.2317  acc_e=83.78%  acc_l=72.56%
+[22:25:58][rank0]   New best val loss=1.9535 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[22:28:19][rank0] --- Validation @ step 3600 ---
+[22:29:49][rank0]   val loss=1.9536  loss_e=1.2317  acc_e=83.83%  acc_l=72.64%
+[22:30:36][rank0] Epoch  23/50  loss=1.9916  acc_e=83.51%  acc_l=71.51%  elapsed=2:19:38
+[22:32:09][rank0] --- Validation @ step 3700 ---
+[22:33:38][rank0]   val loss=1.9514  loss_e=1.2331  acc_e=83.74%  acc_l=72.63%
+[22:33:38][rank0]   New best val loss=1.9514 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[22:35:48][rank0] Epoch  24/50  loss=1.9846  acc_e=83.54%  acc_l=71.74%  elapsed=2:24:51
+[22:36:01][rank0] --- Validation @ step 3800 ---
+[22:37:30][rank0]   val loss=1.9429  loss_e=1.2308  acc_e=83.89%  acc_l=73.11%
+[22:37:30][rank0]   New best val loss=1.9429 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[22:39:51][rank0] --- Validation @ step 3900 ---
+[22:41:24][rank0]   val loss=1.9365  loss_e=1.2302  acc_e=83.92%  acc_l=73.27%
+[22:41:24][rank0]   New best val loss=1.9365 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[22:42:34][rank0] Epoch  25/50  loss=1.9778  acc_e=83.60%  acc_l=71.89%  elapsed=2:31:36
+[22:43:47][rank0] step=  4000  epoch=26  loss=1.9893  acc_e=83.76%  lr=2.22e-04  elapsed=2:32:49
+[22:43:47][rank0] --- Validation @ step 4000 ---
+[22:45:16][rank0]   val loss=1.9271  loss_e=1.2275  acc_e=84.02%  acc_l=73.46%
+[22:45:16][rank0]   New best val loss=1.9271 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[22:47:34][rank0] --- Validation @ step 4100 ---
+[22:49:03][rank0]   val loss=1.9247  loss_e=1.2291  acc_e=83.91%  acc_l=73.52%
+[22:49:03][rank0]   New best val loss=1.9247 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[22:49:15][rank0] Epoch  26/50  loss=1.9703  acc_e=83.64%  acc_l=72.14%  elapsed=2:38:18
+[22:51:26][rank0] --- Validation @ step 4200 ---
+[22:52:55][rank0]   val loss=1.9237  loss_e=1.2268  acc_e=83.99%  acc_l=73.36%
+[22:52:55][rank0]   New best val loss=1.9237 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[22:54:28][rank0] Epoch  27/50  loss=1.9635  acc_e=83.69%  acc_l=72.30%  elapsed=2:43:30
+[22:55:17][rank0] --- Validation @ step 4300 ---
+[22:56:48][rank0]   val loss=1.9132  loss_e=1.2257  acc_e=84.03%  acc_l=73.69%
+[22:56:48][rank0]   New best val loss=1.9132 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[22:59:06][rank0] --- Validation @ step 4400 ---
+[23:00:35][rank0]   val loss=1.9226  loss_e=1.2260  acc_e=84.10%  acc_l=73.40%
+[23:01:10][rank0] Epoch  28/50  loss=1.9578  acc_e=83.73%  acc_l=72.42%  elapsed=2:50:12
+[23:02:58][rank0] step=  4500  epoch=29  loss=1.9575  acc_e=83.71%  lr=1.85e-04  elapsed=2:52:00
+[23:02:58][rank0] --- Validation @ step 4500 ---
+[23:04:27][rank0]   val loss=1.9045  loss_e=1.2248  acc_e=84.14%  acc_l=74.09%
+[23:04:27][rank0]   New best val loss=1.9045 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[23:06:22][rank0] Epoch  29/50  loss=1.9501  acc_e=83.76%  acc_l=72.67%  elapsed=2:55:25
+[23:06:49][rank0] --- Validation @ step 4600 ---
+[23:08:18][rank0]   val loss=1.9065  loss_e=1.2233  acc_e=84.11%  acc_l=74.02%
+[23:10:39][rank0] --- Validation @ step 4700 ---
+[23:12:09][rank0]   val loss=1.8949  loss_e=1.2238  acc_e=84.17%  acc_l=74.27%
+[23:12:09][rank0]   New best val loss=1.8949 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[23:13:05][rank0] Epoch  30/50  loss=1.9450  acc_e=83.80%  acc_l=72.81%  elapsed=3:02:07
+[23:14:29][rank0] --- Validation @ step 4800 ---
+[23:15:58][rank0]   val loss=1.8891  loss_e=1.2224  acc_e=84.25%  acc_l=74.48%
+[23:15:58][rank0]   New best val loss=1.8891 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[23:18:17][rank0] Epoch  31/50  loss=1.9393  acc_e=83.82%  acc_l=73.01%  elapsed=3:07:19
+[23:18:20][rank0] --- Validation @ step 4900 ---
+[23:19:49][rank0]   val loss=1.8855  loss_e=1.2224  acc_e=84.20%  acc_l=74.62%
+[23:19:49][rank0]   New best val loss=1.8855 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[23:22:10][rank0] step=  5000  epoch=32  loss=1.9474  acc_e=83.79%  lr=1.46e-04  elapsed=3:11:13
+[23:22:10][rank0] --- Validation @ step 5000 ---
+[23:23:41][rank0]   val loss=1.8874  loss_e=1.2225  acc_e=84.23%  acc_l=74.53%
+[23:23:41][rank0]   Checkpoint -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/ckpt_0005000.pt
+[23:25:00][rank0] Epoch  32/50  loss=1.9344  acc_e=83.86%  acc_l=73.17%  elapsed=3:14:02
+[23:26:04][rank0] --- Validation @ step 5100 ---
+[23:27:33][rank0]   val loss=1.8844  loss_e=1.2204  acc_e=84.28%  acc_l=74.47%
+[23:27:33][rank0]   New best val loss=1.8844 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[23:29:51][rank0] --- Validation @ step 5200 ---
+[23:31:20][rank0]   val loss=1.8788  loss_e=1.2221  acc_e=84.29%  acc_l=74.87%
+[23:31:20][rank0]   New best val loss=1.8788 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[23:31:41][rank0] Epoch  33/50  loss=1.9289  acc_e=83.88%  acc_l=73.31%  elapsed=3:20:43
+[23:33:43][rank0] --- Validation @ step 5300 ---
+[23:35:12][rank0]   val loss=1.8721  loss_e=1.2211  acc_e=84.28%  acc_l=75.07%
+[23:35:12][rank0]   New best val loss=1.8721 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[23:36:53][rank0] Epoch  34/50  loss=1.9241  acc_e=83.90%  acc_l=73.38%  elapsed=3:25:55
+[23:37:34][rank0] --- Validation @ step 5400 ---
+[23:39:03][rank0]   val loss=1.8669  loss_e=1.2193  acc_e=84.33%  acc_l=75.16%
+[23:39:03][rank0]   New best val loss=1.8669 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[23:41:23][rank0] step=  5500  epoch=35  loss=1.9190  acc_e=83.90%  lr=1.08e-04  elapsed=3:30:25
+[23:41:23][rank0] --- Validation @ step 5500 ---
+[23:42:52][rank0]   val loss=1.8769  loss_e=1.2192  acc_e=84.29%  acc_l=74.86%
+[23:43:34][rank0] Epoch  35/50  loss=1.9197  acc_e=83.93%  acc_l=73.58%  elapsed=3:32:36
+[23:45:13][rank0] --- Validation @ step 5600 ---
+[23:46:42][rank0]   val loss=1.8698  loss_e=1.2199  acc_e=84.32%  acc_l=75.13%
+[23:48:47][rank0] Epoch  36/50  loss=1.9165  acc_e=83.93%  acc_l=73.68%  elapsed=3:37:49
+[23:49:04][rank0] --- Validation @ step 5700 ---
+[23:50:34][rank0]   val loss=1.8613  loss_e=1.2194  acc_e=84.34%  acc_l=75.49%
+[23:50:34][rank0]   New best val loss=1.8613 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[23:52:55][rank0] --- Validation @ step 5800 ---
+[23:54:24][rank0]   val loss=1.8616  loss_e=1.2188  acc_e=84.35%  acc_l=75.47%
+[23:55:28][rank0] Epoch  37/50  loss=1.9124  acc_e=83.95%  acc_l=73.82%  elapsed=3:44:31
+[23:56:46][rank0] --- Validation @ step 5900 ---
+[23:58:15][rank0]   val loss=1.8577  loss_e=1.2181  acc_e=84.36%  acc_l=75.48%
+[23:58:15][rank0]   New best val loss=1.8577 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[00:00:35][rank0] step=  6000  epoch=38  loss=1.9091  acc_e=83.95%  lr=7.36e-05  elapsed=3:49:37
+[00:00:35][rank0] --- Validation @ step 6000 ---
+[00:02:05][rank0]   val loss=1.8585  loss_e=1.2190  acc_e=84.36%  acc_l=75.53%
+[00:02:11][rank0] Epoch  38/50  loss=1.9102  acc_e=83.96%  acc_l=73.91%  elapsed=3:51:13
+[00:04:27][rank0] --- Validation @ step 6100 ---
+[00:05:57][rank0]   val loss=1.8555  loss_e=1.2176  acc_e=84.42%  acc_l=75.51%
+[00:05:57][rank0]   New best val loss=1.8555 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[00:07:25][rank0] Epoch  39/50  loss=1.9065  acc_e=83.98%  acc_l=74.09%  elapsed=3:56:27
+[00:08:21][rank0] --- Validation @ step 6200 ---
+[00:09:51][rank0]   val loss=1.8511  loss_e=1.2177  acc_e=84.37%  acc_l=75.66%
+[00:09:51][rank0]   New best val loss=1.8511 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[00:12:10][rank0] --- Validation @ step 6300 ---
+[00:13:38][rank0]   val loss=1.8499  loss_e=1.2178  acc_e=84.39%  acc_l=75.76%
+[00:13:38][rank0]   New best val loss=1.8499 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[00:14:08][rank0] Epoch  40/50  loss=1.9031  acc_e=83.99%  acc_l=74.06%  elapsed=4:03:10
+[00:16:01][rank0] --- Validation @ step 6400 ---
+[00:17:30][rank0]   val loss=1.8507  loss_e=1.2177  acc_e=84.42%  acc_l=75.79%
+[00:19:20][rank0] Epoch  41/50  loss=1.9004  acc_e=83.99%  acc_l=74.20%  elapsed=4:08:23
+[00:19:53][rank0] step=  6500  epoch=42  loss=1.9062  acc_e=84.19%  lr=4.55e-05  elapsed=4:08:55
+[00:19:53][rank0] --- Validation @ step 6500 ---
+[00:21:22][rank0]   val loss=1.8527  loss_e=1.2172  acc_e=84.40%  acc_l=75.66%
+[00:23:43][rank0] --- Validation @ step 6600 ---
+[00:25:12][rank0]   val loss=1.8428  loss_e=1.2173  acc_e=84.43%  acc_l=76.05%
+[00:25:12][rank0]   New best val loss=1.8428 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[00:26:01][rank0] Epoch  42/50  loss=1.8989  acc_e=84.01%  acc_l=74.23%  elapsed=4:15:04
+[00:27:32][rank0] --- Validation @ step 6700 ---
+[00:29:00][rank0]   val loss=1.8428  loss_e=1.2170  acc_e=84.46%  acc_l=76.05%
+[00:31:13][rank0] Epoch  43/50  loss=1.8961  acc_e=84.01%  acc_l=74.33%  elapsed=4:20:16
+[00:31:23][rank0] --- Validation @ step 6800 ---
+[00:32:51][rank0]   val loss=1.8415  loss_e=1.2167  acc_e=84.42%  acc_l=76.09%
+[00:32:51][rank0]   New best val loss=1.8415 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[00:35:13][rank0] --- Validation @ step 6900 ---
+[00:36:41][rank0]   val loss=1.8406  loss_e=1.2169  acc_e=84.45%  acc_l=76.09%
+[00:36:41][rank0]   New best val loss=1.8406 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[00:37:54][rank0] Epoch  44/50  loss=1.8939  acc_e=84.02%  acc_l=74.48%  elapsed=4:26:57
+[00:39:05][rank0] step=  7000  epoch=45  loss=1.9095  acc_e=84.12%  lr=2.58e-05  elapsed=4:28:07
+[00:39:05][rank0] --- Validation @ step 7000 ---
+[00:40:33][rank0]   val loss=1.8373  loss_e=1.2164  acc_e=84.44%  acc_l=76.18%
+[00:40:33][rank0]   New best val loss=1.8373 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[00:42:51][rank0] --- Validation @ step 7100 ---
+[00:44:19][rank0]   val loss=1.8373  loss_e=1.2168  acc_e=84.45%  acc_l=76.21%
+[00:44:34][rank0] Epoch  45/50  loss=1.8934  acc_e=84.03%  acc_l=74.44%  elapsed=4:33:36
+[00:46:42][rank0] --- Validation @ step 7200 ---
+[00:48:13][rank0]   val loss=1.8403  loss_e=1.2166  acc_e=84.46%  acc_l=76.14%
+[00:49:48][rank0] Epoch  46/50  loss=1.8913  acc_e=84.03%  acc_l=74.52%  elapsed=4:38:51
+[00:50:35][rank0] --- Validation @ step 7300 ---
+[00:52:04][rank0]   val loss=1.8353  loss_e=1.2161  acc_e=84.46%  acc_l=76.31%
+[00:52:04][rank0]   New best val loss=1.8353 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[00:54:22][rank0] --- Validation @ step 7400 ---
+[00:55:50][rank0]   val loss=1.8395  loss_e=1.2162  acc_e=84.46%  acc_l=76.15%
+[00:56:28][rank0] Epoch  47/50  loss=1.8912  acc_e=84.03%  acc_l=74.53%  elapsed=4:45:31
+[00:58:13][rank0] step=  7500  epoch=48  loss=1.8947  acc_e=83.99%  lr=1.60e-05  elapsed=4:47:15
+[00:58:13][rank0] --- Validation @ step 7500 ---
+[00:59:42][rank0]   val loss=1.8373  loss_e=1.2165  acc_e=84.46%  acc_l=76.22%
+[01:01:40][rank0] Epoch  48/50  loss=1.8905  acc_e=84.03%  acc_l=74.55%  elapsed=4:50:43
+[01:02:04][rank0] --- Validation @ step 7600 ---
+[01:03:32][rank0]   val loss=1.8374  loss_e=1.2162  acc_e=84.46%  acc_l=76.26%
+[01:05:53][rank0] --- Validation @ step 7700 ---
+[01:07:23][rank0]   val loss=1.8352  loss_e=1.2161  acc_e=84.47%  acc_l=76.27%
+[01:07:23][rank0]   New best val loss=1.8352 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[01:08:22][rank0] Epoch  49/50  loss=1.8886  acc_e=84.04%  acc_l=74.52%  elapsed=4:57:24
+[01:09:44][rank0] --- Validation @ step 7800 ---
+[01:11:13][rank0]   val loss=1.8368  loss_e=1.2159  acc_e=84.47%  acc_l=76.19%
+[01:13:34][rank0] --- Validation @ step 7900 ---
+[01:15:02][rank0]   val loss=1.8403  loss_e=1.2161  acc_e=84.47%  acc_l=76.06%
+[01:15:03][rank0] Epoch  50/50  loss=1.8891  acc_e=84.04%  acc_l=74.56%  elapsed=5:04:05
+[01:15:03][rank0] ======================================================================
+[01:15:03][rank0] Training complete — OOD evaluation
+[01:15:03][rank0] ======================================================================
+[01:15:03][rank0] Loaded best model from /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/model_best.pt
+[01:15:03][rank0] [OOD] Scoring test_id (normal baseline) ...
+[01:16:32][rank0] [OOD] Scoring test_ood_cpu ...
+[01:18:22][rank0] [OOD] cpu     AUROC=0.7077  AUPR=0.7013  (normal=316,026  ood=387,625)
+[01:18:22][rank0] [OOD] Scoring test_ood_disk ...
+[01:20:25][rank0] [OOD] disk    AUROC=0.7330  AUPR=0.7331  (normal=316,026  ood=425,955)
+[01:20:25][rank0] [OOD] Scoring test_ood_mem ...
+[01:22:16][rank0] [OOD] mem     AUROC=0.7101  AUPR=0.6902  (normal=316,026  ood=385,131)
+[01:22:16][rank0] [OOD] Scoring test_ood_net ...
+[01:23:19][rank0] [OOD] net     AUROC=0.6526  AUPR=0.5344  (normal=316,026  ood=220,229)
+[01:23:19][rank0] OOD results -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_transformer_311494/ood_results.json

@@ -1,0 +1,952 @@
+The following modules were not unloaded:
+  (Use "module --force purge" to unload all):
+
+  1) gentoo/2023
+[05:52:39] Starting anomaly_net preprocessing
+[05:52:46 +0:00:00] [START] ============================================================
+[05:52:46 +0:00:00] [START] SockShop LTTng → NPZ preprocessing
+[05:52:46 +0:00:00] [START] trace_root  : /scratch/yuvraj17/adaptive_tracing_scratch/micro-service-trace-data/traces
+[05:52:46 +0:00:00] [START] output_dir  : /scratch/yuvraj17/adaptive_tracing_scratch/micro-service-trace-data/preprocessed
+[05:52:46 +0:00:00] [START] seg_mode    : time
+[05:52:46 +0:00:00] [START] n_categories: 6
+[05:52:46 +0:00:00] [START] shard_size  : 5000
+[05:52:46 +0:00:00] [START] warmup_s    : 5.0
+[05:52:46 +0:00:00] [START] min_events  : 8
+[05:52:46 +0:00:00] [START] ============================================================
+[05:52:46 +0:00:00] [START] Splits to process (2 total):
+[05:52:46 +0:00:00] [START]   valid_ood_net        dirs=['anomaly_net/ultra_01']  label=1
+[05:52:46 +0:00:00] [START]   test_ood_net         dirs=['anomaly_net/ultra_01']  label=1
+[05:52:46 +0:00:00] [VOCAB] Loaded frozen vocab from /scratch/yuvraj17/adaptive_tracing_scratch/micro-service-trace-data/preprocessed  (257 syscalls / 6 procs)
+[05:52:46 +0:00:00] [VOCAB] Loaded delay_spans: 77 event types
+[05:52:46 +0:00:00] [SPLIT] ============================================================
+[05:52:46 +0:00:00] [SPLIT] Processing split 'valid_ood_net'
+[05:52:46 +0:00:00] [RUN] ────────────────────────────────────────────────────────
+[05:52:46 +0:00:00] [RUN] Run dir  : /scratch/yuvraj17/adaptive_tracing_scratch/micro-service-trace-data/traces/anomaly_net/ultra_01
+[05:52:46 +0:00:00] [RUN] seg_mode=time  warmup=5.0s  window_ms=100.0  is_train=False
+[05:52:46 +0:00:00] [PARSE] Text dump found: anomaly_net/ultra_01/kernel.txt
+[05:52:46 +0:00:00] [PARSE] Streaming text → segmentation (no full in-memory list) ...
+[05:52:46 +0:00:00] [SEG] TID time-window segmentation (window_ms=100.0, streaming) ...
+[05:52:46 +0:00:00] [PARSE] [TEXT] Reading pre-converted text: /scratch/yuvraj17/adaptive_tracing_scratch/micro-service-trace-data/micro-service-trace-data-txt-dump/anomaly_net/ultra_01/kernel.txt
+[05:52:47 +0:00:01] [PARSE]   text read:    1,000,000  (skipping warm-up)  739,289 lines/s
+[05:52:49 +0:00:02] [PARSE]   text read:    2,000,000  (skipping warm-up)  746,257 lines/s
+[05:52:50 +0:00:04] [PARSE]   text read:    3,000,000  (skipping warm-up)  734,840 lines/s
+[05:52:52 +0:00:05] [PARSE]   text read:    4,000,000  (skipping warm-up)  726,454 lines/s
+[05:52:53 +0:00:07] [PARSE]   text read:    5,000,000  (skipping warm-up)  721,164 lines/s
+[05:52:54 +0:00:08] [PARSE]   text read:    6,000,000  (skipping warm-up)  715,560 lines/s
+[05:52:56 +0:00:09] [PARSE]   text read:    7,000,000  (skipping warm-up)  711,910 lines/s
+[05:52:57 +0:00:11] [PARSE]   text read:    8,000,000  (skipping warm-up)  708,671 lines/s
+[05:53:01 +0:00:14] [PARSE]   text read:    9,000,000 total       608,965 kept  8,391,035 warm-up  611,163 lines/s  elapsed 0:00:14
+[05:53:06 +0:00:19] [PARSE]   text read:   10,000,000 total     1,608,965 kept  8,391,035 warm-up  513,634 lines/s  elapsed 0:00:19
+[05:53:10 +0:00:24] [PARSE]   text read:   11,000,000 total     2,608,965 kept  8,391,035 warm-up  453,880 lines/s  elapsed 0:00:24
+[05:53:15 +0:00:29] [PARSE]   text read:   12,000,000 total     3,608,965 kept  8,391,035 warm-up  409,944 lines/s  elapsed 0:00:29
+[05:53:20 +0:00:34] [PARSE]   text read:   13,000,000 total     4,608,965 kept  8,391,035 warm-up  379,661 lines/s  elapsed 0:00:34
+[05:53:22 +0:00:36] [SEG]   streaming seg:    5,000,000 events read    4,172 seqs so far  138,499 ev/s  elapsed 0:00:36
+[05:53:25 +0:00:39] [PARSE]   text read:   14,000,000 total     5,608,965 kept  8,391,035 warm-up  358,349 lines/s  elapsed 0:00:39
+[05:53:30 +0:00:44] [PARSE]   text read:   15,000,000 total     6,608,965 kept  8,391,035 warm-up  341,090 lines/s  elapsed 0:00:43
+[05:53:35 +0:00:48] [PARSE]   text read:   16,000,000 total     7,608,965 kept  8,391,035 warm-up  327,146 lines/s  elapsed 0:00:48
+[05:53:40 +0:00:53] [PARSE]   text read:   17,000,000 total     8,608,965 kept  8,391,035 warm-up  316,048 lines/s  elapsed 0:00:53
+[05:53:45 +0:00:58] [PARSE]   text read:   18,000,000 total     9,608,965 kept  8,391,035 warm-up  306,860 lines/s  elapsed 0:00:58
+[05:53:47 +0:01:00] [SEG]   streaming seg:   10,000,000 events read    8,219 seqs so far  165,133 ev/s  elapsed 0:01:00
+[05:53:50 +0:01:03] [PARSE]   text read:   19,000,000 total    10,608,965 kept  8,391,035 warm-up  299,024 lines/s  elapsed 0:01:03
+[05:53:54 +0:01:08] [PARSE]   text read:   20,000,000 total    11,608,965 kept  8,391,035 warm-up  292,293 lines/s  elapsed 0:01:08
+[05:54:00 +0:01:14] [PARSE]   text read:   21,000,000 total    12,608,965 kept  8,391,035 warm-up  283,998 lines/s  elapsed 0:01:13
+[05:54:05 +0:01:19] [PARSE]   text read:   22,000,000 total    13,608,965 kept  8,391,035 warm-up  278,624 lines/s  elapsed 0:01:18
+[05:54:10 +0:01:23] [PARSE]   text read:   23,000,000 total    14,608,965 kept  8,391,035 warm-up  274,499 lines/s  elapsed 0:01:23
+[05:54:12 +0:01:25] [SEG]   streaming seg:   15,000,000 events read   12,061 seqs so far  175,004 ev/s  elapsed 0:01:25
+[05:54:15 +0:01:28] [PARSE]   text read:   24,000,000 total    15,608,965 kept  8,391,035 warm-up  270,390 lines/s  elapsed 0:01:28
+[05:54:20 +0:01:33] [PARSE]   text read:   25,000,000 total    16,608,965 kept  8,391,035 warm-up  266,697 lines/s  elapsed 0:01:33
+[05:54:25 +0:01:38] [PARSE]   text read:   26,000,000 total    17,608,965 kept  8,391,035 warm-up  263,841 lines/s  elapsed 0:01:38
+[05:54:29 +0:01:43] [PARSE]   text read:   27,000,000 total    18,608,965 kept  8,391,035 warm-up  261,297 lines/s  elapsed 0:01:43
+[05:54:34 +0:01:48] [PARSE]   text read:   28,000,000 total    19,608,965 kept  8,391,035 warm-up  259,227 lines/s  elapsed 0:01:48
+[05:54:36 +0:01:49] [SEG]   streaming seg:   20,000,000 events read   15,454 seqs so far  181,981 ev/s  elapsed 0:01:49
+[05:54:39 +0:01:52] [PARSE]   text read:   29,000,000 total    20,608,965 kept  8,391,035 warm-up  257,227 lines/s  elapsed 0:01:52
+[05:54:43 +0:01:57] [PARSE]   text read:   30,000,000 total    21,608,965 kept  8,391,035 warm-up  255,623 lines/s  elapsed 0:01:57
+[05:54:48 +0:02:02] [PARSE]   text read:   31,000,000 total    22,608,965 kept  8,391,035 warm-up  254,136 lines/s  elapsed 0:02:01
+[05:54:53 +0:02:06] [PARSE]   text read:   32,000,000 total    23,608,965 kept  8,391,035 warm-up  252,460 lines/s  elapsed 0:02:06
+[05:54:58 +0:02:11] [PARSE]   text read:   33,000,000 total    24,608,965 kept  8,391,035 warm-up  250,665 lines/s  elapsed 0:02:11
+[05:55:00 +0:02:13] [SEG]   streaming seg:   25,000,000 events read   18,837 seqs so far  187,276 ev/s  elapsed 0:02:13
+[05:55:02 +0:02:16] [PARSE]   text read:   34,000,000 total    25,608,965 kept  8,391,035 warm-up  249,341 lines/s  elapsed 0:02:16
+[05:55:07 +0:02:21] [PARSE]   text read:   35,000,000 total    26,608,965 kept  8,391,035 warm-up  248,070 lines/s  elapsed 0:02:21
+[05:55:12 +0:02:25] [PARSE]   text read:   36,000,000 total    27,608,965 kept  8,391,035 warm-up  246,808 lines/s  elapsed 0:02:25
+[05:55:18 +0:02:31] [PARSE]   text read:   37,000,000 total    28,608,965 kept  8,391,035 warm-up  243,600 lines/s  elapsed 0:02:31
+[05:55:23 +0:02:36] [PARSE]   text read:   38,000,000 total    29,608,965 kept  8,391,035 warm-up  242,675 lines/s  elapsed 0:02:36
+[05:55:25 +0:02:38] [SEG]   streaming seg:   30,000,000 events read   22,462 seqs so far  189,295 ev/s  elapsed 0:02:38
+[05:55:27 +0:02:41] [PARSE]   text read:   39,000,000 total    30,608,965 kept  8,391,035 warm-up  241,632 lines/s  elapsed 0:02:41
+[05:55:32 +0:02:46] [PARSE]   text read:   40,000,000 total    31,608,965 kept  8,391,035 warm-up  240,706 lines/s  elapsed 0:02:46
+[05:55:37 +0:02:51] [PARSE]   text read:   41,000,000 total    32,608,965 kept  8,391,035 warm-up  239,804 lines/s  elapsed 0:02:50
+[05:55:42 +0:02:55] [PARSE]   text read:   42,000,000 total    33,608,965 kept  8,391,035 warm-up  238,749 lines/s  elapsed 0:02:55
+[05:55:47 +0:03:00] [PARSE]   text read:   43,000,000 total    34,608,965 kept  8,391,035 warm-up  237,913 lines/s  elapsed 0:03:00
+[05:55:49 +0:03:02] [SEG]   streaming seg:   35,000,000 events read   26,296 seqs so far  191,679 ev/s  elapsed 0:03:02
+[05:55:52 +0:03:05] [PARSE]   text read:   44,000,000 total    35,608,965 kept  8,391,035 warm-up  237,042 lines/s  elapsed 0:03:05
+[05:55:56 +0:03:10] [PARSE]   text read:   45,000,000 total    36,608,965 kept  8,391,035 warm-up  236,289 lines/s  elapsed 0:03:10
+[05:56:02 +0:03:15] [PARSE]   text read:   46,000,000 total    37,608,965 kept  8,391,035 warm-up  235,333 lines/s  elapsed 0:03:15
+[05:56:06 +0:03:20] [PARSE]   text read:   47,000,000 total    38,608,965 kept  8,391,035 warm-up  234,475 lines/s  elapsed 0:03:20
+[05:56:11 +0:03:25] [PARSE]   text read:   48,000,000 total    39,608,965 kept  8,391,035 warm-up  233,732 lines/s  elapsed 0:03:25
+[05:56:13 +0:03:27] [SEG]   streaming seg:   40,000,000 events read   30,161 seqs so far  192,950 ev/s  elapsed 0:03:27
+[05:56:16 +0:03:30] [PARSE]   text read:   49,000,000 total    40,608,965 kept  8,391,035 warm-up  233,012 lines/s  elapsed 0:03:30
+[05:56:21 +0:03:35] [PARSE]   text read:   50,000,000 total    41,608,965 kept  8,391,035 warm-up  232,377 lines/s  elapsed 0:03:35
+[05:56:26 +0:03:40] [PARSE]   text read:   51,000,000 total    42,608,965 kept  8,391,035 warm-up  231,769 lines/s  elapsed 0:03:40
+[05:56:31 +0:03:45] [PARSE]   text read:   52,000,000 total    43,608,965 kept  8,391,035 warm-up  231,129 lines/s  elapsed 0:03:44
+[05:56:37 +0:03:51] [PARSE]   text read:   53,000,000 total    44,608,965 kept  8,391,035 warm-up  229,261 lines/s  elapsed 0:03:51
+[05:56:39 +0:03:53] [SEG]   streaming seg:   45,000,000 events read   33,898 seqs so far  193,071 ev/s  elapsed 0:03:53
+[05:56:42 +0:03:56] [PARSE]   text read:   54,000,000 total    45,608,965 kept  8,391,035 warm-up  228,780 lines/s  elapsed 0:03:56
+[05:56:47 +0:04:01] [PARSE]   text read:   55,000,000 total    46,608,965 kept  8,391,035 warm-up  228,275 lines/s  elapsed 0:04:00
+[05:56:52 +0:04:05] [PARSE]   text read:   56,000,000 total    47,608,965 kept  8,391,035 warm-up  227,739 lines/s  elapsed 0:04:05
+[05:56:57 +0:04:10] [PARSE]   text read:   57,000,000 total    48,608,965 kept  8,391,035 warm-up  227,328 lines/s  elapsed 0:04:10
+[05:57:02 +0:04:15] [PARSE]   text read:   58,000,000 total    49,608,965 kept  8,391,035 warm-up  226,845 lines/s  elapsed 0:04:15
+[05:57:04 +0:04:17] [SEG]   streaming seg:   50,000,000 events read   37,504 seqs so far  194,084 ev/s  elapsed 0:04:17
+[05:57:07 +0:04:20] [PARSE]   text read:   59,000,000 total    50,608,965 kept  8,391,035 warm-up  226,359 lines/s  elapsed 0:04:20
+[05:57:12 +0:04:25] [PARSE]   text read:   60,000,000 total    51,608,965 kept  8,391,035 warm-up  225,874 lines/s  elapsed 0:04:25
+[05:57:17 +0:04:30] [PARSE]   text read:   61,000,000 total    52,608,965 kept  8,391,035 warm-up  225,400 lines/s  elapsed 0:04:30
+[05:57:21 +0:04:35] [PARSE]   text read:   62,000,000 total    53,608,965 kept  8,391,035 warm-up  225,104 lines/s  elapsed 0:04:35
+[05:57:26 +0:04:40] [PARSE]   text read:   63,000,000 total    54,608,965 kept  8,391,035 warm-up  224,889 lines/s  elapsed 0:04:40
+[05:57:29 +0:04:42] [SEG]   streaming seg:   55,000,000 events read   41,286 seqs so far  194,725 ev/s  elapsed 0:04:42
+[05:57:31 +0:04:45] [PARSE]   text read:   64,000,000 total    55,608,965 kept  8,391,035 warm-up  224,278 lines/s  elapsed 0:04:45
+[05:57:36 +0:04:50] [PARSE]   text read:   65,000,000 total    56,608,965 kept  8,391,035 warm-up  224,072 lines/s  elapsed 0:04:50
+[05:57:41 +0:04:54] [PARSE]   text read:   66,000,000 total    57,608,965 kept  8,391,035 warm-up  223,889 lines/s  elapsed 0:04:54
+[05:57:46 +0:04:59] [PARSE]   text read:   67,000,000 total    58,608,965 kept  8,391,035 warm-up  223,678 lines/s  elapsed 0:04:59
+[05:57:50 +0:05:04] [PARSE]   text read:   68,000,000 total    59,608,965 kept  8,391,035 warm-up  223,453 lines/s  elapsed 0:05:04
+[05:57:52 +0:05:06] [SEG]   streaming seg:   60,000,000 events read   44,660 seqs so far  195,963 ev/s  elapsed 0:05:06
+[05:57:55 +0:05:09] [PARSE]   text read:   69,000,000 total    60,608,965 kept  8,391,035 warm-up  223,275 lines/s  elapsed 0:05:09
+[05:58:00 +0:05:13] [PARSE]   text read:   70,000,000 total    61,608,965 kept  8,391,035 warm-up  223,006 lines/s  elapsed 0:05:13
+[05:58:05 +0:05:18] [PARSE]   text read:   71,000,000 total    62,608,965 kept  8,391,035 warm-up  222,749 lines/s  elapsed 0:05:18
+[05:58:12 +0:05:25] [PARSE]   text read:   72,000,000 total    63,608,965 kept  8,391,035 warm-up  220,982 lines/s  elapsed 0:05:25
+[05:58:17 +0:05:30] [PARSE]   text read:   73,000,000 total    64,608,965 kept  8,391,035 warm-up  220,842 lines/s  elapsed 0:05:30
+[05:58:19 +0:05:32] [SEG]   streaming seg:   65,000,000 events read   48,274 seqs so far  195,488 ev/s  elapsed 0:05:32
+[05:58:21 +0:05:35] [PARSE]   text read:   74,000,000 total    65,608,965 kept  8,391,035 warm-up  220,684 lines/s  elapsed 0:05:35
+[05:58:26 +0:05:40] [PARSE]   text read:   75,000,000 total    66,608,965 kept  8,391,035 warm-up  220,539 lines/s  elapsed 0:05:40
+[05:58:31 +0:05:44] [PARSE]   text read:   76,000,000 total    67,608,965 kept  8,391,035 warm-up  220,452 lines/s  elapsed 0:05:44
+[05:58:36 +0:05:49] [PARSE]   text read:   77,000,000 total    68,608,965 kept  8,391,035 warm-up  220,269 lines/s  elapsed 0:05:49
+[05:58:40 +0:05:54] [PARSE]   text read:   78,000,000 total    69,608,965 kept  8,391,035 warm-up  220,146 lines/s  elapsed 0:05:54
+[05:58:42 +0:05:56] [SEG]   streaming seg:   70,000,000 events read   51,778 seqs so far  196,540 ev/s  elapsed 0:05:56
+[05:58:45 +0:05:59] [PARSE]   text read:   79,000,000 total    70,608,965 kept  8,391,035 warm-up  220,023 lines/s  elapsed 0:05:59
+[05:58:50 +0:06:03] [PARSE]   text read:   80,000,000 total    71,608,965 kept  8,391,035 warm-up  219,905 lines/s  elapsed 0:06:03
+[05:58:55 +0:06:08] [PARSE]   text read:   81,000,000 total    72,608,965 kept  8,391,035 warm-up  219,794 lines/s  elapsed 0:06:08
+[05:58:59 +0:06:13] [PARSE]   text read:   82,000,000 total    73,608,965 kept  8,391,035 warm-up  219,662 lines/s  elapsed 0:06:13
+[05:59:04 +0:06:18] [PARSE]   text read:   83,000,000 total    74,608,965 kept  8,391,035 warm-up  219,383 lines/s  elapsed 0:06:18
+[05:59:06 +0:06:20] [SEG]   streaming seg:   75,000,000 events read   55,502 seqs so far  197,220 ev/s  elapsed 0:06:20
+[05:59:09 +0:06:23] [PARSE]   text read:   84,000,000 total    75,608,965 kept  8,391,035 warm-up  219,235 lines/s  elapsed 0:06:23
+[05:59:14 +0:06:28] [PARSE]   text read:   85,000,000 total    76,608,965 kept  8,391,035 warm-up  219,099 lines/s  elapsed 0:06:27
+[05:59:19 +0:06:33] [PARSE]   text read:   86,000,000 total    77,608,965 kept  8,391,035 warm-up  218,774 lines/s  elapsed 0:06:33
+[05:59:24 +0:06:37] [PARSE]   text read:   87,000,000 total    78,608,965 kept  8,391,035 warm-up  218,666 lines/s  elapsed 0:06:37
+[05:59:29 +0:06:42] [PARSE]   text read:   88,000,000 total    79,608,965 kept  8,391,035 warm-up  218,491 lines/s  elapsed 0:06:42
+[05:59:31 +0:06:44] [SEG]   streaming seg:   80,000,000 events read   59,300 seqs so far  197,694 ev/s  elapsed 0:06:44
+[05:59:34 +0:06:47] [PARSE]   text read:   89,000,000 total    80,608,965 kept  8,391,035 warm-up  218,201 lines/s  elapsed 0:06:47
+[05:59:39 +0:06:52] [PARSE]   text read:   90,000,000 total    81,608,965 kept  8,391,035 warm-up  218,036 lines/s  elapsed 0:06:52
+[05:59:44 +0:06:57] [PARSE]   text read:   91,000,000 total    82,608,965 kept  8,391,035 warm-up  217,932 lines/s  elapsed 0:06:57
+[05:59:49 +0:07:02] [PARSE]   text read:   92,000,000 total    83,608,965 kept  8,391,035 warm-up  217,645 lines/s  elapsed 0:07:02
+[05:59:57 +0:07:10] [PARSE]   text read:   93,000,000 total    84,608,965 kept  8,391,035 warm-up  216,031 lines/s  elapsed 0:07:10
+[05:59:58 +0:07:12] [SEG]   streaming seg:   85,000,000 events read   63,248 seqs so far  196,573 ev/s  elapsed 0:07:12
+[06:00:01 +0:07:15] [PARSE]   text read:   94,000,000 total    85,608,965 kept  8,391,035 warm-up  215,926 lines/s  elapsed 0:07:15
+[06:00:06 +0:07:20] [PARSE]   text read:   95,000,000 total    86,608,965 kept  8,391,035 warm-up  215,849 lines/s  elapsed 0:07:20
+[06:00:11 +0:07:24] [PARSE]   text read:   96,000,000 total    87,608,965 kept  8,391,035 warm-up  215,780 lines/s  elapsed 0:07:24
+[06:00:16 +0:07:29] [PARSE]   text read:   97,000,000 total    88,608,965 kept  8,391,035 warm-up  215,698 lines/s  elapsed 0:07:29
+[06:00:21 +0:07:34] [PARSE]   text read:   98,000,000 total    89,608,965 kept  8,391,035 warm-up  215,615 lines/s  elapsed 0:07:34
+[06:00:22 +0:07:36] [SEG]   streaming seg:   90,000,000 events read   66,974 seqs so far  197,184 ev/s  elapsed 0:07:36
+[06:00:25 +0:07:39] [PARSE]   text read:   99,000,000 total    90,608,965 kept  8,391,035 warm-up  215,524 lines/s  elapsed 0:07:39
+[06:00:30 +0:07:44] [PARSE]   text read:  100,000,000 total    91,608,965 kept  8,391,035 warm-up  215,454 lines/s  elapsed 0:07:44
+[06:00:35 +0:07:48] [PARSE]   text read:  101,000,000 total    92,608,965 kept  8,391,035 warm-up  215,402 lines/s  elapsed 0:07:48
+[06:00:40 +0:07:53] [PARSE]   text read:  102,000,000 total    93,608,965 kept  8,391,035 warm-up  215,380 lines/s  elapsed 0:07:53
+[06:00:44 +0:07:58] [PARSE]   text read:  103,000,000 total    94,608,965 kept  8,391,035 warm-up  215,333 lines/s  elapsed 0:07:58
+[06:00:46 +0:08:00] [SEG]   streaming seg:   95,000,000 events read   70,325 seqs so far  197,826 ev/s  elapsed 0:08:00
+[06:00:49 +0:08:03] [PARSE]   text read:  104,000,000 total    95,608,965 kept  8,391,035 warm-up  215,236 lines/s  elapsed 0:08:03
+[06:00:54 +0:08:08] [PARSE]   text read:  105,000,000 total    96,608,965 kept  8,391,035 warm-up  215,069 lines/s  elapsed 0:08:08
+[06:00:59 +0:08:13] [PARSE]   text read:  106,000,000 total    97,608,965 kept  8,391,035 warm-up  215,017 lines/s  elapsed 0:08:12
+[06:01:04 +0:08:17] [PARSE]   text read:  107,000,000 total    98,608,965 kept  8,391,035 warm-up  214,939 lines/s  elapsed 0:08:17
+[06:01:09 +0:08:22] [PARSE]   text read:  108,000,000 total    99,608,965 kept  8,391,035 warm-up  214,857 lines/s  elapsed 0:08:22
+[06:01:11 +0:08:24] [SEG]   streaming seg:  100,000,000 events read   73,822 seqs so far  198,209 ev/s  elapsed 0:08:24
+[06:01:13 +0:08:27] [PARSE]   text read:  109,000,000 total   100,608,965 kept  8,391,035 warm-up  214,806 lines/s  elapsed 0:08:27
+[06:01:18 +0:08:32] [PARSE]   text read:  110,000,000 total   101,608,965 kept  8,391,035 warm-up  214,744 lines/s  elapsed 0:08:32
+[06:01:23 +0:08:37] [PARSE]   text read:  111,000,000 total   102,608,965 kept  8,391,035 warm-up  214,643 lines/s  elapsed 0:08:37
+[06:01:28 +0:08:42] [PARSE]   text read:  112,000,000 total   103,608,965 kept  8,391,035 warm-up  214,577 lines/s  elapsed 0:08:41
+[06:01:33 +0:08:46] [PARSE]   text read:  113,000,000 total   104,608,965 kept  8,391,035 warm-up  214,498 lines/s  elapsed 0:08:46
+[06:01:35 +0:08:49] [SEG]   streaming seg:  105,000,000 events read   77,301 seqs so far  198,458 ev/s  elapsed 0:08:49
+[06:01:38 +0:08:52] [PARSE]   text read:  114,000,000 total   105,608,965 kept  8,391,035 warm-up  214,208 lines/s  elapsed 0:08:52
+[06:01:43 +0:08:57] [PARSE]   text read:  115,000,000 total   106,608,965 kept  8,391,035 warm-up  214,125 lines/s  elapsed 0:08:57
+[06:01:48 +0:09:02] [PARSE]   text read:  116,000,000 total   107,608,965 kept  8,391,035 warm-up  214,019 lines/s  elapsed 0:09:02
+[06:01:56 +0:09:10] [PARSE]   text read:  117,000,000 total   108,608,965 kept  8,391,035 warm-up  212,640 lines/s  elapsed 0:09:10
+[06:02:01 +0:09:15] [PARSE]   text read:  118,000,000 total   109,608,965 kept  8,391,035 warm-up  212,635 lines/s  elapsed 0:09:14
+[06:02:03 +0:09:16] [SEG]   streaming seg:  110,000,000 events read   80,889 seqs so far  197,570 ev/s  elapsed 0:09:16
+[06:02:06 +0:09:19] [PARSE]   text read:  119,000,000 total   110,608,965 kept  8,391,035 warm-up  212,641 lines/s  elapsed 0:09:19
+[06:02:10 +0:09:24] [PARSE]   text read:  120,000,000 total   111,608,965 kept  8,391,035 warm-up  212,655 lines/s  elapsed 0:09:24
+[06:02:15 +0:09:29] [PARSE]   text read:  121,000,000 total   112,608,965 kept  8,391,035 warm-up  212,525 lines/s  elapsed 0:09:29
+[06:02:20 +0:09:34] [PARSE]   text read:  122,000,000 total   113,608,965 kept  8,391,035 warm-up  212,446 lines/s  elapsed 0:09:34
+[06:02:25 +0:09:39] [PARSE]   text read:  123,000,000 total   114,608,965 kept  8,391,035 warm-up  212,377 lines/s  elapsed 0:09:39
+[06:02:27 +0:09:41] [SEG]   streaming seg:  115,000,000 events read   84,638 seqs so far  197,927 ev/s  elapsed 0:09:41
+[06:02:30 +0:09:44] [PARSE]   text read:  124,000,000 total   115,608,965 kept  8,391,035 warm-up  212,313 lines/s  elapsed 0:09:44
+[06:02:35 +0:09:49] [PARSE]   text read:  125,000,000 total   116,608,965 kept  8,391,035 warm-up  212,175 lines/s  elapsed 0:09:49
+[06:02:40 +0:09:54] [PARSE]   text read:  126,000,000 total   117,608,965 kept  8,391,035 warm-up  212,031 lines/s  elapsed 0:09:54
+[06:02:45 +0:09:59] [PARSE]   text read:  127,000,000 total   118,608,965 kept  8,391,035 warm-up  211,904 lines/s  elapsed 0:09:59
+[06:02:50 +0:10:04] [PARSE]   text read:  128,000,000 total   119,608,965 kept  8,391,035 warm-up  211,857 lines/s  elapsed 0:10:04
+[06:02:52 +0:10:06] [SEG]   streaming seg:  120,000,000 events read   88,579 seqs so far  197,971 ev/s  elapsed 0:10:06
+[06:02:55 +0:10:09] [PARSE]   text read:  129,000,000 total   120,608,965 kept  8,391,035 warm-up  211,758 lines/s  elapsed 0:10:09
+[06:03:00 +0:10:14] [PARSE]   text read:  130,000,000 total   121,608,965 kept  8,391,035 warm-up  211,707 lines/s  elapsed 0:10:14
+[06:03:05 +0:10:19] [PARSE]   text read:  131,000,000 total   122,608,965 kept  8,391,035 warm-up  211,600 lines/s  elapsed 0:10:19
+[06:03:10 +0:10:24] [PARSE]   text read:  132,000,000 total   123,608,965 kept  8,391,035 warm-up  211,562 lines/s  elapsed 0:10:23
+[06:03:15 +0:10:28] [PARSE]   text read:  133,000,000 total   124,608,965 kept  8,391,035 warm-up  211,533 lines/s  elapsed 0:10:28
+[06:03:17 +0:10:30] [SEG]   streaming seg:  125,000,000 events read   92,160 seqs so far  198,220 ev/s  elapsed 0:10:30
+[06:03:20 +0:10:33] [PARSE]   text read:  134,000,000 total   125,608,965 kept  8,391,035 warm-up  211,502 lines/s  elapsed 0:10:33
+[06:03:24 +0:10:38] [PARSE]   text read:  135,000,000 total   126,608,965 kept  8,391,035 warm-up  211,474 lines/s  elapsed 0:10:38
+[06:03:29 +0:10:43] [PARSE]   text read:  136,000,000 total   127,608,965 kept  8,391,035 warm-up  211,461 lines/s  elapsed 0:10:43
+[06:03:34 +0:10:47] [PARSE]   text read:  137,000,000 total   128,608,965 kept  8,391,035 warm-up  211,461 lines/s  elapsed 0:10:47
+[06:03:39 +0:10:52] [PARSE]   text read:  138,000,000 total   129,608,965 kept  8,391,035 warm-up  211,436 lines/s  elapsed 0:10:52
+[06:03:41 +0:10:54] [SEG]   streaming seg:  130,000,000 events read   95,557 seqs so far  198,616 ev/s  elapsed 0:10:54
+[06:03:44 +0:10:57] [PARSE]   text read:  139,000,000 total   130,608,965 kept  8,391,035 warm-up  211,393 lines/s  elapsed 0:10:57
+[06:03:48 +0:11:02] [PARSE]   text read:  140,000,000 total   131,608,965 kept  8,391,035 warm-up  211,353 lines/s  elapsed 0:11:02
+[06:03:53 +0:11:07] [PARSE]   text read:  141,000,000 total   132,608,965 kept  8,391,035 warm-up  211,301 lines/s  elapsed 0:11:07
+[06:03:58 +0:11:12] [PARSE]   text read:  142,000,000 total   133,608,965 kept  8,391,035 warm-up  211,214 lines/s  elapsed 0:11:12
+[06:04:03 +0:11:17] [PARSE]   text read:  143,000,000 total   134,608,965 kept  8,391,035 warm-up  211,158 lines/s  elapsed 0:11:17
+[06:04:05 +0:11:19] [SEG]   streaming seg:  135,000,000 events read   99,091 seqs so far  198,772 ev/s  elapsed 0:11:19
+[06:04:13 +0:11:26] [PARSE]   text read:  144,000,000 total   135,608,965 kept  8,391,035 warm-up  209,713 lines/s  elapsed 0:11:26
+[06:04:18 +0:11:31] [PARSE]   text read:  145,000,000 total   136,608,965 kept  8,391,035 warm-up  209,659 lines/s  elapsed 0:11:31
+[06:04:22 +0:11:36] [PARSE]   text read:  146,000,000 total   137,608,965 kept  8,391,035 warm-up  209,640 lines/s  elapsed 0:11:36
+[06:04:27 +0:11:41] [PARSE]   text read:  147,000,000 total   138,608,965 kept  8,391,035 warm-up  209,610 lines/s  elapsed 0:11:41
+[06:04:32 +0:11:46] [PARSE]   text read:  148,000,000 total   139,608,965 kept  8,391,035 warm-up  209,560 lines/s  elapsed 0:11:46
+[06:04:34 +0:11:48] [SEG]   streaming seg:  140,000,000 events read  102,642 seqs so far  197,700 ev/s  elapsed 0:11:48
+[06:04:37 +0:11:51] [PARSE]   text read:  149,000,000 total   140,608,965 kept  8,391,035 warm-up  209,537 lines/s  elapsed 0:11:51
+[06:04:42 +0:11:56] [PARSE]   text read:  150,000,000 total   141,608,965 kept  8,391,035 warm-up  209,436 lines/s  elapsed 0:11:56
+[06:04:47 +0:12:01] [PARSE]   text read:  151,000,000 total   142,608,965 kept  8,391,035 warm-up  209,383 lines/s  elapsed 0:12:01
+[06:04:52 +0:12:06] [PARSE]   text read:  152,000,000 total   143,608,965 kept  8,391,035 warm-up  209,335 lines/s  elapsed 0:12:06
+[06:04:57 +0:12:11] [PARSE]   text read:  153,000,000 total   144,608,965 kept  8,391,035 warm-up  209,313 lines/s  elapsed 0:12:10
+[06:04:59 +0:12:12] [SEG]   streaming seg:  145,000,000 events read  105,927 seqs so far  197,852 ev/s  elapsed 0:12:12
+[06:05:02 +0:12:15] [PARSE]   text read:  154,000,000 total   145,608,965 kept  8,391,035 warm-up  209,281 lines/s  elapsed 0:12:15
+[06:05:07 +0:12:21] [PARSE]   text read:  155,000,000 total   146,608,965 kept  8,391,035 warm-up  209,125 lines/s  elapsed 0:12:21
+[06:05:12 +0:12:26] [PARSE]   text read:  156,000,000 total   147,608,965 kept  8,391,035 warm-up  209,128 lines/s  elapsed 0:12:25
+[06:05:17 +0:12:30] [PARSE]   text read:  157,000,000 total   148,608,965 kept  8,391,035 warm-up  209,088 lines/s  elapsed 0:12:30
+[06:05:22 +0:12:35] [PARSE]   text read:  158,000,000 total   149,608,965 kept  8,391,035 warm-up  209,074 lines/s  elapsed 0:12:35
+[06:05:24 +0:12:37] [SEG]   streaming seg:  150,000,000 events read  109,400 seqs so far  197,996 ev/s  elapsed 0:12:37
+[06:05:27 +0:12:40] [PARSE]   text read:  159,000,000 total   150,608,965 kept  8,391,035 warm-up  209,065 lines/s  elapsed 0:12:40
+[06:05:32 +0:12:46] [PARSE]   text read:  160,000,000 total   151,608,965 kept  8,391,035 warm-up  208,789 lines/s  elapsed 0:12:46
+[06:05:37 +0:12:51] [PARSE]   text read:  161,000,000 total   152,608,965 kept  8,391,035 warm-up  208,788 lines/s  elapsed 0:12:51
+[06:05:42 +0:12:56] [PARSE]   text read:  162,000,000 total   153,608,965 kept  8,391,035 warm-up  208,742 lines/s  elapsed 0:12:56
+[06:05:47 +0:13:01] [PARSE]   text read:  163,000,000 total   154,608,965 kept  8,391,035 warm-up  208,691 lines/s  elapsed 0:13:01
+[06:05:49 +0:13:03] [SEG]   streaming seg:  155,000,000 events read  113,084 seqs so far  197,940 ev/s  elapsed 0:13:03
+[06:05:52 +0:13:06] [PARSE]   text read:  164,000,000 total   155,608,965 kept  8,391,035 warm-up  208,639 lines/s  elapsed 0:13:06
+[06:05:57 +0:13:10] [PARSE]   text read:  165,000,000 total   156,608,965 kept  8,391,035 warm-up  208,616 lines/s  elapsed 0:13:10
+[06:06:02 +0:13:15] [PARSE]   text read:  166,000,000 total   157,608,965 kept  8,391,035 warm-up  208,586 lines/s  elapsed 0:13:15
+[06:06:07 +0:13:20] [PARSE]   text read:  167,000,000 total   158,608,965 kept  8,391,035 warm-up  208,522 lines/s  elapsed 0:13:20
+[06:06:12 +0:13:25] [PARSE]   text read:  168,000,000 total   159,608,965 kept  8,391,035 warm-up  208,515 lines/s  elapsed 0:13:25
+[06:06:14 +0:13:27] [SEG]   streaming seg:  160,000,000 events read  116,494 seqs so far  198,116 ev/s  elapsed 0:13:27
+[06:06:17 +0:13:30] [PARSE]   text read:  169,000,000 total   160,608,965 kept  8,391,035 warm-up  208,503 lines/s  elapsed 0:13:30
+[06:06:22 +0:13:35] [PARSE]   text read:  170,000,000 total   161,608,965 kept  8,391,035 warm-up  208,442 lines/s  elapsed 0:13:35
+[06:06:27 +0:13:40] [PARSE]   text read:  171,000,000 total   162,608,965 kept  8,391,035 warm-up  208,313 lines/s  elapsed 0:13:40
+[06:06:32 +0:13:46] [PARSE]   text read:  172,000,000 total   163,608,965 kept  8,391,035 warm-up  208,239 lines/s  elapsed 0:13:45
+[06:06:37 +0:13:51] [PARSE]   text read:  173,000,000 total   164,608,965 kept  8,391,035 warm-up  208,172 lines/s  elapsed 0:13:51
+[06:06:39 +0:13:53] [SEG]   streaming seg:  165,000,000 events read  120,167 seqs so far  198,089 ev/s  elapsed 0:13:52
+[06:06:42 +0:13:56] [PARSE]   text read:  174,000,000 total   165,608,965 kept  8,391,035 warm-up  208,111 lines/s  elapsed 0:13:56
+[06:06:54 +0:14:08] [PARSE]   text read:  175,000,000 total   166,608,965 kept  8,391,035 warm-up  206,364 lines/s  elapsed 0:14:08
+[06:06:59 +0:14:13] [PARSE]   text read:  176,000,000 total   167,608,965 kept  8,391,035 warm-up  206,346 lines/s  elapsed 0:14:12
+[06:07:04 +0:14:17] [PARSE]   text read:  177,000,000 total   168,608,965 kept  8,391,035 warm-up  206,313 lines/s  elapsed 0:14:17
+[06:07:09 +0:14:22] [PARSE]   text read:  178,000,000 total   169,608,965 kept  8,391,035 warm-up  206,295 lines/s  elapsed 0:14:22
+[06:07:11 +0:14:24] [SEG]   streaming seg:  170,000,000 events read  123,809 seqs so far  196,576 ev/s  elapsed 0:14:24
+[06:07:14 +0:14:27] [PARSE]   text read:  179,000,000 total   170,608,965 kept  8,391,035 warm-up  206,264 lines/s  elapsed 0:14:27
+[06:07:19 +0:14:32] [PARSE]   text read:  180,000,000 total   171,608,965 kept  8,391,035 warm-up  206,252 lines/s  elapsed 0:14:32
+[06:07:24 +0:14:37] [PARSE]   text read:  181,000,000 total   172,608,965 kept  8,391,035 warm-up  206,234 lines/s  elapsed 0:14:37
+[06:07:29 +0:14:42] [PARSE]   text read:  182,000,000 total   173,608,965 kept  8,391,035 warm-up  206,238 lines/s  elapsed 0:14:42
+[06:07:33 +0:14:47] [PARSE]   text read:  183,000,000 total   174,608,965 kept  8,391,035 warm-up  206,229 lines/s  elapsed 0:14:47
+[06:07:35 +0:14:49] [SEG]   streaming seg:  175,000,000 events read  127,253 seqs so far  196,801 ev/s  elapsed 0:14:49
+[06:07:38 +0:14:52] [PARSE]   text read:  184,000,000 total   175,608,965 kept  8,391,035 warm-up  206,249 lines/s  elapsed 0:14:52
+[06:07:43 +0:14:57] [PARSE]   text read:  185,000,000 total   176,608,965 kept  8,391,035 warm-up  206,233 lines/s  elapsed 0:14:57
+[06:07:48 +0:15:02] [PARSE]   text read:  186,000,000 total   177,608,965 kept  8,391,035 warm-up  206,186 lines/s  elapsed 0:15:02
+[06:07:53 +0:15:07] [PARSE]   text read:  187,000,000 total   178,608,965 kept  8,391,035 warm-up  206,174 lines/s  elapsed 0:15:07
+[06:07:58 +0:15:11] [PARSE]   text read:  188,000,000 total   179,608,965 kept  8,391,035 warm-up  206,166 lines/s  elapsed 0:15:11
+[06:08:00 +0:15:14] [SEG]   streaming seg:  180,000,000 events read  130,741 seqs so far  196,938 ev/s  elapsed 0:15:13
+[06:08:03 +0:15:17] [PARSE]   text read:  189,000,000 total   180,608,965 kept  8,391,035 warm-up  206,116 lines/s  elapsed 0:15:16
+[06:08:08 +0:15:21] [PARSE]   text read:  190,000,000 total   181,608,965 kept  8,391,035 warm-up  206,092 lines/s  elapsed 0:15:21
+[06:08:13 +0:15:26] [PARSE]   text read:  191,000,000 total   182,608,965 kept  8,391,035 warm-up  206,088 lines/s  elapsed 0:15:26
+[06:08:18 +0:15:31] [PARSE]   text read:  192,000,000 total   183,608,965 kept  8,391,035 warm-up  206,052 lines/s  elapsed 0:15:31
+[06:08:23 +0:15:36] [PARSE]   text read:  193,000,000 total   184,608,965 kept  8,391,035 warm-up  206,024 lines/s  elapsed 0:15:36
+[06:08:25 +0:15:38] [SEG]   streaming seg:  185,000,000 events read  134,271 seqs so far  197,075 ev/s  elapsed 0:15:38
+[06:08:28 +0:15:41] [PARSE]   text read:  194,000,000 total   185,608,965 kept  8,391,035 warm-up  206,010 lines/s  elapsed 0:15:41
+[06:08:33 +0:15:46] [PARSE]   text read:  195,000,000 total   186,608,965 kept  8,391,035 warm-up  205,977 lines/s  elapsed 0:15:46
+[06:08:38 +0:15:51] [PARSE]   text read:  196,000,000 total   187,608,965 kept  8,391,035 warm-up  205,951 lines/s  elapsed 0:15:51
+[06:08:43 +0:15:56] [PARSE]   text read:  197,000,000 total   188,608,965 kept  8,391,035 warm-up  205,896 lines/s  elapsed 0:15:56
+[06:08:48 +0:16:01] [PARSE]   text read:  198,000,000 total   189,608,965 kept  8,391,035 warm-up  205,882 lines/s  elapsed 0:16:01
+[06:08:50 +0:16:03] [SEG]   streaming seg:  190,000,000 events read  137,910 seqs so far  197,177 ev/s  elapsed 0:16:03
+[06:08:53 +0:16:06] [PARSE]   text read:  199,000,000 total   190,608,965 kept  8,391,035 warm-up  205,880 lines/s  elapsed 0:16:06
+[06:08:57 +0:16:11] [PARSE]   text read:  200,000,000 total   191,608,965 kept  8,391,035 warm-up  205,883 lines/s  elapsed 0:16:11
+[06:09:02 +0:16:16] [PARSE]   text read:  201,000,000 total   192,608,965 kept  8,391,035 warm-up  205,896 lines/s  elapsed 0:16:16
+[06:09:07 +0:16:21] [PARSE]   text read:  202,000,000 total   193,608,965 kept  8,391,035 warm-up  205,856 lines/s  elapsed 0:16:21
+[06:09:12 +0:16:26] [PARSE]   text read:  203,000,000 total   194,608,965 kept  8,391,035 warm-up  205,840 lines/s  elapsed 0:16:26
+[06:09:14 +0:16:28] [SEG]   streaming seg:  195,000,000 events read  141,192 seqs so far  197,349 ev/s  elapsed 0:16:28
+[06:09:17 +0:16:31] [PARSE]   text read:  204,000,000 total   195,608,965 kept  8,391,035 warm-up  205,833 lines/s  elapsed 0:16:31
+[06:09:22 +0:16:36] [PARSE]   text read:  205,000,000 total   196,608,965 kept  8,391,035 warm-up  205,816 lines/s  elapsed 0:16:36
+[06:09:27 +0:16:41] [PARSE]   text read:  206,000,000 total   197,608,965 kept  8,391,035 warm-up  205,794 lines/s  elapsed 0:16:41
+[06:09:32 +0:16:46] [PARSE]   text read:  207,000,000 total   198,608,965 kept  8,391,035 warm-up  205,770 lines/s  elapsed 0:16:45
+[06:09:37 +0:16:50] [PARSE]   text read:  208,000,000 total   199,608,965 kept  8,391,035 warm-up  205,762 lines/s  elapsed 0:16:50
+[06:09:39 +0:16:52] [SEG]   streaming seg:  200,000,000 events read  144,738 seqs so far  197,474 ev/s  elapsed 0:16:52
+[06:09:53 +0:17:06] [PARSE]   text read:  209,000,000 total   200,608,965 kept  8,391,035 warm-up  203,561 lines/s  elapsed 0:17:06
+[06:09:58 +0:17:11] [PARSE]   text read:  210,000,000 total   201,608,965 kept  8,391,035 warm-up  203,572 lines/s  elapsed 0:17:11
+[06:10:02 +0:17:16] [PARSE]   text read:  211,000,000 total   202,608,965 kept  8,391,035 warm-up  203,593 lines/s  elapsed 0:17:16
+[06:10:07 +0:17:21] [PARSE]   text read:  212,000,000 total   203,608,965 kept  8,391,035 warm-up  203,605 lines/s  elapsed 0:17:21
+[06:10:12 +0:17:26] [PARSE]   text read:  213,000,000 total   204,608,965 kept  8,391,035 warm-up  203,601 lines/s  elapsed 0:17:26
+[06:10:14 +0:17:28] [SEG]   streaming seg:  205,000,000 events read  148,276 seqs so far  195,599 ev/s  elapsed 0:17:28
+[06:10:17 +0:17:31] [PARSE]   text read:  214,000,000 total   205,608,965 kept  8,391,035 warm-up  203,618 lines/s  elapsed 0:17:30
+[06:10:22 +0:17:35] [PARSE]   text read:  215,000,000 total   206,608,965 kept  8,391,035 warm-up  203,624 lines/s  elapsed 0:17:35
+[06:10:27 +0:17:40] [PARSE]   text read:  216,000,000 total   207,608,965 kept  8,391,035 warm-up  203,635 lines/s  elapsed 0:17:40
+[06:10:32 +0:17:45] [PARSE]   text read:  217,000,000 total   208,608,965 kept  8,391,035 warm-up  203,641 lines/s  elapsed 0:17:45
+[06:10:37 +0:17:50] [PARSE]   text read:  218,000,000 total   209,608,965 kept  8,391,035 warm-up  203,633 lines/s  elapsed 0:17:50
+[06:10:39 +0:17:52] [SEG]   streaming seg:  210,000,000 events read  151,624 seqs so far  195,810 ev/s  elapsed 0:17:52
+[06:10:42 +0:17:55] [PARSE]   text read:  219,000,000 total   210,608,965 kept  8,391,035 warm-up  203,629 lines/s  elapsed 0:17:55
+[06:10:46 +0:18:00] [PARSE]   text read:  220,000,000 total   211,608,965 kept  8,391,035 warm-up  203,652 lines/s  elapsed 0:18:00
+[06:10:51 +0:18:05] [PARSE]   text read:  221,000,000 total   212,608,965 kept  8,391,035 warm-up  203,650 lines/s  elapsed 0:18:05
+[06:10:56 +0:18:10] [PARSE]   text read:  222,000,000 total   213,608,965 kept  8,391,035 warm-up  203,657 lines/s  elapsed 0:18:10
+[06:11:01 +0:18:14] [PARSE]   text read:  223,000,000 total   214,608,965 kept  8,391,035 warm-up  203,670 lines/s  elapsed 0:18:14
+[06:11:03 +0:18:16] [SEG]   streaming seg:  215,000,000 events read  154,948 seqs so far  196,025 ev/s  elapsed 0:18:16
+[06:11:06 +0:18:19] [PARSE]   text read:  224,000,000 total   215,608,965 kept  8,391,035 warm-up  203,688 lines/s  elapsed 0:18:19
+[06:11:11 +0:18:24] [PARSE]   text read:  225,000,000 total   216,608,965 kept  8,391,035 warm-up  203,709 lines/s  elapsed 0:18:24
+[06:11:16 +0:18:29] [PARSE]   text read:  226,000,000 total   217,608,965 kept  8,391,035 warm-up  203,663 lines/s  elapsed 0:18:29
+[06:11:21 +0:18:34] [PARSE]   text read:  227,000,000 total   218,608,965 kept  8,391,035 warm-up  203,634 lines/s  elapsed 0:18:34
+[06:11:26 +0:18:39] [PARSE]   text read:  228,000,000 total   219,608,965 kept  8,391,035 warm-up  203,612 lines/s  elapsed 0:18:39
+[06:11:28 +0:18:41] [SEG]   streaming seg:  220,000,000 events read  158,432 seqs so far  196,121 ev/s  elapsed 0:18:41
+[06:11:31 +0:18:44] [PARSE]   text read:  229,000,000 total   220,608,965 kept  8,391,035 warm-up  203,596 lines/s  elapsed 0:18:44
+[06:11:36 +0:18:49] [PARSE]   text read:  230,000,000 total   221,608,965 kept  8,391,035 warm-up  203,568 lines/s  elapsed 0:18:49
+[06:11:41 +0:18:55] [PARSE]   text read:  231,000,000 total   222,608,965 kept  8,391,035 warm-up  203,536 lines/s  elapsed 0:18:54
+[06:11:46 +0:18:59] [PARSE]   text read:  232,000,000 total   223,608,965 kept  8,391,035 warm-up  203,541 lines/s  elapsed 0:18:59
+[06:11:51 +0:19:04] [PARSE]   text read:  233,000,000 total   224,608,965 kept  8,391,035 warm-up  203,553 lines/s  elapsed 0:19:04
+[06:11:53 +0:19:06] [SEG]   streaming seg:  225,000,000 events read  161,774 seqs so far  196,247 ev/s  elapsed 0:19:06
+[06:11:56 +0:19:09] [PARSE]   text read:  234,000,000 total   225,608,965 kept  8,391,035 warm-up  203,557 lines/s  elapsed 0:19:09
+[06:12:00 +0:19:14] [PARSE]   text read:  235,000,000 total   226,608,965 kept  8,391,035 warm-up  203,578 lines/s  elapsed 0:19:14
+[06:12:05 +0:19:19] [PARSE]   text read:  236,000,000 total   227,608,965 kept  8,391,035 warm-up  203,552 lines/s  elapsed 0:19:19
+[06:12:11 +0:19:24] [PARSE]   text read:  237,000,000 total   228,608,965 kept  8,391,035 warm-up  203,479 lines/s  elapsed 0:19:24
+[06:12:16 +0:19:29] [PARSE]   text read:  238,000,000 total   229,608,965 kept  8,391,035 warm-up  203,476 lines/s  elapsed 0:19:29
+[06:12:18 +0:19:31] [SEG]   streaming seg:  230,000,000 events read  165,217 seqs so far  196,312 ev/s  elapsed 0:19:31
+[06:12:21 +0:19:34] [PARSE]   text read:  239,000,000 total   230,608,965 kept  8,391,035 warm-up  203,476 lines/s  elapsed 0:19:34
+[06:12:25 +0:19:39] [PARSE]   text read:  240,000,000 total   231,608,965 kept  8,391,035 warm-up  203,486 lines/s  elapsed 0:19:39
+[06:12:30 +0:19:44] [PARSE]   text read:  241,000,000 total   232,608,965 kept  8,391,035 warm-up  203,499 lines/s  elapsed 0:19:44
+[06:12:35 +0:19:49] [PARSE]   text read:  242,000,000 total   233,608,965 kept  8,391,035 warm-up  203,507 lines/s  elapsed 0:19:49
+[06:12:40 +0:19:54] [PARSE]   text read:  243,000,000 total   234,608,965 kept  8,391,035 warm-up  203,522 lines/s  elapsed 0:19:53
+[06:12:42 +0:19:56] [SEG]   streaming seg:  235,000,000 events read  168,829 seqs so far  196,488 ev/s  elapsed 0:19:56
+[06:12:45 +0:19:59] [PARSE]   text read:  244,000,000 total   235,608,965 kept  8,391,035 warm-up  203,467 lines/s  elapsed 0:19:59
+[06:12:50 +0:20:04] [PARSE]   text read:  245,000,000 total   236,608,965 kept  8,391,035 warm-up  203,435 lines/s  elapsed 0:20:04
+[06:12:55 +0:20:09] [PARSE]   text read:  246,000,000 total   237,608,965 kept  8,391,035 warm-up  203,409 lines/s  elapsed 0:20:09
+[06:13:00 +0:20:14] [PARSE]   text read:  247,000,000 total   238,608,965 kept  8,391,035 warm-up  203,417 lines/s  elapsed 0:20:14
+[06:13:05 +0:20:19] [PARSE]   text read:  248,000,000 total   239,608,965 kept  8,391,035 warm-up  203,430 lines/s  elapsed 0:20:19
+[06:13:14 +0:20:28] [SEG]   streaming seg:  240,000,000 events read  172,446 seqs so far  195,449 ev/s  elapsed 0:20:27
+[06:13:17 +0:20:30] [PARSE]   text read:  249,000,000 total   240,608,965 kept  8,391,035 warm-up  202,291 lines/s  elapsed 0:20:30
+[06:13:22 +0:20:35] [PARSE]   text read:  250,000,000 total   241,608,965 kept  8,391,035 warm-up  202,342 lines/s  elapsed 0:20:35
+[06:13:27 +0:20:40] [PARSE]   text read:  251,000,000 total   242,608,965 kept  8,391,035 warm-up  202,343 lines/s  elapsed 0:20:40
+[06:13:31 +0:20:45] [PARSE]   text read:  252,000,000 total   243,608,965 kept  8,391,035 warm-up  202,350 lines/s  elapsed 0:20:45
+[06:13:36 +0:20:50] [PARSE]   text read:  253,000,000 total   244,608,965 kept  8,391,035 warm-up  202,347 lines/s  elapsed 0:20:50
+[06:13:38 +0:20:52] [SEG]   streaming seg:  245,000,000 events read  175,938 seqs so far  195,648 ev/s  elapsed 0:20:52
+[06:13:41 +0:20:55] [PARSE]   text read:  254,000,000 total   245,608,965 kept  8,391,035 warm-up  202,347 lines/s  elapsed 0:20:55
+[06:13:46 +0:21:00] [PARSE]   text read:  255,000,000 total   246,608,965 kept  8,391,035 warm-up  202,335 lines/s  elapsed 0:21:00
+[06:13:51 +0:21:05] [PARSE]   text read:  256,000,000 total   247,608,965 kept  8,391,035 warm-up  202,353 lines/s  elapsed 0:21:05
+[06:13:56 +0:21:10] [PARSE]   text read:  257,000,000 total   248,608,965 kept  8,391,035 warm-up  202,354 lines/s  elapsed 0:21:10
+[06:14:01 +0:21:15] [PARSE]   text read:  258,000,000 total   249,608,965 kept  8,391,035 warm-up  202,302 lines/s  elapsed 0:21:15
+[06:14:03 +0:21:17] [SEG]   streaming seg:  250,000,000 events read  179,447 seqs so far  195,738 ev/s  elapsed 0:21:17
+[06:14:06 +0:21:20] [PARSE]   text read:  259,000,000 total   250,608,965 kept  8,391,035 warm-up  202,299 lines/s  elapsed 0:21:20
+[06:14:11 +0:21:25] [PARSE]   text read:  260,000,000 total   251,608,965 kept  8,391,035 warm-up  202,295 lines/s  elapsed 0:21:25
+[06:14:16 +0:21:30] [PARSE]   text read:  261,000,000 total   252,608,965 kept  8,391,035 warm-up  202,299 lines/s  elapsed 0:21:30
+[06:14:21 +0:21:35] [PARSE]   text read:  262,000,000 total   253,608,965 kept  8,391,035 warm-up  202,298 lines/s  elapsed 0:21:35
+[06:14:26 +0:21:40] [PARSE]   text read:  263,000,000 total   254,608,965 kept  8,391,035 warm-up  202,300 lines/s  elapsed 0:21:40
+[06:14:28 +0:21:42] [SEG]   streaming seg:  255,000,000 events read  183,014 seqs so far  195,857 ev/s  elapsed 0:21:41
+[06:14:31 +0:21:45] [PARSE]   text read:  264,000,000 total   255,608,965 kept  8,391,035 warm-up  202,306 lines/s  elapsed 0:21:44
+[06:14:36 +0:21:50] [PARSE]   text read:  265,000,000 total   256,608,965 kept  8,391,035 warm-up  202,299 lines/s  elapsed 0:21:49
+[06:14:41 +0:21:55] [PARSE]   text read:  266,000,000 total   257,608,965 kept  8,391,035 warm-up  202,277 lines/s  elapsed 0:21:55
+[06:14:46 +0:22:00] [PARSE]   text read:  267,000,000 total   258,608,965 kept  8,391,035 warm-up  202,283 lines/s  elapsed 0:21:59
+[06:14:51 +0:22:05] [PARSE]   text read:  268,000,000 total   259,608,965 kept  8,391,035 warm-up  202,256 lines/s  elapsed 0:22:05
+[06:14:53 +0:22:07] [SEG]   streaming seg:  260,000,000 events read  186,438 seqs so far  195,939 ev/s  elapsed 0:22:06
+[06:14:56 +0:22:10] [PARSE]   text read:  269,000,000 total   260,608,965 kept  8,391,035 warm-up  202,263 lines/s  elapsed 0:22:09
+[06:15:01 +0:22:14] [PARSE]   text read:  270,000,000 total   261,608,965 kept  8,391,035 warm-up  202,276 lines/s  elapsed 0:22:14
+[06:15:06 +0:22:19] [PARSE]   text read:  271,000,000 total   262,608,965 kept  8,391,035 warm-up  202,267 lines/s  elapsed 0:22:19
+[06:15:11 +0:22:24] [PARSE]   text read:  272,000,000 total   263,608,965 kept  8,391,035 warm-up  202,275 lines/s  elapsed 0:22:24
+[06:15:16 +0:22:29] [PARSE]   text read:  273,000,000 total   264,608,965 kept  8,391,035 warm-up  202,289 lines/s  elapsed 0:22:29
+[06:15:18 +0:22:31] [SEG]   streaming seg:  265,000,000 events read  189,890 seqs so far  196,079 ev/s  elapsed 0:22:31
+[06:15:20 +0:22:34] [PARSE]   text read:  274,000,000 total   265,608,965 kept  8,391,035 warm-up  202,302 lines/s  elapsed 0:22:34
+[06:15:25 +0:22:39] [PARSE]   text read:  275,000,000 total   266,608,965 kept  8,391,035 warm-up  202,327 lines/s  elapsed 0:22:39
+[06:15:30 +0:22:43] [PARSE]   text read:  276,000,000 total   267,608,965 kept  8,391,035 warm-up  202,363 lines/s  elapsed 0:22:43
+[06:15:35 +0:22:48] [PARSE]   text read:  277,000,000 total   268,608,965 kept  8,391,035 warm-up  202,352 lines/s  elapsed 0:22:48
+[06:15:40 +0:22:53] [PARSE]   text read:  278,000,000 total   269,608,965 kept  8,391,035 warm-up  202,371 lines/s  elapsed 0:22:53
+[06:15:42 +0:22:55] [SEG]   streaming seg:  270,000,000 events read  193,327 seqs so far  196,275 ev/s  elapsed 0:22:55
+[06:15:45 +0:22:58] [PARSE]   text read:  279,000,000 total   270,608,965 kept  8,391,035 warm-up  202,389 lines/s  elapsed 0:22:58
+[06:15:50 +0:23:03] [PARSE]   text read:  280,000,000 total   271,608,965 kept  8,391,035 warm-up  202,373 lines/s  elapsed 0:23:03
+[06:15:54 +0:23:08] [PARSE]   text read:  281,000,000 total   272,608,965 kept  8,391,035 warm-up  202,385 lines/s  elapsed 0:23:08
+[06:15:59 +0:23:13] [PARSE]   text read:  282,000,000 total   273,608,965 kept  8,391,035 warm-up  202,398 lines/s  elapsed 0:23:13
+[06:16:04 +0:23:18] [PARSE]   text read:  283,000,000 total   274,608,965 kept  8,391,035 warm-up  202,401 lines/s  elapsed 0:23:18
+[06:16:06 +0:23:20] [SEG]   streaming seg:  275,000,000 events read  198,396 seqs so far  196,417 ev/s  elapsed 0:23:20
+[06:16:09 +0:23:23] [PARSE]   text read:  284,000,000 total   275,608,965 kept  8,391,035 warm-up  202,418 lines/s  elapsed 0:23:23
+[06:16:14 +0:23:28] [PARSE]   text read:  285,000,000 total   276,608,965 kept  8,391,035 warm-up  202,417 lines/s  elapsed 0:23:27
+[06:16:19 +0:23:32] [PARSE]   text read:  286,000,000 total   277,608,965 kept  8,391,035 warm-up  202,449 lines/s  elapsed 0:23:32
+[06:16:24 +0:23:37] [PARSE]   text read:  287,000,000 total   278,608,965 kept  8,391,035 warm-up  202,467 lines/s  elapsed 0:23:37
+[06:16:29 +0:23:42] [PARSE]   text read:  288,000,000 total   279,608,965 kept  8,391,035 warm-up  202,464 lines/s  elapsed 0:23:42
+[06:16:30 +0:23:44] [SEG]   streaming seg:  280,000,000 events read  203,071 seqs so far  196,583 ev/s  elapsed 0:23:44
+[06:16:33 +0:23:47] [PARSE]   text read:  289,000,000 total   280,608,965 kept  8,391,035 warm-up  202,487 lines/s  elapsed 0:23:47
+[06:16:52 +0:24:05] [PARSE]   text read:  290,000,000 total   281,608,965 kept  8,391,035 warm-up  200,609 lines/s  elapsed 0:24:05
+[06:16:56 +0:24:10] [PARSE]   text read:  291,000,000 total   282,608,965 kept  8,391,035 warm-up  200,628 lines/s  elapsed 0:24:10
+[06:17:01 +0:24:15] [PARSE]   text read:  292,000,000 total   283,608,965 kept  8,391,035 warm-up  200,642 lines/s  elapsed 0:24:15
+[06:17:06 +0:24:20] [PARSE]   text read:  293,000,000 total   284,608,965 kept  8,391,035 warm-up  200,657 lines/s  elapsed 0:24:20
+[06:17:08 +0:24:22] [SEG]   streaming seg:  285,000,000 events read  206,961 seqs so far  194,916 ev/s  elapsed 0:24:22
+[06:17:11 +0:24:25] [PARSE]   text read:  294,000,000 total   285,608,965 kept  8,391,035 warm-up  200,662 lines/s  elapsed 0:24:25
+[06:17:16 +0:24:30] [PARSE]   text read:  295,000,000 total   286,608,965 kept  8,391,035 warm-up  200,683 lines/s  elapsed 0:24:29
+[06:17:21 +0:24:34] [PARSE]   text read:  296,000,000 total   287,608,965 kept  8,391,035 warm-up  200,700 lines/s  elapsed 0:24:34
+[06:17:26 +0:24:39] [PARSE]   text read:  297,000,000 total   288,608,965 kept  8,391,035 warm-up  200,724 lines/s  elapsed 0:24:39
+[06:17:30 +0:24:44] [PARSE]   text read:  298,000,000 total   289,608,965 kept  8,391,035 warm-up  200,751 lines/s  elapsed 0:24:44
+[06:17:32 +0:24:46] [SEG]   streaming seg:  290,000,000 events read  210,266 seqs so far  195,102 ev/s  elapsed 0:24:46
+[06:17:35 +0:24:49] [PARSE]   text read:  299,000,000 total   290,608,965 kept  8,391,035 warm-up  200,753 lines/s  elapsed 0:24:49
+[06:17:36 +0:24:50] [PARSE]   text parse complete: 299,123,148 lines  200,758 lines/s  elapsed 0:24:49
+[06:17:36 +0:24:50] [SEG]   streaming seg done: 290,732,113 events → 220,229 seqs  elapsed 0:24:50
+[06:17:36 +0:24:50] [SEG] Segments produced: 220,229  (min_events=8  seg time 0:24:50)
+[06:17:36 +0:24:50] [PARSE] Parse+segment total time: 0:24:50
+[06:17:36 +0:24:50] [ENC] Encoding 220,229 sequences ...
+[06:17:55 +0:25:09] [ENC]   encoded  11,011/220,229  (  5.0%)  vocab=257  ETA 0:06:04
+[06:18:04 +0:25:18] [ENC]   encoded  22,022/220,229  ( 10.0%)  vocab=257  ETA 0:04:15
+[06:18:23 +0:25:37] [ENC]   encoded  33,033/220,229  ( 15.0%)  vocab=257  ETA 0:04:27
+[06:18:32 +0:25:46] [ENC]   encoded  44,044/220,229  ( 20.0%)  vocab=257  ETA 0:03:43
+[06:18:55 +0:26:08] [ENC]   encoded  55,055/220,229  ( 25.0%)  vocab=257  ETA 0:03:56
+[06:19:04 +0:26:17] [ENC]   encoded  66,066/220,229  ( 30.0%)  vocab=257  ETA 0:03:24
+[06:19:13 +0:26:26] [ENC]   encoded  77,077/220,229  ( 35.0%)  vocab=257  ETA 0:02:59
+[06:19:33 +0:26:47] [ENC]   encoded  88,088/220,229  ( 40.0%)  vocab=257  ETA 0:02:55
+[06:19:43 +0:26:56] [ENC]   encoded  99,099/220,229  ( 45.0%)  vocab=257  ETA 0:02:34
+[06:19:53 +0:27:06] [ENC]   encoded 110,110/220,229  ( 50.0%)  vocab=257  ETA 0:02:16
+[06:20:15 +0:27:29] [ENC]   encoded 121,121/220,229  ( 55.0%)  vocab=257  ETA 0:02:10
+[06:20:25 +0:27:38] [ENC]   encoded 132,132/220,229  ( 60.0%)  vocab=257  ETA 0:01:52
+[06:20:34 +0:27:48] [ENC]   encoded 143,143/220,229  ( 65.0%)  vocab=257  ETA 0:01:36
+[06:20:44 +0:27:57] [ENC]   encoded 154,154/220,229  ( 70.0%)  vocab=257  ETA 0:01:20
+[06:21:08 +0:28:21] [ENC]   encoded 165,165/220,229  ( 75.0%)  vocab=257  ETA 0:01:10
+[06:21:17 +0:28:31] [ENC]   encoded 176,176/220,229  ( 80.0%)  vocab=257  ETA 0:00:55
+[06:21:27 +0:28:41] [ENC]   encoded 187,187/220,229  ( 85.0%)  vocab=257  ETA 0:00:40
+[06:21:35 +0:28:49] [ENC]   encoded 198,198/220,229  ( 90.0%)  vocab=257  ETA 0:00:26
+[06:21:43 +0:28:56] [ENC]   encoded 209,209/220,229  ( 95.0%)  vocab=257  ETA 0:00:12
+[06:21:59 +0:29:12] [ENC]   encoded 220,220/220,229  (100.0%)  vocab=257  ETA 0:00:00
+[06:21:59 +0:29:12] [ENC]   encoded 220,229/220,229  (100.0%)  vocab=257  ETA 0:00:00
+[06:21:59 +0:29:12] [ENC] Encoding done in 0:04:22  vocab: 257 syscalls / 6 procs
+[06:21:59 +0:29:12] [LAT] Categorising latencies for 220,229 sequences ...
+[06:22:04 +0:29:17] [LAT] Latency categorisation done  (0:00:05)
+[06:22:53 +0:30:06] [SPLIT] VALID_OOD_NET total sequences: 220,229
+[06:22:53 +0:30:06] [SHARD] Writing 220,229 sequences → 45 shard(s) in /scratch/yuvraj17/adaptive_tracing_scratch/micro-service-trace-data/preprocessed/valid_ood_net
+[06:22:53 +0:30:06] [SHARD]   shard    1/45    5,000/220,229 seqs  (  2.3%)  padded_len=512  339ms/shard  ETA 0:00:14
+[06:22:53 +0:30:07] [SHARD]   shard    2/45   10,000/220,229 seqs  (  4.5%)  padded_len=512  327ms/shard  ETA 0:00:14
+[06:22:54 +0:30:07] [SHARD]   shard    3/45   15,000/220,229 seqs  (  6.8%)  padded_len=512  327ms/shard  ETA 0:00:13
+[06:22:54 +0:30:07] [SHARD]   shard    4/45   20,000/220,229 seqs  (  9.1%)  padded_len=512  334ms/shard  ETA 0:00:13
+[06:22:54 +0:30:08] [SHARD]   shard    5/45   25,000/220,229 seqs  ( 11.4%)  padded_len=512  333ms/shard  ETA 0:00:12
+[06:22:55 +0:30:08] [SHARD]   shard    6/45   30,000/220,229 seqs  ( 13.6%)  padded_len=512  334ms/shard  ETA 0:00:12
+[06:22:55 +0:30:08] [SHARD]   shard    7/45   35,000/220,229 seqs  ( 15.9%)  padded_len=512  338ms/shard  ETA 0:00:12
+[06:22:55 +0:30:09] [SHARD]   shard    8/45   40,000/220,229 seqs  ( 18.2%)  padded_len=512  339ms/shard  ETA 0:00:12
+[06:22:56 +0:30:09] [SHARD]   shard    9/45   45,000/220,229 seqs  ( 20.4%)  padded_len=512  340ms/shard  ETA 0:00:11
+[06:22:56 +0:30:09] [SHARD]   shard   10/45   50,000/220,229 seqs  ( 22.7%)  padded_len=512  342ms/shard  ETA 0:00:11
+[06:22:56 +0:30:10] [SHARD]   shard   11/45   55,000/220,229 seqs  ( 25.0%)  padded_len=512  335ms/shard  ETA 0:00:11
+[06:22:57 +0:30:10] [SHARD]   shard   12/45   60,000/220,229 seqs  ( 27.2%)  padded_len=512  341ms/shard  ETA 0:00:10
+[06:22:57 +0:30:10] [SHARD]   shard   13/45   65,000/220,229 seqs  ( 29.5%)  padded_len=512  339ms/shard  ETA 0:00:10
+[06:22:57 +0:30:11] [SHARD]   shard   14/45   70,000/220,229 seqs  ( 31.8%)  padded_len=512  348ms/shard  ETA 0:00:10
+[06:22:58 +0:30:11] [SHARD]   shard   15/45   75,000/220,229 seqs  ( 34.1%)  padded_len=512  337ms/shard  ETA 0:00:09
+[06:22:58 +0:30:12] [SHARD]   shard   16/45   80,000/220,229 seqs  ( 36.3%)  padded_len=512  351ms/shard  ETA 0:00:09
+[06:22:58 +0:30:12] [SHARD]   shard   17/45   85,000/220,229 seqs  ( 38.6%)  padded_len=512  338ms/shard  ETA 0:00:09
+[06:22:59 +0:30:12] [SHARD]   shard   18/45   90,000/220,229 seqs  ( 40.9%)  padded_len=512  346ms/shard  ETA 0:00:08
+[06:22:59 +0:30:13] [SHARD]   shard   19/45   95,000/220,229 seqs  ( 43.1%)  padded_len=512  346ms/shard  ETA 0:00:08
+[06:22:59 +0:30:13] [SHARD]   shard   20/45  100,000/220,229 seqs  ( 45.4%)  padded_len=512  348ms/shard  ETA 0:00:08
+[06:23:00 +0:30:13] [SHARD]   shard   21/45  105,000/220,229 seqs  ( 47.7%)  padded_len=512  344ms/shard  ETA 0:00:07
+[06:23:00 +0:30:14] [SHARD]   shard   22/45  110,000/220,229 seqs  ( 49.9%)  padded_len=512  356ms/shard  ETA 0:00:07
+[06:23:00 +0:30:14] [SHARD]   shard   23/45  115,000/220,229 seqs  ( 52.2%)  padded_len=512  352ms/shard  ETA 0:00:07
+[06:23:01 +0:30:14] [SHARD]   shard   24/45  120,000/220,229 seqs  ( 54.5%)  padded_len=512  360ms/shard  ETA 0:00:06
+[06:23:01 +0:30:15] [SHARD]   shard   25/45  125,000/220,229 seqs  ( 56.8%)  padded_len=512  352ms/shard  ETA 0:00:06
+[06:23:01 +0:30:15] [SHARD]   shard   26/45  130,000/220,229 seqs  ( 59.0%)  padded_len=512  358ms/shard  ETA 0:00:06
+[06:23:02 +0:30:15] [SHARD]   shard   27/45  135,000/220,229 seqs  ( 61.3%)  padded_len=512  357ms/shard  ETA 0:00:05
+[06:23:02 +0:30:16] [SHARD]   shard   28/45  140,000/220,229 seqs  ( 63.6%)  padded_len=512  359ms/shard  ETA 0:00:05
+[06:23:03 +0:30:16] [SHARD]   shard   29/45  145,000/220,229 seqs  ( 65.8%)  padded_len=512  357ms/shard  ETA 0:00:05
+[06:23:03 +0:30:16] [SHARD]   shard   30/45  150,000/220,229 seqs  ( 68.1%)  padded_len=512  360ms/shard  ETA 0:00:04
+[06:23:03 +0:30:17] [SHARD]   shard   31/45  155,000/220,229 seqs  ( 70.4%)  padded_len=512  358ms/shard  ETA 0:00:04
+[06:23:04 +0:30:17] [SHARD]   shard   32/45  160,000/220,229 seqs  ( 72.7%)  padded_len=512  369ms/shard  ETA 0:00:04
+[06:23:04 +0:30:18] [SHARD]   shard   33/45  165,000/220,229 seqs  ( 74.9%)  padded_len=512  360ms/shard  ETA 0:00:03
+[06:23:04 +0:30:18] [SHARD]   shard   34/45  170,000/220,229 seqs  ( 77.2%)  padded_len=512  353ms/shard  ETA 0:00:03
+[06:23:05 +0:30:18] [SHARD]   shard   35/45  175,000/220,229 seqs  ( 79.5%)  padded_len=512  351ms/shard  ETA 0:00:03
+[06:23:05 +0:30:19] [SHARD]   shard   36/45  180,000/220,229 seqs  ( 81.7%)  padded_len=512  363ms/shard  ETA 0:00:02
+[06:23:05 +0:30:19] [SHARD]   shard   37/45  185,000/220,229 seqs  ( 84.0%)  padded_len=512  362ms/shard  ETA 0:00:02
+[06:23:06 +0:30:19] [SHARD]   shard   38/45  190,000/220,229 seqs  ( 86.3%)  padded_len=512  366ms/shard  ETA 0:00:02
+[06:23:06 +0:30:20] [SHARD]   shard   39/45  195,000/220,229 seqs  ( 88.5%)  padded_len=512  340ms/shard  ETA 0:00:01
+[06:23:06 +0:30:20] [SHARD]   shard   40/45  200,000/220,229 seqs  ( 90.8%)  padded_len=512  337ms/shard  ETA 0:00:01
+[06:23:07 +0:30:20] [SHARD]   shard   41/45  205,000/220,229 seqs  ( 93.1%)  padded_len=512  338ms/shard  ETA 0:00:01
+[06:23:07 +0:30:21] [SHARD]   shard   42/45  210,000/220,229 seqs  ( 95.4%)  padded_len=512  363ms/shard  ETA 0:00:00
+[06:23:07 +0:30:21] [SHARD]   shard   43/45  215,000/220,229 seqs  ( 97.6%)  padded_len=512  215ms/shard  ETA 0:00:00
+[06:23:08 +0:30:21] [SHARD]   shard   44/45  220,000/220,229 seqs  ( 99.9%)  padded_len=161  98ms/shard  ETA 0:00:00
+[06:23:08 +0:30:21] [SHARD]   shard   45/45  220,229/220,229 seqs  (100.0%)  padded_len=63  6ms/shard  ETA 0:00:00
+[06:23:08 +0:30:21] [SPLIT] ============================================================
+[06:23:08 +0:30:21] [SPLIT] Processing split 'test_ood_net'
+[06:23:08 +0:30:21] [RUN] ────────────────────────────────────────────────────────
+[06:23:08 +0:30:21] [RUN] Run dir  : /scratch/yuvraj17/adaptive_tracing_scratch/micro-service-trace-data/traces/anomaly_net/ultra_01
+[06:23:08 +0:30:21] [RUN] seg_mode=time  warmup=5.0s  window_ms=100.0  is_train=False
+[06:23:08 +0:30:21] [PARSE] Text dump found: anomaly_net/ultra_01/kernel.txt
+[06:23:08 +0:30:21] [PARSE] Streaming text → segmentation (no full in-memory list) ...
+[06:23:08 +0:30:21] [SEG] TID time-window segmentation (window_ms=100.0, streaming) ...
+[06:23:08 +0:30:21] [PARSE] [TEXT] Reading pre-converted text: /scratch/yuvraj17/adaptive_tracing_scratch/micro-service-trace-data/micro-service-trace-data-txt-dump/anomaly_net/ultra_01/kernel.txt
+[06:23:09 +0:30:22] [PARSE]   text read:    1,000,000  (skipping warm-up)  733,931 lines/s
+[06:23:10 +0:30:24] [PARSE]   text read:    2,000,000  (skipping warm-up)  725,020 lines/s
+[06:23:13 +0:30:27] [PARSE]   text read:    3,000,000  (skipping warm-up)  528,272 lines/s
+[06:23:15 +0:30:28] [PARSE]   text read:    4,000,000  (skipping warm-up)  544,866 lines/s
+[06:23:16 +0:30:30] [PARSE]   text read:    5,000,000  (skipping warm-up)  567,488 lines/s
+[06:23:18 +0:30:31] [PARSE]   text read:    6,000,000  (skipping warm-up)  578,524 lines/s
+[06:23:20 +0:30:33] [PARSE]   text read:    7,000,000  (skipping warm-up)  580,667 lines/s
+[06:23:21 +0:30:35] [PARSE]   text read:    8,000,000  (skipping warm-up)  590,663 lines/s
+[06:23:24 +0:30:38] [PARSE]   text read:    9,000,000 total       608,965 kept  8,391,035 warm-up  542,159 lines/s  elapsed 0:00:16
+[06:23:29 +0:30:42] [PARSE]   text read:   10,000,000 total     1,608,965 kept  8,391,035 warm-up  469,594 lines/s  elapsed 0:00:21
+[06:23:33 +0:30:47] [PARSE]   text read:   11,000,000 total     2,608,965 kept  8,391,035 warm-up  423,778 lines/s  elapsed 0:00:25
+[06:23:38 +0:30:52] [PARSE]   text read:   12,000,000 total     3,608,965 kept  8,391,035 warm-up  391,283 lines/s  elapsed 0:00:30
+[06:23:43 +0:30:57] [PARSE]   text read:   13,000,000 total     4,608,965 kept  8,391,035 warm-up  366,318 lines/s  elapsed 0:00:35
+[06:23:45 +0:30:58] [SEG]   streaming seg:    5,000,000 events read    4,172 seqs so far  134,062 ev/s  elapsed 0:00:37
+[06:23:48 +0:31:01] [PARSE]   text read:   14,000,000 total     5,608,965 kept  8,391,035 warm-up  348,009 lines/s  elapsed 0:00:40
+[06:23:53 +0:31:06] [PARSE]   text read:   15,000,000 total     6,608,965 kept  8,391,035 warm-up  332,929 lines/s  elapsed 0:00:45
+[06:23:57 +0:31:11] [PARSE]   text read:   16,000,000 total     7,608,965 kept  8,391,035 warm-up  321,184 lines/s  elapsed 0:00:49
+[06:24:02 +0:31:16] [PARSE]   text read:   17,000,000 total     8,608,965 kept  8,391,035 warm-up  311,615 lines/s  elapsed 0:00:54
+[06:24:07 +0:31:20] [PARSE]   text read:   18,000,000 total     9,608,965 kept  8,391,035 warm-up  303,547 lines/s  elapsed 0:00:59
+[06:24:09 +0:31:22] [SEG]   streaming seg:   10,000,000 events read    8,219 seqs so far  163,527 ev/s  elapsed 0:01:01
+[06:24:12 +0:31:25] [PARSE]   text read:   19,000,000 total    10,608,965 kept  8,391,035 warm-up  296,556 lines/s  elapsed 0:01:04
+[06:24:16 +0:31:30] [PARSE]   text read:   20,000,000 total    11,608,965 kept  8,391,035 warm-up  290,783 lines/s  elapsed 0:01:08
+[06:24:21 +0:31:35] [PARSE]   text read:   21,000,000 total    12,608,965 kept  8,391,035 warm-up  285,542 lines/s  elapsed 0:01:13
+[06:24:26 +0:31:39] [PARSE]   text read:   22,000,000 total    13,608,965 kept  8,391,035 warm-up  281,020 lines/s  elapsed 0:01:18
+[06:24:30 +0:31:44] [PARSE]   text read:   23,000,000 total    14,608,965 kept  8,391,035 warm-up  277,259 lines/s  elapsed 0:01:22
+[06:24:32 +0:31:46] [SEG]   streaming seg:   15,000,000 events read   12,061 seqs so far  176,930 ev/s  elapsed 0:01:24
+[06:24:35 +0:31:49] [PARSE]   text read:   24,000,000 total    15,608,965 kept  8,391,035 warm-up  273,762 lines/s  elapsed 0:01:27
+[06:24:40 +0:31:53] [PARSE]   text read:   25,000,000 total    16,608,965 kept  8,391,035 warm-up  270,536 lines/s  elapsed 0:01:32
+[06:24:45 +0:31:58] [PARSE]   text read:   26,000,000 total    17,608,965 kept  8,391,035 warm-up  267,700 lines/s  elapsed 0:01:37
+[06:24:49 +0:32:03] [PARSE]   text read:   27,000,000 total    18,608,965 kept  8,391,035 warm-up  265,227 lines/s  elapsed 0:01:41
+[06:24:54 +0:32:08] [PARSE]   text read:   28,000,000 total    19,608,965 kept  8,391,035 warm-up  262,941 lines/s  elapsed 0:01:46
+[06:24:56 +0:32:09] [SEG]   streaming seg:   20,000,000 events read   15,454 seqs so far  184,596 ev/s  elapsed 0:01:48
+[06:24:59 +0:32:12] [PARSE]   text read:   29,000,000 total    20,608,965 kept  8,391,035 warm-up  260,799 lines/s  elapsed 0:01:51
+[06:25:03 +0:32:17] [PARSE]   text read:   30,000,000 total    21,608,965 kept  8,391,035 warm-up  258,946 lines/s  elapsed 0:01:55
+[06:25:08 +0:32:21] [PARSE]   text read:   31,000,000 total    22,608,965 kept  8,391,035 warm-up  257,391 lines/s  elapsed 0:02:00
+[06:25:13 +0:32:26] [PARSE]   text read:   32,000,000 total    23,608,965 kept  8,391,035 warm-up  255,878 lines/s  elapsed 0:02:05
+[06:25:17 +0:32:31] [PARSE]   text read:   33,000,000 total    24,608,965 kept  8,391,035 warm-up  254,270 lines/s  elapsed 0:02:09
+[06:25:19 +0:32:33] [SEG]   streaming seg:   25,000,000 events read   18,837 seqs so far  189,889 ev/s  elapsed 0:02:11
+[06:25:22 +0:32:36] [PARSE]   text read:   34,000,000 total    25,608,965 kept  8,391,035 warm-up  252,696 lines/s  elapsed 0:02:14
+[06:25:27 +0:32:40] [PARSE]   text read:   35,000,000 total    26,608,965 kept  8,391,035 warm-up  251,143 lines/s  elapsed 0:02:19
+[06:25:32 +0:32:45] [PARSE]   text read:   36,000,000 total    27,608,965 kept  8,391,035 warm-up  249,728 lines/s  elapsed 0:02:24
+[06:25:37 +0:32:50] [PARSE]   text read:   37,000,000 total    28,608,965 kept  8,391,035 warm-up  248,265 lines/s  elapsed 0:02:29
+[06:25:41 +0:32:55] [PARSE]   text read:   38,000,000 total    29,608,965 kept  8,391,035 warm-up  247,031 lines/s  elapsed 0:02:33
+[06:25:43 +0:32:57] [SEG]   streaming seg:   30,000,000 events read   22,462 seqs so far  192,615 ev/s  elapsed 0:02:35
+[06:25:46 +0:33:00] [PARSE]   text read:   39,000,000 total    30,608,965 kept  8,391,035 warm-up  245,725 lines/s  elapsed 0:02:38
+[06:25:51 +0:33:05] [PARSE]   text read:   40,000,000 total    31,608,965 kept  8,391,035 warm-up  244,534 lines/s  elapsed 0:02:43
+[06:25:56 +0:33:10] [PARSE]   text read:   41,000,000 total    32,608,965 kept  8,391,035 warm-up  243,343 lines/s  elapsed 0:02:48
+[06:26:01 +0:33:15] [PARSE]   text read:   42,000,000 total    33,608,965 kept  8,391,035 warm-up  242,072 lines/s  elapsed 0:02:53
+[06:26:06 +0:33:20] [PARSE]   text read:   43,000,000 total    34,608,965 kept  8,391,035 warm-up  240,898 lines/s  elapsed 0:02:58
+[06:26:08 +0:33:21] [SEG]   streaming seg:   35,000,000 events read   26,296 seqs so far  193,973 ev/s  elapsed 0:03:00
+[06:26:11 +0:33:24] [PARSE]   text read:   44,000,000 total    35,608,965 kept  8,391,035 warm-up  239,846 lines/s  elapsed 0:03:03
+[06:26:16 +0:33:29] [PARSE]   text read:   45,000,000 total    36,608,965 kept  8,391,035 warm-up  238,957 lines/s  elapsed 0:03:08
+[06:26:21 +0:33:34] [PARSE]   text read:   46,000,000 total    37,608,965 kept  8,391,035 warm-up  237,862 lines/s  elapsed 0:03:13
+[06:26:26 +0:33:39] [PARSE]   text read:   47,000,000 total    38,608,965 kept  8,391,035 warm-up  236,968 lines/s  elapsed 0:03:18
+[06:26:31 +0:33:44] [PARSE]   text read:   48,000,000 total    39,608,965 kept  8,391,035 warm-up  236,119 lines/s  elapsed 0:03:23
+[06:26:33 +0:33:46] [SEG]   streaming seg:   40,000,000 events read   30,161 seqs so far  194,948 ev/s  elapsed 0:03:25
+[06:26:36 +0:33:49] [PARSE]   text read:   49,000,000 total    40,608,965 kept  8,391,035 warm-up  235,412 lines/s  elapsed 0:03:28
+[06:26:41 +0:33:54] [PARSE]   text read:   50,000,000 total    41,608,965 kept  8,391,035 warm-up  234,674 lines/s  elapsed 0:03:33
+[06:26:45 +0:33:59] [PARSE]   text read:   51,000,000 total    42,608,965 kept  8,391,035 warm-up  234,009 lines/s  elapsed 0:03:37
+[06:26:50 +0:34:04] [PARSE]   text read:   52,000,000 total    43,608,965 kept  8,391,035 warm-up  233,336 lines/s  elapsed 0:03:42
+[06:26:55 +0:34:09] [PARSE]   text read:   53,000,000 total    44,608,965 kept  8,391,035 warm-up  232,842 lines/s  elapsed 0:03:47
+[06:26:57 +0:34:11] [SEG]   streaming seg:   45,000,000 events read   33,898 seqs so far  196,067 ev/s  elapsed 0:03:49
+[06:27:00 +0:34:14] [PARSE]   text read:   54,000,000 total    45,608,965 kept  8,391,035 warm-up  232,273 lines/s  elapsed 0:03:52
+[06:27:05 +0:34:18] [PARSE]   text read:   55,000,000 total    46,608,965 kept  8,391,035 warm-up  231,745 lines/s  elapsed 0:03:57
+[06:27:10 +0:34:23] [PARSE]   text read:   56,000,000 total    47,608,965 kept  8,391,035 warm-up  231,278 lines/s  elapsed 0:04:02
+[06:27:14 +0:34:28] [PARSE]   text read:   57,000,000 total    48,608,965 kept  8,391,035 warm-up  230,955 lines/s  elapsed 0:04:06
+[06:27:19 +0:34:33] [PARSE]   text read:   58,000,000 total    49,608,965 kept  8,391,035 warm-up  230,465 lines/s  elapsed 0:04:11
+[06:27:21 +0:34:35] [SEG]   streaming seg:   50,000,000 events read   37,504 seqs so far  197,152 ev/s  elapsed 0:04:13
+[06:27:24 +0:34:38] [PARSE]   text read:   59,000,000 total    50,608,965 kept  8,391,035 warm-up  229,877 lines/s  elapsed 0:04:16
+[06:27:29 +0:34:43] [PARSE]   text read:   60,000,000 total    51,608,965 kept  8,391,035 warm-up  229,262 lines/s  elapsed 0:04:21
+[06:27:34 +0:34:48] [PARSE]   text read:   61,000,000 total    52,608,965 kept  8,391,035 warm-up  228,737 lines/s  elapsed 0:04:26
+[06:27:39 +0:34:53] [PARSE]   text read:   62,000,000 total    53,608,965 kept  8,391,035 warm-up  228,262 lines/s  elapsed 0:04:31
+[06:27:44 +0:34:57] [PARSE]   text read:   63,000,000 total    54,608,965 kept  8,391,035 warm-up  227,902 lines/s  elapsed 0:04:36
+[06:27:46 +0:34:59] [SEG]   streaming seg:   55,000,000 events read   41,286 seqs so far  197,634 ev/s  elapsed 0:04:38
+[06:27:49 +0:35:02] [PARSE]   text read:   64,000,000 total    55,608,965 kept  8,391,035 warm-up  227,525 lines/s  elapsed 0:04:41
+[06:27:54 +0:35:07] [PARSE]   text read:   65,000,000 total    56,608,965 kept  8,391,035 warm-up  227,218 lines/s  elapsed 0:04:46
+[06:27:58 +0:35:12] [PARSE]   text read:   66,000,000 total    57,608,965 kept  8,391,035 warm-up  226,984 lines/s  elapsed 0:04:50
+[06:28:03 +0:35:17] [PARSE]   text read:   67,000,000 total    58,608,965 kept  8,391,035 warm-up  226,714 lines/s  elapsed 0:04:55
+[06:28:08 +0:35:21] [PARSE]   text read:   68,000,000 total    59,608,965 kept  8,391,035 warm-up  226,469 lines/s  elapsed 0:05:00
+[06:28:10 +0:35:23] [SEG]   streaming seg:   60,000,000 events read   44,660 seqs so far  198,612 ev/s  elapsed 0:05:02
+[06:28:12 +0:35:26] [PARSE]   text read:   69,000,000 total    60,608,965 kept  8,391,035 warm-up  226,306 lines/s  elapsed 0:05:04
+[06:28:17 +0:35:31] [PARSE]   text read:   70,000,000 total    61,608,965 kept  8,391,035 warm-up  226,063 lines/s  elapsed 0:05:09
+[06:28:22 +0:35:35] [PARSE]   text read:   71,000,000 total    62,608,965 kept  8,391,035 warm-up  225,833 lines/s  elapsed 0:05:14
+[06:28:27 +0:35:40] [PARSE]   text read:   72,000,000 total    63,608,965 kept  8,391,035 warm-up  225,629 lines/s  elapsed 0:05:19
+[06:28:31 +0:35:45] [PARSE]   text read:   73,000,000 total    64,608,965 kept  8,391,035 warm-up  225,434 lines/s  elapsed 0:05:23
+[06:28:33 +0:35:47] [SEG]   streaming seg:   65,000,000 events read   48,274 seqs so far  199,581 ev/s  elapsed 0:05:25
+[06:28:36 +0:35:50] [PARSE]   text read:   74,000,000 total    65,608,965 kept  8,391,035 warm-up  225,248 lines/s  elapsed 0:05:28
+[06:28:41 +0:35:54] [PARSE]   text read:   75,000,000 total    66,608,965 kept  8,391,035 warm-up  225,034 lines/s  elapsed 0:05:33
+[06:28:46 +0:35:59] [PARSE]   text read:   76,000,000 total    67,608,965 kept  8,391,035 warm-up  224,852 lines/s  elapsed 0:05:38
+[06:28:50 +0:36:04] [PARSE]   text read:   77,000,000 total    68,608,965 kept  8,391,035 warm-up  224,682 lines/s  elapsed 0:05:42
+[06:28:55 +0:36:09] [PARSE]   text read:   78,000,000 total    69,608,965 kept  8,391,035 warm-up  224,428 lines/s  elapsed 0:05:47
+[06:28:57 +0:36:11] [SEG]   streaming seg:   70,000,000 events read   51,778 seqs so far  200,301 ev/s  elapsed 0:05:49
+[06:29:00 +0:36:14] [PARSE]   text read:   79,000,000 total    70,608,965 kept  8,391,035 warm-up  224,129 lines/s  elapsed 0:05:52
+[06:29:05 +0:36:18] [PARSE]   text read:   80,000,000 total    71,608,965 kept  8,391,035 warm-up  223,847 lines/s  elapsed 0:05:57
+[06:29:10 +0:36:23] [PARSE]   text read:   81,000,000 total    72,608,965 kept  8,391,035 warm-up  223,634 lines/s  elapsed 0:06:02
+[06:29:15 +0:36:28] [PARSE]   text read:   82,000,000 total    73,608,965 kept  8,391,035 warm-up  223,339 lines/s  elapsed 0:06:07
+[06:29:20 +0:36:33] [PARSE]   text read:   83,000,000 total    74,608,965 kept  8,391,035 warm-up  223,076 lines/s  elapsed 0:06:12
+[06:29:21 +0:36:35] [SEG]   streaming seg:   75,000,000 events read   55,502 seqs so far  200,544 ev/s  elapsed 0:06:13
+[06:29:24 +0:36:38] [PARSE]   text read:   84,000,000 total    75,608,965 kept  8,391,035 warm-up  222,838 lines/s  elapsed 0:06:16
+[06:29:29 +0:36:43] [PARSE]   text read:   85,000,000 total    76,608,965 kept  8,391,035 warm-up  222,579 lines/s  elapsed 0:06:21
+[06:29:34 +0:36:48] [PARSE]   text read:   86,000,000 total    77,608,965 kept  8,391,035 warm-up  222,320 lines/s  elapsed 0:06:26
+[06:29:39 +0:36:53] [PARSE]   text read:   87,000,000 total    78,608,965 kept  8,391,035 warm-up  222,109 lines/s  elapsed 0:06:31
+[06:29:44 +0:36:58] [PARSE]   text read:   88,000,000 total    79,608,965 kept  8,391,035 warm-up  221,928 lines/s  elapsed 0:06:36
+[06:29:46 +0:36:59] [SEG]   streaming seg:   80,000,000 events read   59,300 seqs so far  200,788 ev/s  elapsed 0:06:38
+[06:29:49 +0:37:03] [PARSE]   text read:   89,000,000 total    80,608,965 kept  8,391,035 warm-up  221,663 lines/s  elapsed 0:06:41
+[06:29:54 +0:37:07] [PARSE]   text read:   90,000,000 total    81,608,965 kept  8,391,035 warm-up  221,441 lines/s  elapsed 0:06:46
+[06:29:59 +0:37:12] [PARSE]   text read:   91,000,000 total    82,608,965 kept  8,391,035 warm-up  221,260 lines/s  elapsed 0:06:51
+[06:30:04 +0:37:17] [PARSE]   text read:   92,000,000 total    83,608,965 kept  8,391,035 warm-up  221,055 lines/s  elapsed 0:06:56
+[06:30:09 +0:37:22] [PARSE]   text read:   93,000,000 total    84,608,965 kept  8,391,035 warm-up  220,786 lines/s  elapsed 0:07:01
+[06:30:11 +0:37:24] [SEG]   streaming seg:   85,000,000 events read   63,248 seqs so far  200,877 ev/s  elapsed 0:07:03
+[06:30:14 +0:37:27] [PARSE]   text read:   94,000,000 total    85,608,965 kept  8,391,035 warm-up  220,589 lines/s  elapsed 0:07:06
+[06:30:19 +0:37:32] [PARSE]   text read:   95,000,000 total    86,608,965 kept  8,391,035 warm-up  220,368 lines/s  elapsed 0:07:11
+[06:30:24 +0:37:37] [PARSE]   text read:   96,000,000 total    87,608,965 kept  8,391,035 warm-up  220,183 lines/s  elapsed 0:07:16
+[06:30:28 +0:37:42] [PARSE]   text read:   97,000,000 total    88,608,965 kept  8,391,035 warm-up  220,010 lines/s  elapsed 0:07:20
+[06:30:33 +0:37:47] [PARSE]   text read:   98,000,000 total    89,608,965 kept  8,391,035 warm-up  219,848 lines/s  elapsed 0:07:25
+[06:30:35 +0:37:49] [SEG]   streaming seg:   90,000,000 events read   66,974 seqs so far  201,032 ev/s  elapsed 0:07:27
+[06:30:38 +0:37:52] [PARSE]   text read:   99,000,000 total    90,608,965 kept  8,391,035 warm-up  219,689 lines/s  elapsed 0:07:30
+[06:30:43 +0:37:57] [PARSE]   text read:  100,000,000 total    91,608,965 kept  8,391,035 warm-up  219,548 lines/s  elapsed 0:07:35
+[06:30:48 +0:38:01] [PARSE]   text read:  101,000,000 total    92,608,965 kept  8,391,035 warm-up  219,423 lines/s  elapsed 0:07:40
+[06:30:53 +0:38:06] [PARSE]   text read:  102,000,000 total    93,608,965 kept  8,391,035 warm-up  219,342 lines/s  elapsed 0:07:45
+[06:30:57 +0:38:11] [PARSE]   text read:  103,000,000 total    94,608,965 kept  8,391,035 warm-up  219,243 lines/s  elapsed 0:07:49
+[06:30:59 +0:38:13] [SEG]   streaming seg:   95,000,000 events read   70,325 seqs so far  201,392 ev/s  elapsed 0:07:51
+[06:31:02 +0:38:16] [PARSE]   text read:  104,000,000 total    95,608,965 kept  8,391,035 warm-up  219,093 lines/s  elapsed 0:07:54
+[06:31:07 +0:38:20] [PARSE]   text read:  105,000,000 total    96,608,965 kept  8,391,035 warm-up  219,017 lines/s  elapsed 0:07:59
+[06:31:12 +0:38:25] [PARSE]   text read:  106,000,000 total    97,608,965 kept  8,391,035 warm-up  218,910 lines/s  elapsed 0:08:04
+[06:31:17 +0:38:30] [PARSE]   text read:  107,000,000 total    98,608,965 kept  8,391,035 warm-up  218,803 lines/s  elapsed 0:08:09
+[06:31:21 +0:38:35] [PARSE]   text read:  108,000,000 total    99,608,965 kept  8,391,035 warm-up  218,691 lines/s  elapsed 0:08:13
+[06:31:23 +0:38:37] [SEG]   streaming seg:  100,000,000 events read   73,822 seqs so far  201,732 ev/s  elapsed 0:08:15
+[06:31:26 +0:38:40] [PARSE]   text read:  109,000,000 total   100,608,965 kept  8,391,035 warm-up  218,588 lines/s  elapsed 0:08:18
+[06:31:31 +0:38:45] [PARSE]   text read:  110,000,000 total   101,608,965 kept  8,391,035 warm-up  218,456 lines/s  elapsed 0:08:23
+[06:31:36 +0:38:49] [PARSE]   text read:  111,000,000 total   102,608,965 kept  8,391,035 warm-up  218,331 lines/s  elapsed 0:08:28
+[06:31:41 +0:38:54] [PARSE]   text read:  112,000,000 total   103,608,965 kept  8,391,035 warm-up  218,210 lines/s  elapsed 0:08:33
+[06:31:46 +0:38:59] [PARSE]   text read:  113,000,000 total   104,608,965 kept  8,391,035 warm-up  218,120 lines/s  elapsed 0:08:38
+[06:31:48 +0:39:01] [SEG]   streaming seg:  105,000,000 events read   77,301 seqs so far  201,927 ev/s  elapsed 0:08:39
+[06:31:50 +0:39:04] [PARSE]   text read:  114,000,000 total   105,608,965 kept  8,391,035 warm-up  218,002 lines/s  elapsed 0:08:42
+[06:31:55 +0:39:09] [PARSE]   text read:  115,000,000 total   106,608,965 kept  8,391,035 warm-up  217,920 lines/s  elapsed 0:08:47
+[06:32:00 +0:39:14] [PARSE]   text read:  116,000,000 total   107,608,965 kept  8,391,035 warm-up  217,787 lines/s  elapsed 0:08:52
+[06:32:05 +0:39:18] [PARSE]   text read:  117,000,000 total   108,608,965 kept  8,391,035 warm-up  217,691 lines/s  elapsed 0:08:57
+[06:32:10 +0:39:23] [PARSE]   text read:  118,000,000 total   109,608,965 kept  8,391,035 warm-up  217,625 lines/s  elapsed 0:09:02
+[06:32:12 +0:39:25] [SEG]   streaming seg:  110,000,000 events read   80,889 seqs so far  202,183 ev/s  elapsed 0:09:04
+[06:32:14 +0:39:28] [PARSE]   text read:  119,000,000 total   110,608,965 kept  8,391,035 warm-up  217,563 lines/s  elapsed 0:09:06
+[06:32:19 +0:39:33] [PARSE]   text read:  120,000,000 total   111,608,965 kept  8,391,035 warm-up  217,480 lines/s  elapsed 0:09:11
+[06:32:24 +0:39:38] [PARSE]   text read:  121,000,000 total   112,608,965 kept  8,391,035 warm-up  217,339 lines/s  elapsed 0:09:16
+[06:32:29 +0:39:43] [PARSE]   text read:  122,000,000 total   113,608,965 kept  8,391,035 warm-up  217,197 lines/s  elapsed 0:09:21
+[06:32:34 +0:39:48] [PARSE]   text read:  123,000,000 total   114,608,965 kept  8,391,035 warm-up  217,079 lines/s  elapsed 0:09:26
+[06:32:36 +0:39:50] [SEG]   streaming seg:  115,000,000 events read   84,638 seqs so far  202,290 ev/s  elapsed 0:09:28
+[06:32:39 +0:39:53] [PARSE]   text read:  124,000,000 total   115,608,965 kept  8,391,035 warm-up  216,974 lines/s  elapsed 0:09:31
+[06:32:44 +0:39:57] [PARSE]   text read:  125,000,000 total   116,608,965 kept  8,391,035 warm-up  216,865 lines/s  elapsed 0:09:36
+[06:32:49 +0:40:02] [PARSE]   text read:  126,000,000 total   117,608,965 kept  8,391,035 warm-up  216,699 lines/s  elapsed 0:09:41
+[06:32:54 +0:40:08] [PARSE]   text read:  127,000,000 total   118,608,965 kept  8,391,035 warm-up  216,548 lines/s  elapsed 0:09:46
+[06:32:59 +0:40:12] [PARSE]   text read:  128,000,000 total   119,608,965 kept  8,391,035 warm-up  216,471 lines/s  elapsed 0:09:51
+[06:33:01 +0:40:14] [SEG]   streaming seg:  120,000,000 events read   88,579 seqs so far  202,263 ev/s  elapsed 0:09:53
+[06:33:04 +0:40:17] [PARSE]   text read:  129,000,000 total   120,608,965 kept  8,391,035 warm-up  216,309 lines/s  elapsed 0:09:56
+[06:33:09 +0:40:22] [PARSE]   text read:  130,000,000 total   121,608,965 kept  8,391,035 warm-up  216,214 lines/s  elapsed 0:10:01
+[06:33:14 +0:40:27] [PARSE]   text read:  131,000,000 total   122,608,965 kept  8,391,035 warm-up  216,105 lines/s  elapsed 0:10:06
+[06:33:19 +0:40:32] [PARSE]   text read:  132,000,000 total   123,608,965 kept  8,391,035 warm-up  216,035 lines/s  elapsed 0:10:11
+[06:33:23 +0:40:37] [PARSE]   text read:  133,000,000 total   124,608,965 kept  8,391,035 warm-up  215,964 lines/s  elapsed 0:10:15
+[06:33:25 +0:40:39] [SEG]   streaming seg:  125,000,000 events read   92,160 seqs so far  202,356 ev/s  elapsed 0:10:17
+[06:33:28 +0:40:42] [PARSE]   text read:  134,000,000 total   125,608,965 kept  8,391,035 warm-up  215,895 lines/s  elapsed 0:10:20
+[06:33:33 +0:40:47] [PARSE]   text read:  135,000,000 total   126,608,965 kept  8,391,035 warm-up  215,812 lines/s  elapsed 0:10:25
+[06:33:38 +0:40:51] [PARSE]   text read:  136,000,000 total   127,608,965 kept  8,391,035 warm-up  215,735 lines/s  elapsed 0:10:30
+[06:33:43 +0:40:56] [PARSE]   text read:  137,000,000 total   128,608,965 kept  8,391,035 warm-up  215,685 lines/s  elapsed 0:10:35
+[06:33:48 +0:41:01] [PARSE]   text read:  138,000,000 total   129,608,965 kept  8,391,035 warm-up  215,619 lines/s  elapsed 0:10:40
+[06:33:49 +0:41:03] [SEG]   streaming seg:  130,000,000 events read   95,557 seqs so far  202,532 ev/s  elapsed 0:10:41
+[06:33:52 +0:41:06] [PARSE]   text read:  139,000,000 total   130,608,965 kept  8,391,035 warm-up  215,553 lines/s  elapsed 0:10:44
+[06:33:57 +0:41:11] [PARSE]   text read:  140,000,000 total   131,608,965 kept  8,391,035 warm-up  215,464 lines/s  elapsed 0:10:49
+[06:34:02 +0:41:16] [PARSE]   text read:  141,000,000 total   132,608,965 kept  8,391,035 warm-up  215,380 lines/s  elapsed 0:10:54
+[06:34:07 +0:41:21] [PARSE]   text read:  142,000,000 total   133,608,965 kept  8,391,035 warm-up  215,300 lines/s  elapsed 0:10:59
+[06:34:12 +0:41:25] [PARSE]   text read:  143,000,000 total   134,608,965 kept  8,391,035 warm-up  215,235 lines/s  elapsed 0:11:04
+[06:34:14 +0:41:27] [SEG]   streaming seg:  135,000,000 events read   99,091 seqs so far  202,607 ev/s  elapsed 0:11:06
+[06:34:17 +0:41:30] [PARSE]   text read:  144,000,000 total   135,608,965 kept  8,391,035 warm-up  215,188 lines/s  elapsed 0:11:09
+[06:34:22 +0:41:35] [PARSE]   text read:  145,000,000 total   136,608,965 kept  8,391,035 warm-up  215,117 lines/s  elapsed 0:11:14
+[06:34:26 +0:41:40] [PARSE]   text read:  146,000,000 total   137,608,965 kept  8,391,035 warm-up  215,054 lines/s  elapsed 0:11:18
+[06:34:31 +0:41:45] [PARSE]   text read:  147,000,000 total   138,608,965 kept  8,391,035 warm-up  214,983 lines/s  elapsed 0:11:23
+[06:34:36 +0:41:50] [PARSE]   text read:  148,000,000 total   139,608,965 kept  8,391,035 warm-up  214,900 lines/s  elapsed 0:11:28
+[06:34:38 +0:41:52] [SEG]   streaming seg:  140,000,000 events read  102,642 seqs so far  202,723 ev/s  elapsed 0:11:30
+[06:34:41 +0:41:55] [PARSE]   text read:  149,000,000 total   140,608,965 kept  8,391,035 warm-up  214,835 lines/s  elapsed 0:11:33
+[06:34:46 +0:41:59] [PARSE]   text read:  150,000,000 total   141,608,965 kept  8,391,035 warm-up  214,768 lines/s  elapsed 0:11:38
+[06:34:51 +0:42:04] [PARSE]   text read:  151,000,000 total   142,608,965 kept  8,391,035 warm-up  214,747 lines/s  elapsed 0:11:43
+[06:34:55 +0:42:09] [PARSE]   text read:  152,000,000 total   143,608,965 kept  8,391,035 warm-up  214,732 lines/s  elapsed 0:11:47
+[06:35:00 +0:42:14] [PARSE]   text read:  153,000,000 total   144,608,965 kept  8,391,035 warm-up  214,704 lines/s  elapsed 0:11:52
+[06:35:02 +0:42:15] [SEG]   streaming seg:  145,000,000 events read  105,927 seqs so far  202,952 ev/s  elapsed 0:11:54
+[06:35:05 +0:42:18] [PARSE]   text read:  154,000,000 total   145,608,965 kept  8,391,035 warm-up  214,687 lines/s  elapsed 0:11:57
+[06:35:10 +0:42:23] [PARSE]   text read:  155,000,000 total   146,608,965 kept  8,391,035 warm-up  214,623 lines/s  elapsed 0:12:02
+[06:35:15 +0:42:28] [PARSE]   text read:  156,000,000 total   147,608,965 kept  8,391,035 warm-up  214,560 lines/s  elapsed 0:12:07
+[06:35:20 +0:42:33] [PARSE]   text read:  157,000,000 total   148,608,965 kept  8,391,035 warm-up  214,448 lines/s  elapsed 0:12:12
+[06:35:25 +0:42:38] [PARSE]   text read:  158,000,000 total   149,608,965 kept  8,391,035 warm-up  214,342 lines/s  elapsed 0:12:17
+[06:35:27 +0:42:40] [SEG]   streaming seg:  150,000,000 events read  109,400 seqs so far  202,956 ev/s  elapsed 0:12:19
+[06:35:30 +0:42:43] [PARSE]   text read:  159,000,000 total   150,608,965 kept  8,391,035 warm-up  214,251 lines/s  elapsed 0:12:22
+[06:35:35 +0:42:48] [PARSE]   text read:  160,000,000 total   151,608,965 kept  8,391,035 warm-up  214,154 lines/s  elapsed 0:12:27
+[06:35:40 +0:42:53] [PARSE]   text read:  161,000,000 total   152,608,965 kept  8,391,035 warm-up  214,085 lines/s  elapsed 0:12:32
+[06:35:44 +0:42:58] [PARSE]   text read:  162,000,000 total   153,608,965 kept  8,391,035 warm-up  214,013 lines/s  elapsed 0:12:36
+[06:35:49 +0:43:03] [PARSE]   text read:  163,000,000 total   154,608,965 kept  8,391,035 warm-up  213,946 lines/s  elapsed 0:12:41
+[06:35:51 +0:43:05] [SEG]   streaming seg:  155,000,000 events read  113,084 seqs so far  202,933 ev/s  elapsed 0:12:43
+[06:35:54 +0:43:08] [PARSE]   text read:  164,000,000 total   155,608,965 kept  8,391,035 warm-up  213,886 lines/s  elapsed 0:12:46
+[06:35:59 +0:43:13] [PARSE]   text read:  165,000,000 total   156,608,965 kept  8,391,035 warm-up  213,823 lines/s  elapsed 0:12:51
+[06:36:04 +0:43:18] [PARSE]   text read:  166,000,000 total   157,608,965 kept  8,391,035 warm-up  213,761 lines/s  elapsed 0:12:56
+[06:36:09 +0:43:23] [PARSE]   text read:  167,000,000 total   158,608,965 kept  8,391,035 warm-up  213,699 lines/s  elapsed 0:13:01
+[06:36:14 +0:43:27] [PARSE]   text read:  168,000,000 total   159,608,965 kept  8,391,035 warm-up  213,654 lines/s  elapsed 0:13:06
+[06:36:16 +0:43:29] [SEG]   streaming seg:  160,000,000 events read  116,494 seqs so far  202,986 ev/s  elapsed 0:13:08
+[06:36:19 +0:43:32] [PARSE]   text read:  169,000,000 total   160,608,965 kept  8,391,035 warm-up  213,615 lines/s  elapsed 0:13:11
+[06:36:24 +0:43:37] [PARSE]   text read:  170,000,000 total   161,608,965 kept  8,391,035 warm-up  213,538 lines/s  elapsed 0:13:16
+[06:36:29 +0:43:42] [PARSE]   text read:  171,000,000 total   162,608,965 kept  8,391,035 warm-up  213,452 lines/s  elapsed 0:13:21
+[06:36:34 +0:43:47] [PARSE]   text read:  172,000,000 total   163,608,965 kept  8,391,035 warm-up  213,392 lines/s  elapsed 0:13:26
+[06:36:38 +0:43:52] [PARSE]   text read:  173,000,000 total   164,608,965 kept  8,391,035 warm-up  213,324 lines/s  elapsed 0:13:30
+[06:36:40 +0:43:54] [SEG]   streaming seg:  165,000,000 events read  120,167 seqs so far  202,982 ev/s  elapsed 0:13:32
+[06:36:43 +0:43:57] [PARSE]   text read:  174,000,000 total   165,608,965 kept  8,391,035 warm-up  213,243 lines/s  elapsed 0:13:35
+[06:36:48 +0:44:02] [PARSE]   text read:  175,000,000 total   166,608,965 kept  8,391,035 warm-up  213,185 lines/s  elapsed 0:13:40
+[06:36:53 +0:44:07] [PARSE]   text read:  176,000,000 total   167,608,965 kept  8,391,035 warm-up  213,136 lines/s  elapsed 0:13:45
+[06:36:58 +0:44:12] [PARSE]   text read:  177,000,000 total   168,608,965 kept  8,391,035 warm-up  213,088 lines/s  elapsed 0:13:50
+[06:37:03 +0:44:17] [PARSE]   text read:  178,000,000 total   169,608,965 kept  8,391,035 warm-up  213,042 lines/s  elapsed 0:13:55
+[06:37:05 +0:44:18] [SEG]   streaming seg:  170,000,000 events read  123,809 seqs so far  203,012 ev/s  elapsed 0:13:57
+[06:37:08 +0:44:21] [PARSE]   text read:  179,000,000 total   170,608,965 kept  8,391,035 warm-up  213,018 lines/s  elapsed 0:14:00
+[06:37:13 +0:44:26] [PARSE]   text read:  180,000,000 total   171,608,965 kept  8,391,035 warm-up  212,997 lines/s  elapsed 0:14:05
+[06:37:18 +0:44:31] [PARSE]   text read:  181,000,000 total   172,608,965 kept  8,391,035 warm-up  212,942 lines/s  elapsed 0:14:09
+[06:37:22 +0:44:36] [PARSE]   text read:  182,000,000 total   173,608,965 kept  8,391,035 warm-up  212,911 lines/s  elapsed 0:14:14
+[06:37:27 +0:44:41] [PARSE]   text read:  183,000,000 total   174,608,965 kept  8,391,035 warm-up  212,871 lines/s  elapsed 0:14:19
+[06:37:29 +0:44:43] [SEG]   streaming seg:  175,000,000 events read  127,253 seqs so far  203,121 ev/s  elapsed 0:14:21
+[06:37:32 +0:44:46] [PARSE]   text read:  184,000,000 total   175,608,965 kept  8,391,035 warm-up  212,840 lines/s  elapsed 0:14:24
+[06:37:37 +0:44:50] [PARSE]   text read:  185,000,000 total   176,608,965 kept  8,391,035 warm-up  212,800 lines/s  elapsed 0:14:29
+[06:37:42 +0:44:55] [PARSE]   text read:  186,000,000 total   177,608,965 kept  8,391,035 warm-up  212,725 lines/s  elapsed 0:14:34
+[06:37:47 +0:45:00] [PARSE]   text read:  187,000,000 total   178,608,965 kept  8,391,035 warm-up  212,672 lines/s  elapsed 0:14:39
+[06:37:52 +0:45:05] [PARSE]   text read:  188,000,000 total   179,608,965 kept  8,391,035 warm-up  212,616 lines/s  elapsed 0:14:44
+[06:37:54 +0:45:07] [SEG]   streaming seg:  180,000,000 events read  130,741 seqs so far  203,120 ev/s  elapsed 0:14:46
+[06:37:57 +0:45:10] [PARSE]   text read:  189,000,000 total   180,608,965 kept  8,391,035 warm-up  212,551 lines/s  elapsed 0:14:49
+[06:38:02 +0:45:15] [PARSE]   text read:  190,000,000 total   181,608,965 kept  8,391,035 warm-up  212,501 lines/s  elapsed 0:14:54
+[06:38:06 +0:45:20] [PARSE]   text read:  191,000,000 total   182,608,965 kept  8,391,035 warm-up  212,472 lines/s  elapsed 0:14:58
+[06:38:11 +0:45:25] [PARSE]   text read:  192,000,000 total   183,608,965 kept  8,391,035 warm-up  212,431 lines/s  elapsed 0:15:03
+[06:38:16 +0:45:30] [PARSE]   text read:  193,000,000 total   184,608,965 kept  8,391,035 warm-up  212,376 lines/s  elapsed 0:15:08
+[06:38:18 +0:45:32] [SEG]   streaming seg:  185,000,000 events read  134,271 seqs so far  203,143 ev/s  elapsed 0:15:10
+[06:38:21 +0:45:35] [PARSE]   text read:  194,000,000 total   185,608,965 kept  8,391,035 warm-up  212,346 lines/s  elapsed 0:15:13
+[06:38:26 +0:45:40] [PARSE]   text read:  195,000,000 total   186,608,965 kept  8,391,035 warm-up  212,302 lines/s  elapsed 0:15:18
+[06:38:31 +0:45:44] [PARSE]   text read:  196,000,000 total   187,608,965 kept  8,391,035 warm-up  212,264 lines/s  elapsed 0:15:23
+[06:38:36 +0:45:49] [PARSE]   text read:  197,000,000 total   188,608,965 kept  8,391,035 warm-up  212,228 lines/s  elapsed 0:15:28
+[06:38:41 +0:45:54] [PARSE]   text read:  198,000,000 total   189,608,965 kept  8,391,035 warm-up  212,178 lines/s  elapsed 0:15:33
+[06:38:43 +0:45:56] [SEG]   streaming seg:  190,000,000 events read  137,910 seqs so far  203,193 ev/s  elapsed 0:15:35
+[06:38:46 +0:45:59] [PARSE]   text read:  199,000,000 total   190,608,965 kept  8,391,035 warm-up  212,149 lines/s  elapsed 0:15:38
+[06:38:50 +0:46:04] [PARSE]   text read:  200,000,000 total   191,608,965 kept  8,391,035 warm-up  212,105 lines/s  elapsed 0:15:42
+[06:38:55 +0:46:09] [PARSE]   text read:  201,000,000 total   192,608,965 kept  8,391,035 warm-up  212,075 lines/s  elapsed 0:15:47
+[06:39:00 +0:46:14] [PARSE]   text read:  202,000,000 total   193,608,965 kept  8,391,035 warm-up  212,012 lines/s  elapsed 0:15:52
+[06:39:05 +0:46:19] [PARSE]   text read:  203,000,000 total   194,608,965 kept  8,391,035 warm-up  211,964 lines/s  elapsed 0:15:57
+[06:39:07 +0:46:21] [SEG]   streaming seg:  195,000,000 events read  141,192 seqs so far  203,206 ev/s  elapsed 0:15:59
+[06:39:10 +0:46:24] [PARSE]   text read:  204,000,000 total   195,608,965 kept  8,391,035 warm-up  211,917 lines/s  elapsed 0:16:02
+[06:39:15 +0:46:29] [PARSE]   text read:  205,000,000 total   196,608,965 kept  8,391,035 warm-up  211,867 lines/s  elapsed 0:16:07
+[06:39:20 +0:46:34] [PARSE]   text read:  206,000,000 total   197,608,965 kept  8,391,035 warm-up  211,801 lines/s  elapsed 0:16:12
+[06:39:25 +0:46:38] [PARSE]   text read:  207,000,000 total   198,608,965 kept  8,391,035 warm-up  211,773 lines/s  elapsed 0:16:17
+[06:39:30 +0:46:43] [PARSE]   text read:  208,000,000 total   199,608,965 kept  8,391,035 warm-up  211,741 lines/s  elapsed 0:16:22
+[06:39:32 +0:46:45] [SEG]   streaming seg:  200,000,000 events read  144,738 seqs so far  203,207 ev/s  elapsed 0:16:24
+[06:39:35 +0:46:48] [PARSE]   text read:  209,000,000 total   200,608,965 kept  8,391,035 warm-up  211,700 lines/s  elapsed 0:16:27
+[06:39:40 +0:46:53] [PARSE]   text read:  210,000,000 total   201,608,965 kept  8,391,035 warm-up  211,661 lines/s  elapsed 0:16:32
+[06:39:45 +0:46:58] [PARSE]   text read:  211,000,000 total   202,608,965 kept  8,391,035 warm-up  211,626 lines/s  elapsed 0:16:37
+[06:39:49 +0:47:03] [PARSE]   text read:  212,000,000 total   203,608,965 kept  8,391,035 warm-up  211,586 lines/s  elapsed 0:16:41
+[06:39:54 +0:47:08] [PARSE]   text read:  213,000,000 total   204,608,965 kept  8,391,035 warm-up  211,530 lines/s  elapsed 0:16:46
+[06:39:56 +0:47:10] [SEG]   streaming seg:  205,000,000 events read  148,276 seqs so far  203,198 ev/s  elapsed 0:16:48
+[06:39:59 +0:47:13] [PARSE]   text read:  214,000,000 total   205,608,965 kept  8,391,035 warm-up  211,492 lines/s  elapsed 0:16:51
+[06:40:04 +0:47:18] [PARSE]   text read:  215,000,000 total   206,608,965 kept  8,391,035 warm-up  211,454 lines/s  elapsed 0:16:56
+[06:40:09 +0:47:23] [PARSE]   text read:  216,000,000 total   207,608,965 kept  8,391,035 warm-up  211,414 lines/s  elapsed 0:17:01
+[06:40:14 +0:47:28] [PARSE]   text read:  217,000,000 total   208,608,965 kept  8,391,035 warm-up  211,386 lines/s  elapsed 0:17:06
+[06:40:19 +0:47:33] [PARSE]   text read:  218,000,000 total   209,608,965 kept  8,391,035 warm-up  211,341 lines/s  elapsed 0:17:11
+[06:40:21 +0:47:34] [SEG]   streaming seg:  210,000,000 events read  151,624 seqs so far  203,207 ev/s  elapsed 0:17:13
+[06:40:37 +0:47:51] [PARSE]   text read:  219,000,000 total   210,608,965 kept  8,391,035 warm-up  208,643 lines/s  elapsed 0:17:29
+[06:40:42 +0:47:56] [PARSE]   text read:  220,000,000 total   211,608,965 kept  8,391,035 warm-up  208,615 lines/s  elapsed 0:17:34
+[06:40:47 +0:48:01] [PARSE]   text read:  221,000,000 total   212,608,965 kept  8,391,035 warm-up  208,576 lines/s  elapsed 0:17:39
+[06:40:52 +0:48:06] [PARSE]   text read:  222,000,000 total   213,608,965 kept  8,391,035 warm-up  208,553 lines/s  elapsed 0:17:44
+[06:40:57 +0:48:10] [PARSE]   text read:  223,000,000 total   214,608,965 kept  8,391,035 warm-up  208,528 lines/s  elapsed 0:17:49
+[06:40:59 +0:48:12] [SEG]   streaming seg:  215,000,000 events read  154,948 seqs so far  200,683 ev/s  elapsed 0:17:51
+[06:41:02 +0:48:15] [PARSE]   text read:  224,000,000 total   215,608,965 kept  8,391,035 warm-up  208,496 lines/s  elapsed 0:17:54
+[06:41:07 +0:48:20] [PARSE]   text read:  225,000,000 total   216,608,965 kept  8,391,035 warm-up  208,502 lines/s  elapsed 0:17:59
+[06:41:12 +0:48:25] [PARSE]   text read:  226,000,000 total   217,608,965 kept  8,391,035 warm-up  208,450 lines/s  elapsed 0:18:04
+[06:41:17 +0:48:30] [PARSE]   text read:  227,000,000 total   218,608,965 kept  8,391,035 warm-up  208,400 lines/s  elapsed 0:18:09
+[06:41:22 +0:48:35] [PARSE]   text read:  228,000,000 total   219,608,965 kept  8,391,035 warm-up  208,345 lines/s  elapsed 0:18:14
+[06:41:24 +0:48:37] [SEG]   streaming seg:  220,000,000 events read  158,432 seqs so far  200,669 ev/s  elapsed 0:18:16
+[06:41:27 +0:48:40] [PARSE]   text read:  229,000,000 total   220,608,965 kept  8,391,035 warm-up  208,302 lines/s  elapsed 0:18:19
+[06:41:32 +0:48:45] [PARSE]   text read:  230,000,000 total   221,608,965 kept  8,391,035 warm-up  208,270 lines/s  elapsed 0:18:24
+[06:41:37 +0:48:50] [PARSE]   text read:  231,000,000 total   222,608,965 kept  8,391,035 warm-up  208,240 lines/s  elapsed 0:18:29
+[06:41:42 +0:48:55] [PARSE]   text read:  232,000,000 total   223,608,965 kept  8,391,035 warm-up  208,211 lines/s  elapsed 0:18:34
+[06:41:47 +0:49:00] [PARSE]   text read:  233,000,000 total   224,608,965 kept  8,391,035 warm-up  208,196 lines/s  elapsed 0:18:39
+[06:41:49 +0:49:02] [SEG]   streaming seg:  225,000,000 events read  161,774 seqs so far  200,711 ev/s  elapsed 0:18:41
+[06:41:52 +0:49:05] [PARSE]   text read:  234,000,000 total   225,608,965 kept  8,391,035 warm-up  208,169 lines/s  elapsed 0:18:44
+[06:41:56 +0:49:10] [PARSE]   text read:  235,000,000 total   226,608,965 kept  8,391,035 warm-up  208,161 lines/s  elapsed 0:18:48
+[06:42:01 +0:49:15] [PARSE]   text read:  236,000,000 total   227,608,965 kept  8,391,035 warm-up  208,135 lines/s  elapsed 0:18:53
+[06:42:06 +0:49:20] [PARSE]   text read:  237,000,000 total   228,608,965 kept  8,391,035 warm-up  208,104 lines/s  elapsed 0:18:58
+[06:42:11 +0:49:25] [PARSE]   text read:  238,000,000 total   229,608,965 kept  8,391,035 warm-up  208,071 lines/s  elapsed 0:19:03
+[06:42:13 +0:49:27] [SEG]   streaming seg:  230,000,000 events read  165,217 seqs so far  200,731 ev/s  elapsed 0:19:05
+[06:42:16 +0:49:30] [PARSE]   text read:  239,000,000 total   230,608,965 kept  8,391,035 warm-up  208,035 lines/s  elapsed 0:19:08
+[06:42:21 +0:49:35] [PARSE]   text read:  240,000,000 total   231,608,965 kept  8,391,035 warm-up  208,010 lines/s  elapsed 0:19:13
+[06:42:26 +0:49:40] [PARSE]   text read:  241,000,000 total   232,608,965 kept  8,391,035 warm-up  207,984 lines/s  elapsed 0:19:18
+[06:42:31 +0:49:45] [PARSE]   text read:  242,000,000 total   233,608,965 kept  8,391,035 warm-up  207,962 lines/s  elapsed 0:19:23
+[06:42:36 +0:49:50] [PARSE]   text read:  243,000,000 total   234,608,965 kept  8,391,035 warm-up  207,929 lines/s  elapsed 0:19:28
+[06:42:38 +0:49:52] [SEG]   streaming seg:  235,000,000 events read  168,829 seqs so far  200,741 ev/s  elapsed 0:19:30
+[06:42:41 +0:49:55] [PARSE]   text read:  244,000,000 total   235,608,965 kept  8,391,035 warm-up  207,894 lines/s  elapsed 0:19:33
+[06:42:46 +0:50:00] [PARSE]   text read:  245,000,000 total   236,608,965 kept  8,391,035 warm-up  207,871 lines/s  elapsed 0:19:38
+[06:42:51 +0:50:05] [PARSE]   text read:  246,000,000 total   237,608,965 kept  8,391,035 warm-up  207,857 lines/s  elapsed 0:19:43
+[06:42:56 +0:50:09] [PARSE]   text read:  247,000,000 total   238,608,965 kept  8,391,035 warm-up  207,847 lines/s  elapsed 0:19:48
+[06:43:01 +0:50:14] [PARSE]   text read:  248,000,000 total   239,608,965 kept  8,391,035 warm-up  207,825 lines/s  elapsed 0:19:53
+[06:43:03 +0:50:16] [SEG]   streaming seg:  240,000,000 events read  172,446 seqs so far  200,801 ev/s  elapsed 0:19:55
+[06:43:06 +0:50:19] [PARSE]   text read:  249,000,000 total   240,608,965 kept  8,391,035 warm-up  207,810 lines/s  elapsed 0:19:58
+[06:43:11 +0:50:24] [PARSE]   text read:  250,000,000 total   241,608,965 kept  8,391,035 warm-up  207,813 lines/s  elapsed 0:20:03
+[06:43:15 +0:50:29] [PARSE]   text read:  251,000,000 total   242,608,965 kept  8,391,035 warm-up  207,811 lines/s  elapsed 0:20:07
+[06:43:20 +0:50:34] [PARSE]   text read:  252,000,000 total   243,608,965 kept  8,391,035 warm-up  207,805 lines/s  elapsed 0:20:12
+[06:43:25 +0:50:39] [PARSE]   text read:  253,000,000 total   244,608,965 kept  8,391,035 warm-up  207,802 lines/s  elapsed 0:20:17
+[06:43:27 +0:50:40] [SEG]   streaming seg:  245,000,000 events read  175,938 seqs so far  200,920 ev/s  elapsed 0:20:19
+[06:43:30 +0:50:43] [PARSE]   text read:  254,000,000 total   245,608,965 kept  8,391,035 warm-up  207,798 lines/s  elapsed 0:20:22
+[06:43:35 +0:50:48] [PARSE]   text read:  255,000,000 total   246,608,965 kept  8,391,035 warm-up  207,792 lines/s  elapsed 0:20:27
+[06:43:39 +0:50:53] [PARSE]   text read:  256,000,000 total   247,608,965 kept  8,391,035 warm-up  207,806 lines/s  elapsed 0:20:31
+[06:43:44 +0:50:58] [PARSE]   text read:  257,000,000 total   248,608,965 kept  8,391,035 warm-up  207,812 lines/s  elapsed 0:20:36
+[06:43:49 +0:51:03] [PARSE]   text read:  258,000,000 total   249,608,965 kept  8,391,035 warm-up  207,790 lines/s  elapsed 0:20:41
+[06:43:51 +0:51:05] [SEG]   streaming seg:  250,000,000 events read  179,447 seqs so far  201,041 ev/s  elapsed 0:20:43
+[06:43:54 +0:51:08] [PARSE]   text read:  259,000,000 total   250,608,965 kept  8,391,035 warm-up  207,774 lines/s  elapsed 0:20:46
+[06:43:59 +0:51:13] [PARSE]   text read:  260,000,000 total   251,608,965 kept  8,391,035 warm-up  207,755 lines/s  elapsed 0:20:51
+[06:44:04 +0:51:17] [PARSE]   text read:  261,000,000 total   252,608,965 kept  8,391,035 warm-up  207,740 lines/s  elapsed 0:20:56
+[06:44:09 +0:51:22] [PARSE]   text read:  262,000,000 total   253,608,965 kept  8,391,035 warm-up  207,719 lines/s  elapsed 0:21:01
+[06:44:14 +0:51:27] [PARSE]   text read:  263,000,000 total   254,608,965 kept  8,391,035 warm-up  207,700 lines/s  elapsed 0:21:06
+[06:44:16 +0:51:29] [SEG]   streaming seg:  255,000,000 events read  183,014 seqs so far  201,078 ev/s  elapsed 0:21:08
+[06:44:19 +0:51:32] [PARSE]   text read:  264,000,000 total   255,608,965 kept  8,391,035 warm-up  207,686 lines/s  elapsed 0:21:11
+[06:44:23 +0:51:37] [PARSE]   text read:  265,000,000 total   256,608,965 kept  8,391,035 warm-up  207,683 lines/s  elapsed 0:21:15
+[06:44:28 +0:51:42] [PARSE]   text read:  266,000,000 total   257,608,965 kept  8,391,035 warm-up  207,672 lines/s  elapsed 0:21:20
+[06:44:33 +0:51:47] [PARSE]   text read:  267,000,000 total   258,608,965 kept  8,391,035 warm-up  207,657 lines/s  elapsed 0:21:25
+[06:44:38 +0:51:52] [PARSE]   text read:  268,000,000 total   259,608,965 kept  8,391,035 warm-up  207,641 lines/s  elapsed 0:21:30
+[06:44:40 +0:51:54] [SEG]   streaming seg:  260,000,000 events read  186,438 seqs so far  201,148 ev/s  elapsed 0:21:32
+[06:44:43 +0:51:57] [PARSE]   text read:  269,000,000 total   260,608,965 kept  8,391,035 warm-up  207,636 lines/s  elapsed 0:21:35
+[06:44:48 +0:52:01] [PARSE]   text read:  270,000,000 total   261,608,965 kept  8,391,035 warm-up  207,632 lines/s  elapsed 0:21:40
+[06:44:53 +0:52:06] [PARSE]   text read:  271,000,000 total   262,608,965 kept  8,391,035 warm-up  207,615 lines/s  elapsed 0:21:45
+[06:44:58 +0:52:11] [PARSE]   text read:  272,000,000 total   263,608,965 kept  8,391,035 warm-up  207,605 lines/s  elapsed 0:21:50
+[06:45:03 +0:52:16] [PARSE]   text read:  273,000,000 total   264,608,965 kept  8,391,035 warm-up  207,594 lines/s  elapsed 0:21:55
+[06:45:04 +0:52:18] [SEG]   streaming seg:  265,000,000 events read  189,890 seqs so far  201,218 ev/s  elapsed 0:21:56
+[06:45:07 +0:52:21] [PARSE]   text read:  274,000,000 total   265,608,965 kept  8,391,035 warm-up  207,581 lines/s  elapsed 0:21:59
+[06:45:12 +0:52:26] [PARSE]   text read:  275,000,000 total   266,608,965 kept  8,391,035 warm-up  207,593 lines/s  elapsed 0:22:04
+[06:45:17 +0:52:30] [PARSE]   text read:  276,000,000 total   267,608,965 kept  8,391,035 warm-up  207,619 lines/s  elapsed 0:22:09
+[06:45:22 +0:52:35] [PARSE]   text read:  277,000,000 total   268,608,965 kept  8,391,035 warm-up  207,630 lines/s  elapsed 0:22:14
+[06:45:26 +0:52:40] [PARSE]   text read:  278,000,000 total   269,608,965 kept  8,391,035 warm-up  207,641 lines/s  elapsed 0:22:18
+[06:45:28 +0:52:42] [SEG]   streaming seg:  270,000,000 events read  193,327 seqs so far  201,387 ev/s  elapsed 0:22:20
+[06:45:31 +0:52:45] [PARSE]   text read:  279,000,000 total   270,608,965 kept  8,391,035 warm-up  207,657 lines/s  elapsed 0:22:23
+[06:45:36 +0:52:50] [PARSE]   text read:  280,000,000 total   271,608,965 kept  8,391,035 warm-up  207,626 lines/s  elapsed 0:22:28
+[06:45:41 +0:52:54] [PARSE]   text read:  281,000,000 total   272,608,965 kept  8,391,035 warm-up  207,619 lines/s  elapsed 0:22:33
+[06:45:46 +0:52:59] [PARSE]   text read:  282,000,000 total   273,608,965 kept  8,391,035 warm-up  207,612 lines/s  elapsed 0:22:38
+[06:45:51 +0:53:04] [PARSE]   text read:  283,000,000 total   274,608,965 kept  8,391,035 warm-up  207,608 lines/s  elapsed 0:22:43
+[06:45:53 +0:53:06] [SEG]   streaming seg:  275,000,000 events read  198,396 seqs so far  201,463 ev/s  elapsed 0:22:45
+[06:45:56 +0:53:09] [PARSE]   text read:  284,000,000 total   275,608,965 kept  8,391,035 warm-up  207,599 lines/s  elapsed 0:22:48
+[06:46:00 +0:53:14] [PARSE]   text read:  285,000,000 total   276,608,965 kept  8,391,035 warm-up  207,594 lines/s  elapsed 0:22:52
+[06:46:05 +0:53:19] [PARSE]   text read:  286,000,000 total   277,608,965 kept  8,391,035 warm-up  207,603 lines/s  elapsed 0:22:57
+[06:46:10 +0:53:24] [PARSE]   text read:  287,000,000 total   278,608,965 kept  8,391,035 warm-up  207,591 lines/s  elapsed 0:23:02
+[06:46:15 +0:53:28] [PARSE]   text read:  288,000,000 total   279,608,965 kept  8,391,035 warm-up  207,590 lines/s  elapsed 0:23:07
+[06:46:17 +0:53:30] [SEG]   streaming seg:  280,000,000 events read  203,071 seqs so far  201,551 ev/s  elapsed 0:23:09
+[06:46:20 +0:53:33] [PARSE]   text read:  289,000,000 total   280,608,965 kept  8,391,035 warm-up  207,586 lines/s  elapsed 0:23:12
+[06:46:25 +0:53:38] [PARSE]   text read:  290,000,000 total   281,608,965 kept  8,391,035 warm-up  207,575 lines/s  elapsed 0:23:17
+[06:46:29 +0:53:43] [PARSE]   text read:  291,000,000 total   282,608,965 kept  8,391,035 warm-up  207,566 lines/s  elapsed 0:23:21
+[06:46:34 +0:53:48] [PARSE]   text read:  292,000,000 total   283,608,965 kept  8,391,035 warm-up  207,555 lines/s  elapsed 0:23:26
+[06:46:39 +0:53:53] [PARSE]   text read:  293,000,000 total   284,608,965 kept  8,391,035 warm-up  207,541 lines/s  elapsed 0:23:31
+[06:46:41 +0:53:55] [SEG]   streaming seg:  285,000,000 events read  206,961 seqs so far  201,601 ev/s  elapsed 0:23:33
+[06:46:44 +0:53:58] [PARSE]   text read:  294,000,000 total   285,608,965 kept  8,391,035 warm-up  207,533 lines/s  elapsed 0:23:36
+[06:46:49 +0:54:02] [PARSE]   text read:  295,000,000 total   286,608,965 kept  8,391,035 warm-up  207,535 lines/s  elapsed 0:23:41
+[06:46:54 +0:54:07] [PARSE]   text read:  296,000,000 total   287,608,965 kept  8,391,035 warm-up  207,534 lines/s  elapsed 0:23:46
+[06:46:59 +0:54:12] [PARSE]   text read:  297,000,000 total   288,608,965 kept  8,391,035 warm-up  207,533 lines/s  elapsed 0:23:51
+[06:47:03 +0:54:17] [PARSE]   text read:  298,000,000 total   289,608,965 kept  8,391,035 warm-up  207,536 lines/s  elapsed 0:23:55
+[06:47:05 +0:54:19] [SEG]   streaming seg:  290,000,000 events read  210,266 seqs so far  201,688 ev/s  elapsed 0:23:57
+[06:47:08 +0:54:22] [PARSE]   text read:  299,000,000 total   290,608,965 kept  8,391,035 warm-up  207,522 lines/s  elapsed 0:24:00
+[06:47:09 +0:54:22] [PARSE]   text parse complete: 299,123,148 lines  207,524 lines/s  elapsed 0:24:01
+[06:47:09 +0:54:23] [SEG]   streaming seg done: 290,732,113 events → 220,229 seqs  elapsed 0:24:01
+[06:47:09 +0:54:23] [SEG] Segments produced: 220,229  (min_events=8  seg time 0:24:02)
+[06:47:09 +0:54:23] [PARSE] Parse+segment total time: 0:24:02
+[06:47:09 +0:54:23] [ENC] Encoding 220,229 sequences ...
+[06:47:18 +0:54:32] [ENC]   encoded  11,011/220,229  (  5.0%)  vocab=257  ETA 0:02:58
+[06:47:29 +0:54:43] [ENC]   encoded  22,022/220,229  ( 10.0%)  vocab=257  ETA 0:03:02
+[06:47:39 +0:54:53] [ENC]   encoded  33,033/220,229  ( 15.0%)  vocab=257  ETA 0:02:50
+[06:48:05 +0:55:18] [ENC]   encoded  44,044/220,229  ( 20.0%)  vocab=257  ETA 0:03:42
+[06:48:15 +0:55:28] [ENC]   encoded  55,055/220,229  ( 25.0%)  vocab=257  ETA 0:03:17
+[06:48:25 +0:55:38] [ENC]   encoded  66,066/220,229  ( 30.0%)  vocab=257  ETA 0:02:56
+[06:48:35 +0:55:48] [ENC]   encoded  77,077/220,229  ( 35.0%)  vocab=257  ETA 0:02:39
+[06:48:45 +0:55:58] [ENC]   encoded  88,088/220,229  ( 40.0%)  vocab=257  ETA 0:02:23
+[06:48:55 +0:56:08] [ENC]   encoded  99,099/220,229  ( 45.0%)  vocab=257  ETA 0:02:09
+[06:49:05 +0:56:19] [ENC]   encoded 110,110/220,229  ( 50.0%)  vocab=257  ETA 0:01:56
+[06:49:16 +0:56:29] [ENC]   encoded 121,121/220,229  ( 55.0%)  vocab=257  ETA 0:01:43
+[06:49:42 +0:56:56] [ENC]   encoded 132,132/220,229  ( 60.0%)  vocab=257  ETA 0:01:42
+[06:49:52 +0:57:05] [ENC]   encoded 143,143/220,229  ( 65.0%)  vocab=257  ETA 0:01:27
+[06:50:02 +0:57:15] [ENC]   encoded 154,154/220,229  ( 70.0%)  vocab=257  ETA 0:01:13
+[06:50:12 +0:57:26] [ENC]   encoded 165,165/220,229  ( 75.0%)  vocab=257  ETA 0:01:01
+[06:50:23 +0:57:36] [ENC]   encoded 176,176/220,229  ( 80.0%)  vocab=257  ETA 0:00:48
+[06:50:32 +0:57:46] [ENC]   encoded 187,187/220,229  ( 85.0%)  vocab=257  ETA 0:00:35
+[06:50:41 +0:57:55] [ENC]   encoded 198,198/220,229  ( 90.0%)  vocab=257  ETA 0:00:23
+[06:50:49 +0:58:02] [ENC]   encoded 209,209/220,229  ( 95.0%)  vocab=257  ETA 0:00:11
+[06:50:50 +0:58:04] [ENC]   encoded 220,220/220,229  (100.0%)  vocab=257  ETA 0:00:00
+[06:50:50 +0:58:04] [ENC]   encoded 220,229/220,229  (100.0%)  vocab=257  ETA 0:00:00
+[06:50:50 +0:58:04] [ENC] Encoding done in 0:03:41  vocab: 257 syscalls / 6 procs
+[06:50:50 +0:58:04] [LAT] Categorising latencies for 220,229 sequences ...
+[06:50:57 +0:58:11] [LAT] Latency categorisation done  (0:00:07)
+[06:52:00 +0:59:14] [SPLIT] TEST_OOD_NET total sequences: 220,229
+[06:52:00 +0:59:14] [SHARD] Writing 220,229 sequences → 45 shard(s) in /scratch/yuvraj17/adaptive_tracing_scratch/micro-service-trace-data/preprocessed/test_ood_net
+[06:52:01 +0:59:14] [SHARD]   shard    1/45    5,000/220,229 seqs  (  2.3%)  padded_len=512  401ms/shard  ETA 0:00:17
+[06:52:01 +0:59:15] [SHARD]   shard    2/45   10,000/220,229 seqs  (  4.5%)  padded_len=512  345ms/shard  ETA 0:00:15
+[06:52:01 +0:59:15] [SHARD]   shard    3/45   15,000/220,229 seqs  (  6.8%)  padded_len=512  347ms/shard  ETA 0:00:14
+[06:52:02 +0:59:15] [SHARD]   shard    4/45   20,000/220,229 seqs  (  9.1%)  padded_len=512  339ms/shard  ETA 0:00:14
+[06:52:02 +0:59:16] [SHARD]   shard    5/45   25,000/220,229 seqs  ( 11.4%)  padded_len=512  336ms/shard  ETA 0:00:13
+[06:52:02 +0:59:16] [SHARD]   shard    6/45   30,000/220,229 seqs  ( 13.6%)  padded_len=512  333ms/shard  ETA 0:00:13
+[06:52:03 +0:59:16] [SHARD]   shard    7/45   35,000/220,229 seqs  ( 15.9%)  padded_len=512  337ms/shard  ETA 0:00:12
+[06:52:03 +0:59:17] [SHARD]   shard    8/45   40,000/220,229 seqs  ( 18.2%)  padded_len=512  336ms/shard  ETA 0:00:12
+[06:52:03 +0:59:17] [SHARD]   shard    9/45   45,000/220,229 seqs  ( 20.4%)  padded_len=512  335ms/shard  ETA 0:00:12
+[06:52:04 +0:59:17] [SHARD]   shard   10/45   50,000/220,229 seqs  ( 22.7%)  padded_len=512  338ms/shard  ETA 0:00:11
+[06:52:04 +0:59:18] [SHARD]   shard   11/45   55,000/220,229 seqs  ( 25.0%)  padded_len=512  341ms/shard  ETA 0:00:11
+[06:52:05 +0:59:18] [SHARD]   shard   12/45   60,000/220,229 seqs  ( 27.2%)  padded_len=512  340ms/shard  ETA 0:00:11
+[06:52:05 +0:59:18] [SHARD]   shard   13/45   65,000/220,229 seqs  ( 29.5%)  padded_len=512  345ms/shard  ETA 0:00:10
+[06:52:05 +0:59:19] [SHARD]   shard   14/45   70,000/220,229 seqs  ( 31.8%)  padded_len=512  346ms/shard  ETA 0:00:10
+[06:52:06 +0:59:19] [SHARD]   shard   15/45   75,000/220,229 seqs  ( 34.1%)  padded_len=512  342ms/shard  ETA 0:00:10
+[06:52:06 +0:59:19] [SHARD]   shard   16/45   80,000/220,229 seqs  ( 36.3%)  padded_len=512  345ms/shard  ETA 0:00:09
+[06:52:06 +0:59:20] [SHARD]   shard   17/45   85,000/220,229 seqs  ( 38.6%)  padded_len=512  343ms/shard  ETA 0:00:09
+[06:52:07 +0:59:20] [SHARD]   shard   18/45   90,000/220,229 seqs  ( 40.9%)  padded_len=512  349ms/shard  ETA 0:00:08
+[06:52:07 +0:59:20] [SHARD]   shard   19/45   95,000/220,229 seqs  ( 43.1%)  padded_len=512  349ms/shard  ETA 0:00:08
+[06:52:07 +0:59:21] [SHARD]   shard   20/45  100,000/220,229 seqs  ( 45.4%)  padded_len=512  355ms/shard  ETA 0:00:08
+[06:52:08 +0:59:21] [SHARD]   shard   21/45  105,000/220,229 seqs  ( 47.7%)  padded_len=512  348ms/shard  ETA 0:00:07
+[06:52:08 +0:59:22] [SHARD]   shard   22/45  110,000/220,229 seqs  ( 49.9%)  padded_len=512  355ms/shard  ETA 0:00:07
+[06:52:08 +0:59:22] [SHARD]   shard   23/45  115,000/220,229 seqs  ( 52.2%)  padded_len=512  360ms/shard  ETA 0:00:07
+[06:52:09 +0:59:22] [SHARD]   shard   24/45  120,000/220,229 seqs  ( 54.5%)  padded_len=512  353ms/shard  ETA 0:00:06
+[06:52:09 +0:59:23] [SHARD]   shard   25/45  125,000/220,229 seqs  ( 56.8%)  padded_len=512  359ms/shard  ETA 0:00:06
+[06:52:09 +0:59:23] [SHARD]   shard   26/45  130,000/220,229 seqs  ( 59.0%)  padded_len=512  358ms/shard  ETA 0:00:06
+[06:52:10 +0:59:23] [SHARD]   shard   27/45  135,000/220,229 seqs  ( 61.3%)  padded_len=512  359ms/shard  ETA 0:00:05
+[06:52:10 +0:59:24] [SHARD]   shard   28/45  140,000/220,229 seqs  ( 63.6%)  padded_len=512  361ms/shard  ETA 0:00:05
+[06:52:10 +0:59:24] [SHARD]   shard   29/45  145,000/220,229 seqs  ( 65.8%)  padded_len=512  361ms/shard  ETA 0:00:05
+[06:52:11 +0:59:24] [SHARD]   shard   30/45  150,000/220,229 seqs  ( 68.1%)  padded_len=512  359ms/shard  ETA 0:00:04
+[06:52:11 +0:59:25] [SHARD]   shard   31/45  155,000/220,229 seqs  ( 70.4%)  padded_len=512  359ms/shard  ETA 0:00:04
+[06:52:12 +0:59:25] [SHARD]   shard   32/45  160,000/220,229 seqs  ( 72.7%)  padded_len=512  362ms/shard  ETA 0:00:04
+[06:52:12 +0:59:25] [SHARD]   shard   33/45  165,000/220,229 seqs  ( 74.9%)  padded_len=512  357ms/shard  ETA 0:00:03
+[06:52:12 +0:59:26] [SHARD]   shard   34/45  170,000/220,229 seqs  ( 77.2%)  padded_len=512  350ms/shard  ETA 0:00:03
+[06:52:13 +0:59:26] [SHARD]   shard   35/45  175,000/220,229 seqs  ( 79.5%)  padded_len=512  355ms/shard  ETA 0:00:03
+[06:52:13 +0:59:27] [SHARD]   shard   36/45  180,000/220,229 seqs  ( 81.7%)  padded_len=512  352ms/shard  ETA 0:00:02
+[06:52:13 +0:59:27] [SHARD]   shard   37/45  185,000/220,229 seqs  ( 84.0%)  padded_len=512  359ms/shard  ETA 0:00:02
+[06:52:14 +0:59:27] [SHARD]   shard   38/45  190,000/220,229 seqs  ( 86.3%)  padded_len=512  362ms/shard  ETA 0:00:02
+[06:52:14 +0:59:28] [SHARD]   shard   39/45  195,000/220,229 seqs  ( 88.5%)  padded_len=512  339ms/shard  ETA 0:00:01
+[06:52:14 +0:59:28] [SHARD]   shard   40/45  200,000/220,229 seqs  ( 90.8%)  padded_len=512  336ms/shard  ETA 0:00:01
+[06:52:15 +0:59:28] [SHARD]   shard   41/45  205,000/220,229 seqs  ( 93.1%)  padded_len=512  338ms/shard  ETA 0:00:01
+[06:52:15 +0:59:29] [SHARD]   shard   42/45  210,000/220,229 seqs  ( 95.4%)  padded_len=512  358ms/shard  ETA 0:00:00
+[06:52:15 +0:59:29] [SHARD]   shard   43/45  215,000/220,229 seqs  ( 97.6%)  padded_len=512  215ms/shard  ETA 0:00:00
+[06:52:15 +0:59:29] [SHARD]   shard   44/45  220,000/220,229 seqs  ( 99.9%)  padded_len=161  97ms/shard  ETA 0:00:00
+[06:52:15 +0:59:29] [SHARD]   shard   45/45  220,229/220,229 seqs  (100.0%)  padded_len=63  9ms/shard  ETA 0:00:00
+
+============================================================
+[DONE] Output written to: /scratch/yuvraj17/adaptive_tracing_scratch/micro-service-trace-data/preprocessed
+       vocab.pkl      → /scratch/yuvraj17/adaptive_tracing_scratch/micro-service-trace-data/preprocessed/vocab.pkl
+       delay_spans.pkl → /scratch/yuvraj17/adaptive_tracing_scratch/micro-service-trace-data/preprocessed/delay_spans.pkl
+============================================================
+[06:52:29] anomaly_net done
+
+scontrol show job 1095933
+JobId=1095933 JobName=preprocess_net
+   UserId=yuvraj17(3154711) GroupId=yuvraj17(3154711) MCS_label=N/A
+   Priority=1298976 Nice=0 Account=def-naser2 QOS=normal
+   JobState=COMPLETING Reason=None Dependency=(null)
+   Requeue=0 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=0:0
+   RunTime=00:59:55 TimeLimit=12:00:00 TimeMin=N/A
+   SubmitTime=2026-03-03T05:16:56 EligibleTime=2026-03-03T05:16:56
+   AccrueTime=2026-03-03T05:16:56
+   StartTime=2026-03-03T05:52:34 EndTime=2026-03-03T06:52:29 Deadline=N/A
+   SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-03-03T05:52:34 Scheduler=Backfill
+   Partition=compute AllocNode:Sid=tri-login01:4024696
+   ReqNodeList=(null) ExcNodeList=(null)
+   NodeList=tri0282
+   BatchHost=tri0282
+   NumNodes=1 NumCPUs=192 NumTasks=1 CPUs/Task=8 ReqB:S:C:T=0:0:*:*
+   ReqTRES=cpu=8,mem=767000M,node=1,billing=8
+   AllocTRES=cpu=192,mem=767000M,node=1,billing=192
+   Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=*
+   MinCPUsNode=8 MinMemoryNode=767000M MinTmpDiskNode=0
+   Features=(null) DelayBoot=00:00:00
+   OverSubscribe=NO Contiguous=0 Licenses=(null) Network=(null)
+   Command=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/microservice/run_preprocess_anomaly_net.sh
+   WorkDir=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/microservice
+   Comment=/opt/slurm/bin/sbatch --export=NONE --get-user-env=L run_preprocess_anomaly_net.sh 
+   StdErr=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/preprocess_net-1095933.out
+   StdIn=/dev/null
+   StdOut=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/preprocess_net-1095933.out
+   TresPerTask=cpu=8
+   MailUser=yuvraj17@scinet.local MailType=BEGIN,END,FAIL
+   
+
+sacct -j 1095933
+JobID           JobName    Account    Elapsed  MaxVMSize     MaxRSS  SystemCPU    UserCPU ExitCode 
+------------ ---------- ---------- ---------- ---------- ---------- ---------- ---------- -------- 
+1095933      preproces+ def-naser2   00:59:55                         00:00:00   00:00:00      0:0 
+1095933.bat+      batch def-naser2   00:59:55                         00:00:00   00:00:00      0:0 
+1095933.ext+     extern def-naser2   00:59:55                         00:00:00   00:00:00      0:0 
+1095933.0        python def-naser2   00:59:50                         00:00:00   00:00:00      0:0 
+

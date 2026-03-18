@@ -1,0 +1,52 @@
+[16:38:51][rank0] Vocab: 257 syscalls / 6 processes
+[16:38:51][rank0] Train shards for this rank: 64  (total=64)  Valid shards: 64
+[16:38:51][rank0] Model: LSTM  params=1,042,847
+[16:38:51][rank0]   n_hidden=256  n_layer=2  n_head=8
+[16:38:51][rank0]   AMP(bf16)=True  compile=False  chk=False  DDP=False
+[16:38:51][rank0]   batch=512  accum_steps=4  world_size=1  eff_batch=2048
+[16:38:51][rank0] ======================================================================
+[16:38:51][rank0] Starting training  device=cuda:0  total_steps~=3085  world_size=1
+[16:38:51][rank0] ======================================================================
+[16:39:19][rank0] Epoch   1/20  loss=6.1590  acc_e=18.50%  acc_l=50.84%  elapsed=0:00:28
+[16:39:46][rank0] Epoch   2/20  loss=3.5431  acc_e=33.34%  acc_l=56.99%  elapsed=0:00:54
+[16:40:13][rank0] Epoch   3/20  loss=3.2345  acc_e=42.67%  acc_l=60.18%  elapsed=0:01:21
+[16:40:17][rank0] step=   500  epoch=4  loss=3.0225  acc_e=69.93%  lr=2.50e-04  elapsed=0:01:26
+[16:40:40][rank0] Epoch   4/20  loss=2.6426  acc_e=76.03%  acc_l=62.88%  elapsed=0:01:48
+[16:41:07][rank0] Epoch   5/20  loss=2.3220  acc_e=79.90%  acc_l=63.00%  elapsed=0:02:15
+[16:41:33][rank0] Epoch   6/20  loss=2.2599  acc_e=81.30%  acc_l=64.49%  elapsed=0:02:41
+[16:41:42][rank0] step=  1000  epoch=7  loss=2.2463  acc_e=82.27%  lr=5.00e-04  elapsed=0:02:50
+[16:41:59][rank0] Epoch   7/20  loss=2.2125  acc_e=81.89%  acc_l=65.40%  elapsed=0:03:08
+[16:42:27][rank0] Epoch   8/20  loss=2.1759  acc_e=82.10%  acc_l=66.21%  elapsed=0:03:35
+[16:42:54][rank0] Epoch   9/20  loss=2.1269  acc_e=82.41%  acc_l=67.82%  elapsed=0:04:02
+[16:43:07][rank0] step=  1500  epoch=10  loss=2.1031  acc_e=82.69%  lr=7.50e-04  elapsed=0:04:15
+[16:43:20][rank0] Epoch  10/20  loss=2.0867  acc_e=82.69%  acc_l=68.87%  elapsed=0:04:28
+[16:43:47][rank0] Epoch  11/20  loss=2.0450  acc_e=82.97%  acc_l=70.16%  elapsed=0:04:55
+[16:44:14][rank0] Epoch  12/20  loss=2.0158  acc_e=83.18%  acc_l=71.13%  elapsed=0:05:22
+[16:44:32][rank0] step=  2000  epoch=13  loss=2.0003  acc_e=83.25%  lr=1.00e-03  elapsed=0:05:40
+[16:44:32][rank0] --- Validation @ step 2000 ---
+[16:44:45][rank0]   val loss=1.9728  loss_e=1.2490  acc_e=83.16%  acc_l=72.28%
+[16:44:45][rank0]   New best val loss=1.9728 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_lstm_311301/model_best.pt
+[16:44:54][rank0] Epoch  13/20  loss=1.9854  acc_e=83.35%  acc_l=72.00%  elapsed=0:06:02
+[16:45:19][rank0] Epoch  14/20  loss=1.9450  acc_e=83.49%  acc_l=73.34%  elapsed=0:06:28
+[16:45:45][rank0] Epoch  15/20  loss=1.9165  acc_e=83.66%  acc_l=74.22%  elapsed=0:06:54
+[16:46:07][rank0] step=  2500  epoch=16  loss=1.8919  acc_e=83.76%  lr=5.83e-04  elapsed=0:07:16
+[16:46:12][rank0] Epoch  16/20  loss=1.8901  acc_e=83.81%  acc_l=74.99%  elapsed=0:07:20
+[16:46:38][rank0] Epoch  17/20  loss=1.8710  acc_e=83.92%  acc_l=75.54%  elapsed=0:07:47
+[16:47:04][rank0] Epoch  18/20  loss=1.8557  acc_e=83.99%  acc_l=76.04%  elapsed=0:08:13
+[16:47:30][rank0] step=  3000  epoch=19  loss=1.8467  acc_e=84.03%  lr=6.43e-05  elapsed=0:08:38
+[16:47:30][rank0] Epoch  19/20  loss=1.8462  acc_e=84.03%  acc_l=76.34%  elapsed=0:08:39
+[16:47:56][rank0] Epoch  20/20  loss=1.8414  acc_e=84.06%  acc_l=76.54%  elapsed=0:09:05
+[16:47:56][rank0] ======================================================================
+[16:47:56][rank0] Training complete — OOD evaluation
+[16:47:56][rank0] ======================================================================
+[16:47:56][rank0] Loaded best model from /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_lstm_311301/model_best.pt
+[16:47:56][rank0] [OOD] Scoring test_id (normal baseline) ...
+[16:48:12][rank0] [OOD] Scoring test_ood_cpu ...
+[16:48:31][rank0] [OOD] cpu     AUROC=0.6111  AUPR=0.6235  (normal=316,026  ood=387,625)
+[16:48:31][rank0] [OOD] Scoring test_ood_disk ...
+[16:48:51][rank0] [OOD] disk    AUROC=0.6072  AUPR=0.6509  (normal=316,026  ood=425,955)
+[16:48:51][rank0] [OOD] Scoring test_ood_mem ...
+[16:49:10][rank0] [OOD] mem     AUROC=0.5886  AUPR=0.6037  (normal=316,026  ood=385,131)
+[16:49:10][rank0] [OOD] Scoring test_ood_net ...
+[16:49:20][rank0] [OOD] net     AUROC=0.5982  AUPR=0.4813  (normal=316,026  ood=220,229)
+[16:49:20][rank0] OOD results -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/sockshop_lstm_311301/ood_results.json
