@@ -83,41 +83,42 @@ srun bash -lc "ls -lah '$DATA' | head -30"
 
 cd "$PROJECT"
 
-python -u microservice/train_sockshop.py `
-    --preprocessed_dir $DATA `
-    --model     lstm `
-    --max_seq_len 4096 `
-    --n_hidden  1024 `
-    --n_layer   6 `
-    --dropout   0.01 `
-    --dim_sys   48 `
-    --dim_entry 12 `
-    --dim_ret   12 `
-    --dim_proc  48 `
-    --dim_pid   12 `
-    --dim_tid   12 `
-    --dim_order 12 `
-    --dim_time  12 `
-    --train_event_model `
-    --train_latency_model `
-    --ood_score combined `
-    --n_categories 6 `
-    --batch        64 `
-    --accum_steps  32 `
-    --n_epochs    100 `
-    --lr          1e-3 `
-    --warmup_steps 2000 `
-    --clip          10.0 `
-    --num_workers     4 `
-    --label_smoothing 0.1 `
-    --amp `
-    --eval_every  100 `
-    --save_every  5000 `
-    --ordinal_latency `
-    --lat_score_weight 0.3 `
-    --wandb_project sockshop_lmat `
-    --wandb_run_name "lstm_local_${N_EPOCHS}ep_ordinal_f1_$RUN_TS" `
-    --log_dir $LOG_DIR `
+python -u microservice/train_sockshop.py \
+    --preprocessed_dir "$DATA" \
+    --model lstm \
+    --max_seq_len 4096 \
+    --n_hidden 1024 \
+    --n_layer 6 \
+    --dropout 0.01 \
+    --dim_sys 48 \
+    --dim_entry 12 \
+    --dim_ret 12 \
+    --dim_proc 48 \
+    --dim_pid 12 \
+    --dim_tid 12 \
+    --dim_order 12 \
+    --dim_time 12 \
+    --train_event_model \
+    --train_latency_model \
+    --ood_score combined \
+    --ood_threshold_grid 100 \
+    --n_categories 6 \
+    --batch 512 \
+    --accum_steps 4 \
+    --n_epochs 100 \
+    --lr 1e-3 \
+    --warmup_steps 2000 \
+    --clip 10.0 \
+    --num_workers 4 \
+    --label_smoothing 0.1 \
+    --amp \
+    --eval_every 100 \
+    --save_every 5000 \
+    --ordinal_latency \
+    --lat_score_weight 0.3 \
+    --wandb_project sockshop_lmat \
+    --wandb_run_name "lstm_h100_100ep_ordinal_F1_${SLURM_JOB_ID}" \
+    --log_dir "$LOG_DIR" \
     --gpu 0
 
 EXIT_CODE=$?
