@@ -32,10 +32,10 @@ The same three metrics (`loss`, `acc_e`, `acc_l`) are computed on the held-out `
 To answer how the anomaly detection protocol works in practice, here is the exact step-by-step scoring mechanism used during evaluation:
 
 1. **No Ground Truth at Inference**: Unlike training where we know the next syscall, during testing we only observe a sequence of events. We want to know how "surprised" the trained model is by this sequence.
-2. **Sequential Prediction**: We pass a full sequence (e.g., 4096 tokens representing a 100ms window of thread activity) through the model. At every step $t$, the model outputs:
+2. **Sequential Prediction**: We pass a full sequence (e.g., 4096 tokens representing a 100ms window of thread activity) through the model. At every step \(t\), the model outputs:
    - **Event logits**: A probability distribution over the 257 possible next syscalls.
    - **Latency logits**: A probability distribution over the 6 possible duration buckets for the current syscall.
-3. **Calculating Token-Level Surprise**: We calculate the Cross-Entropy (CE) loss for the actual observed event at $t+1$ against the event logits at $t$. We do the same for the observed latency bucket against the latency logits.
+3. **Calculating Token-Level Surprise**: We calculate the Cross-Entropy (CE) loss for the actual observed event at \(t+1\) against the event logits at \(t\). We do the same for the observed latency bucket against the latency logits.
    - High CE loss = the model didn't expect this event/duration (anomalous).
    - Low CE loss = the model perfectly expected this event/duration (normal).
 4. **Aggregating to Sequence Score**: We average the event CE and latency CE across all valid tokens in the sequence to get `mean_event_CE` and `mean_latency_CE`.
@@ -167,6 +167,16 @@ Each type compares 316,026 **normal** traces vs. its anomalous counterpart.
 | **net** | 0.653 | **0.673** | 0.534 | **0.577** | 220,229 |
 | **Mean AUROC** | 0.701 | **0.757** | 0.665 | **0.736** | — |
 
+### 100-Epoch (Base, No Ordinal Latency)
+
+| Anomaly Type | Transformer AUROC | LSTM AUROC | Transformer AUPR | LSTM AUPR | OOD Count |
+|---|---|---|---|---|---|
+| **cpu** | 0.724 | **0.880** | 0.718 | **0.894** | 387,625 |
+| **disk** | 0.768 | **0.920** | 0.766 | **0.938** | 425,955 |
+| **mem** | 0.723 | **0.892** | 0.704 | **0.903** | 385,131 |
+| **net** | 0.674 | **0.816** | 0.568 | **0.774** | 220,229 |
+| **Mean AUROC** | 0.722 | **0.877** | 0.689 | **0.877** | — |
+
 ### 100-Epoch (With Ordinal Latency)
 
 | Anomaly Type | Transformer AUROC | LSTM AUROC | Transformer AUPR | LSTM AUPR | OOD Count |
@@ -177,34 +187,53 @@ Each type compares 316,026 **normal** traces vs. its anomalous counterpart.
 | **net** | 0.668 | **0.668** | 0.579 | **0.582** | 220,229 |
 | **Mean AUROC** | 0.736 | **0.754** | 0.716 | **0.743** | — |
 
-## 50 vs 100 Epochs (Impact of Ordinal Latency)
+---
 
-Comparing the base 50-epoch models against the 100-epoch runs trained with the `--ordinal_latency` penalty.
+## Summary Across Epochs and Ordinal Latency
 
-| Model | Epochs | Features | Mean AUROC | Mean AUPR |
+Comparing mean AUROC/AUPR for all SockShop configurations:
+
+| Model | Epochs | Ordinal latency | Mean AUROC | Mean AUPR |
 |---|---|---|---|---|
-| **Transformer** | 50 | Joint | 0.701 | 0.665 |
-| **LSTM** | 50 | Joint | **0.757** | 0.736 |
-| **Transformer** | 100 | Joint + Ordinal | 0.736 | 0.716 |
-| **LSTM** | 100 | Joint + Ordinal | 0.754 | **0.743** |
+| Transformer | 50 | No | 0.701 | 0.665 |
+| Transformer | 100 | No | 0.722 | 0.689 |
+| Transformer | 100 | Yes | **0.736** | **0.716** |
+| LSTM | 50 | No | 0.757 | 0.736 |
+| LSTM | 100 | No | **0.877** | **0.877** |
+| LSTM | 100 | Yes | 0.754 | 0.743 |
 
-### Key Impacts:
-- **Transformer benefits massively**: Mean AUROC jumps from 0.701 → 0.736 (+3.5pp) and AUPR jumps from 0.665 → 0.716 (+5.1pp). Longer training and the continuous distance penalty (`--ordinal_latency`) helped the self-attention mechanism significantly in penalizing dramatic latency shifts over minor ones, fixing much of its previous weakness in latency modeling.
-- **LSTM plateaus on AUROC but improves AUPR**: The LSTM sees a slight dip in Mean AUROC (0.757 → 0.754) but an improvement in Mean AUPR (0.736 → 0.743). This indicates the model is catching anomalies with higher precision at the very top of the ranking, even if the overall separability hasn't shifted significantly. It suggests the LSTM's inductive bias allows it to learn the duration buckets effectively within 50 epochs, whereas the Transformer needed 100 epochs and explicit ordinal hints to catch up.
+### Key Impacts
+
+- **Best overall configuration is LSTM, 100 epochs, no ordinal latency.**  
+  This setting achieves mean AUROC ≈ 0.877 and mean AUPR ≈ 0.877, substantially ahead of all Transformer variants and of the LSTM runs that use the ordinal latency penalty.
+
+- **Transformer gains most from the ordinal penalty.**  
+  For the Transformer, going from 50 → 100 epochs without ordinal gives only a modest improvement (0.701 → 0.722 mean AUROC), whereas adding `--ordinal_latency` at 100 epochs raises performance further to 0.736 AUROC and 0.716 AUPR, indicating that explicit ordinal structure is important for attention-based models on this dataset.
+
+- **For LSTM, extra epochs matter more than ordinal latency.**  
+  The LSTM’s largest jump comes from training longer with the standard joint loss (0.757 → 0.877 mean AUROC from 50 to 100 epochs, both without ordinal). The 100‑epoch ordinal run slightly lags the 50‑epoch base model in AUROC and only modestly improves AUPR, suggesting that the recurrent inductive bias already captures temporal ordering and latency patterns without needing an explicit ordinal penalty.
+
+- **LSTM consistently outperforms Transformer in all regimes.**  
+  Even the 50‑epoch LSTM without ordinal latency outperforms the best Transformer variant in both AUROC and AUPR, and the gap widens at 100 epochs with the base loss, reinforcing that LSTM is a better fit for long syscall streams in SockShop.
 
 ---
 
 ## Key Conclusions
 
-1. **LSTM remains the overall champion.** The LSTM architecture maintains a consistent lead over the Transformer, especially in high-precision detection (AUPR of 0.743 vs 0.716 for the 100-epoch runs). It trains 40% faster and seems to inherently grasp the temporal autocorrelations of variable-length syscall streams better than the Transformer.
+1. **LSTM is the preferred architecture for LMAT on SockShop.**  
+   Across all training regimes, LSTM delivers higher AUROC/AUPR than Transformer, with the 100‑epoch no‑ordinal configuration providing the strongest anomaly separation while still training faster than the best Transformer run.
 
-2. **Transformer requires longer training and ordinal latency to catch up.** Expanding the Transformer from 50 epochs (no ordinal) to 100 epochs (with ordinal) yielded a huge performance leap (+5.1pp AUPR). The continuous distance penalty (`--ordinal_latency`) helped the self-attention mechanism significantly learn duration buckets.
+2. **Longer training without ordinal latency is the sweet spot for LSTM.**  
+   For LSTM, increasing epochs from 50 to 100 under the standard joint loss yields a large performance gain, whereas adding ordinal latency provides little additional benefit and can even slightly reduce AUROC.
 
-3. **50 epochs is enough for LSTM.** The LSTM saw mixed results going from 50 → 100 epochs with ordinal latency (AUROC dipped 0.3pp, AUPR rose 0.7pp). This implies the LSTM's inductive bias allows it to learn the duration buckets effectively within 50 epochs without needing the explicit ordinal penalty as much as the Transformer did.
+3. **Transformer needs both more epochs and ordinal latency to be competitive.**  
+   The Transformer requires 100 epochs and the ordinal penalty to approach, but still not match, the LSTM’s 50‑epoch baseline, indicating that self‑attention benefits from explicit ordering cues for syscall latency.
 
-4. **`disk` is the easiest anomaly to detect** (LSTM: 0.825 AUROC at 50ep, 0.814 at 100ep). Disk stress tests cause unmistakable I/O wait latency spikes visible in the duration bucket predictions.
+4. **`disk` remains the easiest anomaly to detect.**  
+   Disk stress consistently produces the highest AUROCs and AUPRs across models and regimes, reflecting the strong and characteristic I/O latency spikes induced by stress‑ng.
 
-5. **`net` is the hardest anomaly** (LSTM: 0.673 AUROC at 50ep). Network anomalies produce the least distinct syscall sequence changes since network I/O is often handled by the kernel without explicit user-space syscall differences.
+5. **`net` remains the hardest anomaly.**  
+   Network impairment yields the lowest AUROCs/AUPRs, even in the best LSTM runs, likely because many network effects are absorbed inside the kernel’s networking stack without drastic changes in user‑space syscall mix.
 
 ---
 
