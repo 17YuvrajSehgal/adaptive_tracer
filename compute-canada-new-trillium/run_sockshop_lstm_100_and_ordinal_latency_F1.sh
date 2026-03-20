@@ -105,15 +105,15 @@ python -u microservice/train_sockshop.py \
     --n_categories 6 \
     --batch 512 \
     --accum_steps 4 \
-    --n_epochs 100 \
+    --n_epochs 1 \
     --lr 1e-3 \
     --warmup_steps 2000 \
     --clip 10.0 \
     --num_workers 4 \
     --label_smoothing 0.1 \
     --amp \
-    --eval_every 100 \
-    --save_every 5000 \
+    --eval_every 50 \
+    --save_every 500 \
     --ordinal_latency \
     --lat_score_weight 0.3 \
     --wandb_project sockshop_lmat \
