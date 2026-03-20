@@ -1,0 +1,61 @@
+sehgaluv17@lttng-traces-microservice:~$ ./adaptive_tracer/microservice-lttng-data-collection-scripts/lttng_only_run.sh run01 300 --quiet
+🚀 LTTng ONLY (no LMAT): run01 (300s, 200 users)
+Session sockshop-ust created.
+Traces will be output to /home/sehgaluv17/traces/lttng_only/run01/ust
+Enabled Python logging event rule with pattern `otel.spans`
+Tracing started for session `sockshop-ust`
+Session sockshop-kernel created.
+Traces will be output to /home/sehgaluv17/traces/lttng_only/run01/kernel
+Enabled kernel event rule matching all events and attached to channel `channel0`
+Tracing started for session `sockshop-kernel`
+[lttng_only/run01] FULL TRACING (Kernel+UST) for 300s...
+Waiting for data availability.
+Tracing stopped for session `sockshop-ust`
+Waiting for data availability.
+Tracing stopped for session `sockshop-kernel`
+Destroying session `sockshop-ust`..
+Session `sockshop-ust` destroyed
+Destroying session `sockshop-kernel`..
+Session `sockshop-kernel` destroyed
+du: cannot read directory '/home/sehgaluv17/traces/lttng_only/run01/kernel/kernel': Permission denied
+[lttng_only/run01] DONE. 125M   /home/sehgaluv17/traces/lttng_only/run01
+
+======================================================================
+  SOCK SHOP TRAFFIC GENERATOR — RESULTS SUMMARY
+======================================================================
+  Total requests : 57852
+  Passed         : 55995  (96.8%)
+  Failed         : 1857  (3.2%)
+  Avg latency    : 48 ms
+  Min latency    : 3 ms
+  Max latency    : 875 ms
+
+  Scenario                       Requests   Pass%   Avg(ms)
+  ------------------------------ -------- ------- ---------
+  add_to_cart                        3843  100.0%        47
+  basket_page                        3865  100.0%        52
+  browse_catalogue                   6089  100.0%        38
+  browse_homepage                    6309  100.0%         9
+  catalogue_size                     6089  100.0%        47
+  checkout_add_to_cart               2158  100.0%        46
+  checkout_view_item                 2158  100.0%        48
+  delete_cart_item                   1297  100.0%        53
+  detail_page                        4252  100.0%        48
+  get_address                        1330  100.0%        47
+  get_card                           1242  100.0%        48
+  get_orders                         1659  100.0%        38
+  get_tags                           6089  100.0%        45
+  login                              2442  100.0%        86
+  place_order                        2158   13.9%        74
+  register                            200  100.0%       217
+  setup_address                       200  100.0%       372
+  setup_card                          200  100.0%       324
+  update_cart_item                   1296  100.0%        52
+  view_item                          4976  100.0%        47
+======================================================================
+
+
+✅ LTTng-ONLY run01 COMPLETE
+📊 Requests    : 57852  (in 304s)
+📈 Throughput  : 190.3 req/s (approx)
+📁 Output      : /home/sehgaluv17/experiments/lttng_only/run01

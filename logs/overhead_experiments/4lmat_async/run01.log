@@ -1,0 +1,68 @@
+sehgaluv17@lttng-traces-microservice:~$ ./adaptive_tracer/microservice-lttng-data-collection-scripts/lmat_async_run.sh run01 300 --quiet
+🚀 LMAT ASYNC: run01 (300s, 200 users)
+📡 Phase 1: LTTng tracing + load generator (300 s)...
+Session sockshop-ust created.
+Traces will be output to /home/sehgaluv17/traces/lmat_async/run01/ust
+Enabled Python logging event rule with pattern `otel.spans`
+Tracing started for session `sockshop-ust`
+Session sockshop-kernel created.
+Traces will be output to /home/sehgaluv17/traces/lmat_async/run01/kernel
+Enabled kernel event rule matching all events and attached to channel `channel0`
+Tracing started for session `sockshop-kernel`
+[lmat_async/run01] FULL TRACING (Kernel+UST) for 300s...
+Waiting for data availability.
+Tracing stopped for session `sockshop-ust`
+Waiting for data availability.
+Tracing stopped for session `sockshop-kernel`
+Destroying session `sockshop-ust`..
+Session `sockshop-ust` destroyed
+Destroying session `sockshop-kernel`..
+Session `sockshop-kernel` destroyed
+du: cannot read directory '/home/sehgaluv17/traces/lmat_async/run01/kernel/kernel': Permission denied
+[lmat_async/run01] DONE. 125M   /home/sehgaluv17/traces/lmat_async/run01
+
+======================================================================
+  SOCK SHOP TRAFFIC GENERATOR — RESULTS SUMMARY
+======================================================================
+  Total requests : 57868
+  Passed         : 56042  (96.8%)
+  Failed         : 1826  (3.2%)
+  Avg latency    : 46 ms
+  Min latency    : 2 ms
+  Max latency    : 943 ms
+
+  Scenario                       Requests   Pass%   Avg(ms)
+  ------------------------------ -------- ------- ---------
+  add_to_cart                        3876  100.0%        47
+  basket_page                        3913  100.0%        52
+  browse_catalogue                   6028  100.0%        38
+  browse_homepage                    6537  100.0%         8
+  catalogue_size                     6028  100.0%        47
+  checkout_add_to_cart               2126  100.0%        45
+  checkout_view_item                 2126  100.0%        47
+  delete_cart_item                   1220  100.0%        53
+  detail_page                        4234  100.0%        47
+  get_address                        1242  100.0%        47
+  get_card                           1328  100.0%        47
+  get_orders                         1702  100.0%        40
+  get_tags                           6028  100.0%        45
+  login                              2325  100.0%        89
+  place_order                        2126   14.1%        74
+  register                            200  100.0%       221
+  setup_address                       200  100.0%       242
+  setup_card                          200  100.0%       228
+  update_cart_item                   1271  100.0%        51
+  view_item                          5158  100.0%        48
+======================================================================
+
+🧠 Phase 2: Replaying trace through model + concurrent load (300 s)...
+20:51:07 [INFO] Loading vocab from /home/sehgaluv17/adaptive_tracer/micro-service-trace-data/preprocessed/vocab.pkl
+20:51:07 [INFO] Vocab: 257 syscalls / 6 processes
+20:51:07 [INFO] Loading latency boundaries from /home/sehgaluv17/adaptive_tracer/micro-service-trace-data/preprocessed/delay_spans.pkl
+20:51:07 [INFO] Latency boundaries loaded for 77 event types
+20:51:09 [INFO] Model loaded: LSTM  params=47,156,895  device=cpu
+20:51:09 [INFO] Warming up model (3 random passes)...
+20:51:10 [INFO] Model warmed up.
+20:51:10 [INFO] MODE: ASYNC — inference in background thread (queue maxsize=50)
+20:51:10 [INFO] babeltrace2 pass #0 — ctf_root=/home/sehgaluv17/traces/lmat_async/run01/kernel/kernel  last_ns=0
+20:54:03 [INFO] windows=100  dropped=9712  avg_inf=948.3 ms  wall=173 s  rate=0.6 win/s  score_mean=0.6029  score_p95=1.1934

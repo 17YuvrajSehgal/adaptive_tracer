@@ -17,3 +17,5 @@ micro-service-trace-data/preprocessed/*/
 !micro-service-trace-data/preprocessed/vocab.pkl
 
 logs/*/*.pt
+
+logs/overhead_experiments/*/*.pdf
