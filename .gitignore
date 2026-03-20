@@ -19,3 +19,5 @@ micro-service-trace-data/preprocessed/*/
 logs/*/*.pt
 
 logs/overhead_experiments/*/*.pdf
+logs/overhead_experiments/**/*.json
+logs/overhead_experiments/**/*.csv

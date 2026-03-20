@@ -1,7 +1,12 @@
 # ============================================================
 # run_sockshop_transformer_local.ps1
-# Local GPU training — Transformer, 100 epochs, ordinal latency
+# Local GPU training — Transformer, ordinal latency (Apache-style OOD metrics in train_sockshop)
 # Mirrors: compute-canada-new-trillium/run_sockshop_transformer_100_and_ordinal_latency.sh
+#
+# Default: 1 epoch smoke test. For full training, set:
+#   $N_EPOCHS = 100
+#   $EVAL_EVERY = 100
+#   $SAVE_EVERY = 5000
 #
 # Usage (from repo root or any directory):
 #   .\compute-local\run_sockshop_transformer_local.ps1
@@ -14,11 +19,16 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+# ---- Run profile (smoke vs full) ----
+$N_EPOCHS   = 1      # 100 for production run
+$EVAL_EVERY = 50     # validation frequency in *optimizer steps*; lower helps 1-epoch smokes
+$SAVE_EVERY = 500    # checkpoint interval; use 5000 for long runs
+
 # ---- Paths ----
 $PROJECT  = "c:\workplace\adaptive_tracer"
 $DATA     = "c:\workplace\adaptive_tracer\micro-service-trace-data\preprocessed"
 $RUN_TS   = (Get-Date -Format "yyyyMMdd_HHmmss")
-$LOG_DIR  = "c:\workplace\adaptive_tracer\logs\sockshop_transformer_100ep_ordinal_$RUN_TS"
+$LOG_DIR  = "c:\workplace\adaptive_tracer\logs\sockshop_transformer_${N_EPOCHS}ep_ordinal_$RUN_TS"
 
 New-Item -ItemType Directory -Force -Path $LOG_DIR | Out-Null
 
@@ -37,6 +47,7 @@ Write-Host "Project dir  : $PROJECT"
 Write-Host "Preprocessed : $DATA"
 Write-Host "Log dir      : $LOG_DIR"
 Write-Host "Run timestamp: $RUN_TS"
+Write-Host "Epochs       : $N_EPOCHS"
 Write-Host "============================================================"
 
 # ---- Sanity checks ----
@@ -83,21 +94,22 @@ python -u microservice/train_sockshop.py `
     --train_event_model `
     --train_latency_model `
     --ordinal_latency `
+    --ood_score combined `
     --n_categories 6 `
     --batch        64 `
     --accum_steps  32 `
-    --n_epochs    100 `
+    --n_epochs    $N_EPOCHS `
     --lr          3e-4 `
     --warmup_steps 2000 `
     --clip          1.0 `
     --num_workers     2 `
     --label_smoothing 0.1 `
     --amp `
-    --eval_every  100 `
-    --save_every  5000 `
+    --eval_every  $EVAL_EVERY `
+    --save_every  $SAVE_EVERY `
     --lat_score_weight 0.3 `
     --wandb_project sockshop_lmat `
-    --wandb_run_name "transformer_local_100ep_ordinal_$RUN_TS" `
+    --wandb_run_name "transformer_local_${N_EPOCHS}ep_ordinal_$RUN_TS" `
     --log_dir $LOG_DIR `
     --gpu 0
 

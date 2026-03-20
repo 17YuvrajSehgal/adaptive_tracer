@@ -105,3 +105,23 @@ babeltrace2 ust/... | grep otel.spans | awk '{print $17}' | grep -i cart | sort 
 ```
 
 **Ready for ML training** — **correlated traces + metrics + load** under realistic stress! 🚀
+
+## Apache-comparable evaluation (`train_sockshop.py`)
+
+SockShop OOD metrics are aligned with the Apache LMAT protocol in `functions.ood_detection_ngram`:
+
+- **AUROC** and **AUPR** are computed on a **balanced** test set: `min(n_normal, n_ood)` sequences from `test_id` and `test_ood_{cpu|disk|mem|net}` (same idea as matching normal vs OOD counts on Apache).
+- **F1**, **precision**, **recall**, and **accuracy** use a threshold chosen on **validation**: `valid_id` + `valid_ood_{type}` with the same balancing rule; the threshold maximizes F1 over a grid (`--ood_threshold_grid`, default 100). If `valid_id` or `valid_ood_*` is missing, those classification metrics are skipped (`f1_note` in `ood_results.json`) but AUROC/AUPR on the balanced test set are still reported.
+- **`--ood_score`**: use `event` or `latency` for single-task runs (must match `--train_event_model` / `--train_latency_model`). Use `combined` for multi-task; mixing uses `--lat_score_weight` when both heads are trained.
+
+**Table 5 (varying duration categories, e.g. 3 / 5 / 7 / 9 bins):** run preprocessing **separately** for each `--n_categories` value so `lat_cat` in the NPZ matches the model (`train_sockshop.py --n_categories` must equal the preprocess setting). Train and evaluate each preprocessed tree; there is no single flag that emits all columns at once.
+
+**Tables 6–7 (Event vs Duration vs Multi-task):** run **three trainings** on the same preprocessed data with different flags:
+
+| Mode | Flags |
+|------|--------|
+| Event-only | `--train_event_model --ood_score event` |
+| Duration-only | `--train_latency_model --ood_score latency` |
+| Multi-task | `--train_event_model --train_latency_model --ood_score combined` |
+
+Apache paper rows (Connection, CPU, IO, OPCache, …) map to **stress families**; SockShop rows are **cpu, disk, mem, net** — same reporting structure, different benchmark names.

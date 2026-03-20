@@ -15,7 +15,8 @@ Key features:
   - pin_memory + non_blocking H2D transfers
   - WandB + CSV logging
   - Cosine LR schedule with linear warm-up
-  - OOD evaluation: per-anomaly-type AUROC and AUPR
+  - OOD evaluation: per-anomaly-type AUROC, AUPR, and Apache-style F1
+    (threshold tuned on valid_id + valid_ood_* when present)
 
 Usage (single H100):
   python -u microservice/train_sockshop.py \\
@@ -73,10 +74,19 @@ except ImportError:
     HAS_WANDB = False
 
 try:
-    from sklearn.metrics import roc_auc_score, average_precision_score
+    import sklearn.metrics  # noqa: F401 — detect sklearn for OOD metrics
+
     HAS_SKLEARN = True
 except ImportError:
     HAS_SKLEARN = False
+
+if HAS_SKLEARN:
+    from microservice.ood_metrics import (
+        balanced_binary_scores_labels,
+        metrics_at_threshold,
+        rank_metrics,
+        tune_threshold_max_f1,
+    )
 
 
 ###############################################################################
@@ -95,6 +105,20 @@ def get_args():
     p.add_argument("--lat_score_weight", type=float, default=0.3,
                    help="Weight [0,1] for latency cross-entropy in anomaly scoring. "
                         "Final score = (1-w)*event_xe + w*latency_xe. Default 0.3.")
+    p.add_argument(
+        "--ood_score",
+        choices=["combined", "event", "latency"],
+        default="combined",
+        help="Which head(s) drive OOD anomaly scores: combined (weighted mix when both "
+             "trained), event-only CE, or latency-only CE. Match to single/multi-task "
+             "training for paper-style Event vs Duration vs Multi-task runs.",
+    )
+    p.add_argument(
+        "--ood_threshold_grid",
+        type=int,
+        default=100,
+        help="Number of threshold steps for validation F1 tuning (Apache n-gram style).",
+    )
 
     # Model
     p.add_argument("--model", choices=["lstm", "transformer"], default="transformer")
@@ -147,6 +171,10 @@ def get_args():
     args = p.parse_args()
     if not (args.train_event_model or args.train_latency_model):
         p.error("At least one of --train_event_model / --train_latency_model is required")
+    if args.ood_score == "event" and not args.train_event_model:
+        p.error("--ood_score event requires --train_event_model")
+    if args.ood_score == "latency" and not args.train_latency_model:
+        p.error("--ood_score latency requires --train_latency_model")
     return args
 
 
@@ -302,6 +330,57 @@ def token_accuracy(logits, targets):
     return (pred[mask] == targets[mask]).float().mean().item()
 
 
+def per_sequence_event_ce(le, tgt_call):
+    """Mean next-syscall cross-entropy per sequence (non-pad tokens only)."""
+    if le.numel() == 0:
+        return None
+    B, L, V = le.shape
+    per_tok = nn.CrossEntropyLoss(ignore_index=0, reduction="none")(
+        le.reshape(B * L, V), tgt_call.reshape(B * L)
+    ).reshape(B, L)
+    mask = tgt_call != 0
+    return (per_tok * mask).sum(1) / mask.sum(1).clamp(min=1)
+
+
+def per_sequence_latency_ce(ll, tgt_lat, ordinal_latency):
+    """Mean latency-head loss per sequence (non-pad latency targets only)."""
+    if ll.numel() == 0:
+        return None
+    B, L, C = ll.shape
+    mask = tgt_lat != 0
+    if ordinal_latency:
+        per_tok = (
+            nn.BCEWithLogitsLoss(reduction="none")(
+                ll.reshape(B * L, C),
+                tgt_lat.reshape(B * L, 1).float().expand(B * L, C),
+            )
+            .mean(-1)
+            .reshape(B, L)
+        )
+    else:
+        per_tok = nn.CrossEntropyLoss(ignore_index=0, reduction="none")(
+            ll.reshape(B * L, C), tgt_lat.reshape(B * L)
+        ).reshape(B, L)
+    return (per_tok * mask).sum(1) / mask.sum(1).clamp(min=1)
+
+
+def select_ood_sequence_score(seq_sc_e, seq_sc_l, args):
+    """Pick OOD score vector per batch (combined / event / latency)."""
+    mode = args.ood_score
+    w = args.lat_score_weight
+    if mode == "event":
+        return seq_sc_e.float() if seq_sc_e is not None else None
+    if mode == "latency":
+        return seq_sc_l.float() if seq_sc_l is not None else None
+    if seq_sc_e is not None and seq_sc_l is not None and w > 0.0:
+        return (1.0 - w) * seq_sc_e.float() + w * seq_sc_l.float()
+    if seq_sc_e is not None:
+        return seq_sc_e.float()
+    if seq_sc_l is not None:
+        return seq_sc_l.float()
+    return None
+
+
 ###############################################################################
 # Evaluation
 ###############################################################################
@@ -336,38 +415,23 @@ def evaluate_split(model, loader, device, args, crit_e, crit_l,
             v = token_accuracy(ll, tgt_lat)
             if not math.isnan(v): al_sum += v; al_cnt += 1
 
-        if return_scores and le.numel() > 0:
-            tgt_call_sc = batch["tgt_call"].to(device, dtype=torch.long, non_blocking=True)
-            tgt_lat_sc  = batch["tgt_lat"].to(device, dtype=torch.long, non_blocking=True)
-            B, L, V = le.shape
-            # Event score: per-sequence mean cross-entropy over non-pad tokens
-            per_tok_e = nn.CrossEntropyLoss(ignore_index=0, reduction="none")(
-                le.reshape(B*L, V), tgt_call_sc.reshape(B*L)).reshape(B, L)
-            mask_e = tgt_call_sc != 0
-            seq_sc_e = (per_tok_e * mask_e).sum(1) / mask_e.sum(1).clamp(min=1)
-
-            # Latency score: per-sequence mean cross-entropy of latency head
-            # Only computed when latency model is trained and ll is valid
-            w = args.lat_score_weight
-            if args.train_latency_model and ll.numel() > 0 and w > 0.0:
-                _, _, C = ll.shape
-                mask_l = tgt_lat_sc != 0
-                if args.ordinal_latency:
-                    per_tok_l = nn.BCEWithLogitsLoss(reduction="none")(
-                        ll.reshape(B*L, C),
-                        tgt_lat_sc.reshape(B*L, 1).float().expand(B*L, C)
-                    ).mean(-1).reshape(B, L)
-                else:
-                    per_tok_l = nn.CrossEntropyLoss(ignore_index=0, reduction="none")(
-                        ll.reshape(B*L, C), tgt_lat_sc.reshape(B*L)).reshape(B, L)
-                seq_sc_l = (per_tok_l * mask_l).sum(1) / mask_l.sum(1).clamp(min=1)
-                # Normalise latency score to same scale as event score before mixing
-                seq_sc = (1.0 - w) * seq_sc_e.float() + w * seq_sc_l.float()
-            else:
-                seq_sc = seq_sc_e.float()
-
-            scores.append(seq_sc.cpu().numpy())
-            labels.append(batch["is_anomaly"].numpy())
+        if return_scores:
+            tgt_call_sc = batch["tgt_call"].to(
+                device, dtype=torch.long, non_blocking=True
+            )
+            tgt_lat_sc = batch["tgt_lat"].to(
+                device, dtype=torch.long, non_blocking=True
+            )
+            seq_sc_e = per_sequence_event_ce(le, tgt_call_sc) if le.numel() > 0 else None
+            seq_sc_l = (
+                per_sequence_latency_ce(ll, tgt_lat_sc, args.ordinal_latency)
+                if ll.numel() > 0
+                else None
+            )
+            seq_sc = select_ood_sequence_score(seq_sc_e, seq_sc_l, args)
+            if seq_sc is not None:
+                scores.append(seq_sc.detach().cpu().numpy())
+                labels.append(batch["is_anomaly"].numpy())
 
 
 
@@ -384,51 +448,156 @@ def evaluate_split(model, loader, device, args, crit_e, crit_l,
 # OOD evaluation
 ###############################################################################
 
+def _make_ood_loader(preprocessed_dir, subdir, batch, max_seq_len, pin_memory):
+    d = os.path.join(preprocessed_dir, subdir)
+    if not os.path.isdir(d):
+        return None
+    ds = SockshopNpzDataset(
+        d,
+        batch_size=batch,
+        max_seq_len=max_seq_len,
+        shuffle_shards=False,
+    )
+    return DataLoader(
+        ds,
+        batch_size=None,
+        collate_fn=sockshop_collate_fn,
+        num_workers=2,
+        pin_memory=pin_memory,
+    )
+
+
 def run_ood_eval(model, args, device, crit_e, crit_l, log_fn):
     if not HAS_SKLEARN:
         log_fn("[OOD] sklearn not available — skipping")
         return {}
 
+    pin = device.type == "cuda"
     base = args.preprocessed_dir
-    id_dir = os.path.join(base, "test_id")
-    if not os.path.isdir(id_dir):
+    if not os.path.isdir(os.path.join(base, "test_id")):
         log_fn("[OOD] test_id not found")
         return {}
 
-    log_fn("[OOD] Scoring test_id (normal baseline) ...")
-    ds_id  = SockshopNpzDataset(id_dir, batch_size=args.batch,
-                                 max_seq_len=args.max_seq_len, shuffle_shards=False)
-    ld_id  = DataLoader(ds_id, batch_size=None, collate_fn=sockshop_collate_fn,
-                        num_workers=2, pin_memory=True)
-    res_id = evaluate_split(model, ld_id, device, args, crit_e, crit_l,
-                             return_scores=True)
+    valid_id_dir = os.path.join(base, "valid_id")
+    has_valid_root = os.path.isdir(valid_id_dir)
 
     results = {}
     for atype in ["cpu", "disk", "mem", "net"]:
-        ood_dir = os.path.join(base, f"test_ood_{atype}")
-        if not os.path.isdir(ood_dir):
-            continue
-        log_fn(f"[OOD] Scoring test_ood_{atype} ...")
-        ds_ood = SockshopNpzDataset(ood_dir, batch_size=args.batch,
-                                     max_seq_len=args.max_seq_len, shuffle_shards=False)
-        ld_ood = DataLoader(ds_ood, batch_size=None, collate_fn=sockshop_collate_fn,
-                            num_workers=2, pin_memory=True)
-        res_ood = evaluate_split(model, ld_ood, device, args, crit_e, crit_l,
-                                  return_scores=True)
-
-        scores = np.concatenate([res_id["scores"], res_ood["scores"]])
-        labels = np.concatenate([np.zeros(len(res_id["scores"])),
-                                  np.ones(len(res_ood["scores"]))])
-        if len(np.unique(labels)) < 2:
+        test_ood_sub = f"test_ood_{atype}"
+        if not os.path.isdir(os.path.join(base, test_ood_sub)):
             continue
 
-        auroc = roc_auc_score(labels, scores)
-        aupr  = average_precision_score(labels, scores)
-        log_fn(f"[OOD] {atype:6s}  AUROC={auroc:.4f}  AUPR={aupr:.4f}  "
-               f"(normal={len(res_id['scores']):,}  ood={len(res_ood['scores']):,})")
-        results[atype] = {"auroc": auroc, "aupr": aupr,
-                          "n_normal": len(res_id["scores"]),
-                          "n_ood":    len(res_ood["scores"])}
+        ld_tid = _make_ood_loader(base, "test_id", args.batch, args.max_seq_len, pin)
+        ld_tood = _make_ood_loader(base, test_ood_sub, args.batch, args.max_seq_len, pin)
+        if ld_tid is None or ld_tood is None:
+            continue
+
+        res_tid = evaluate_split(
+            model, ld_tid, device, args, crit_e, crit_l, return_scores=True
+        )
+        res_tood = evaluate_split(
+            model, ld_tood, device, args, crit_e, crit_l, return_scores=True
+        )
+        s_tid, s_tood = res_tid["scores"], res_tood["scores"]
+        if len(s_tid) == 0 or len(s_tood) == 0:
+            log_fn(f"[OOD] {atype}: empty scores — skip")
+            continue
+
+        scores_test, y_test = balanced_binary_scores_labels(s_tid, s_tood)
+        if len(y_test) == 0 or len(np.unique(y_test)) < 2:
+            log_fn(f"[OOD] {atype}: insufficient balanced test data — skip")
+            continue
+
+        rm = rank_metrics(y_test, scores_test)
+        entry = {
+            "auroc": rm["auroc"],
+            "aupr": rm["aupr"],
+            "n_test_normal_balanced": int((y_test == 0).sum()),
+            "n_test_ood_balanced": int((y_test == 1).sum()),
+            "n_test_normal_full": int(len(s_tid)),
+            "n_test_ood_full": int(len(s_tood)),
+            "f1": None,
+            "precision": None,
+            "recall": None,
+            "accuracy": None,
+            "best_threshold": None,
+            "val_f1_tune": None,
+            "n_val_normal_balanced": None,
+            "n_val_ood_balanced": None,
+            "n_val_normal_full": None,
+            "n_val_ood_full": None,
+        }
+
+        valid_ood_sub = f"valid_ood_{atype}"
+        valid_ood_path = os.path.join(base, valid_ood_sub)
+        f1_note = None
+        if has_valid_root and os.path.isdir(valid_ood_path):
+            ld_vid = _make_ood_loader(base, "valid_id", args.batch, args.max_seq_len, pin)
+            ld_vood = _make_ood_loader(
+                base, valid_ood_sub, args.batch, args.max_seq_len, pin
+            )
+            if ld_vid is not None and ld_vood is not None:
+                res_vid = evaluate_split(
+                    model, ld_vid, device, args, crit_e, crit_l, return_scores=True
+                )
+                res_vood = evaluate_split(
+                    model, ld_vood, device, args, crit_e, crit_l, return_scores=True
+                )
+                s_vid, s_vood = res_vid["scores"], res_vood["scores"]
+                scores_val, y_val = balanced_binary_scores_labels(s_vid, s_vood)
+                if len(y_val) > 0 and len(np.unique(y_val)) >= 2:
+                    best_t, val_f1 = tune_threshold_max_f1(
+                        scores_val, y_val, args.ood_threshold_grid
+                    )
+                    mt = metrics_at_threshold(y_test, scores_test, best_t)
+                    entry.update(
+                        {
+                            "best_threshold": best_t,
+                            "val_f1_tune": val_f1,
+                            "f1": mt["f1"],
+                            "precision": mt["precision"],
+                            "recall": mt["recall"],
+                            "accuracy": mt["accuracy"],
+                            "n_val_normal_balanced": int((y_val == 0).sum()),
+                            "n_val_ood_balanced": int((y_val == 1).sum()),
+                            "n_val_normal_full": int(len(s_vid)),
+                            "n_val_ood_full": int(len(s_vood)),
+                        }
+                    )
+                else:
+                    f1_note = "validation_balanced_set_invalid"
+                    log_fn(
+                        f"[OOD] {atype}: valid_id + {valid_ood_sub} could not be "
+                        "balanced or are single-class — F1 skipped"
+                    )
+            else:
+                f1_note = "validation_loader_missing"
+                log_fn(
+                    f"[OOD] {atype}: could not load valid_id / {valid_ood_sub} — F1 skipped"
+                )
+        else:
+            f1_note = "validation_dirs_missing"
+            log_fn(
+                f"[OOD] {atype}: valid_id or {valid_ood_sub} missing — "
+                "F1 skipped (AUROC/AUPR on balanced test only)"
+            )
+
+        if f1_note:
+            entry["f1_note"] = f1_note
+
+        msg = (
+            f"[OOD] {atype:6s}  AUROC={rm['auroc']:.4f}  AUPR={rm['aupr']:.4f}  "
+            f"bal={entry['n_test_normal_balanced']}/{entry['n_test_ood_balanced']}  "
+            f"full={entry['n_test_normal_full']:,}/{entry['n_test_ood_full']:,}"
+        )
+        if entry["f1"] is not None:
+            msg += (
+                f"  F1={entry['f1']:.4f}  P={entry['precision']:.4f}  "
+                f"R={entry['recall']:.4f}  thr={entry['best_threshold']:.6g}"
+            )
+        log_fn(msg)
+        results[atype] = entry
+
     return results
 
 
@@ -719,14 +888,35 @@ def main():
             log(f"Loaded best model from {best_path}")
 
         ood_results = run_ood_eval(raw, args, device, _crit_e, _crit_l, log)
-        with open(os.path.join(args.log_dir, "ood_results.json"), "w") as f:
-            json.dump(ood_results, f, indent=2)
-        log(f"OOD results -> {os.path.join(args.log_dir, 'ood_results.json')}")
+
+        def _json_safe(o):
+            if isinstance(o, dict):
+                return {k: _json_safe(v) for k, v in o.items()}
+            if isinstance(o, float) and (math.isnan(o) or math.isinf(o)):
+                return None
+            return o
+
+        ood_path = os.path.join(args.log_dir, "ood_results.json")
+        with open(ood_path, "w") as f:
+            json.dump(_json_safe(ood_results), f, indent=2)
+        log(f"OOD results -> {ood_path}")
 
         if use_wandb and ood_results:
-            wandb.log({"ood/" + at + "/" + m: v
-                       for at, metrics in ood_results.items()
-                       for m, v in metrics.items()})
+            wb_flat = {}
+            for at, metrics in ood_results.items():
+                for m, v in metrics.items():
+                    if v is None:
+                        continue
+                    if isinstance(v, str):
+                        wb_flat[f"ood/{at}/{m}"] = v
+                    elif isinstance(v, bool):
+                        wb_flat[f"ood/{at}/{m}"] = int(v)
+                    elif isinstance(v, (int, float)):
+                        if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+                            continue
+                        wb_flat[f"ood/{at}/{m}"] = v
+            if wb_flat:
+                wandb.log(wb_flat)
 
         if logger: logger.close()
         log_file.close()

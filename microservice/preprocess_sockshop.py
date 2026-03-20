@@ -70,6 +70,11 @@ python microservice/preprocess_sockshop.py \\
     --n_categories 6 \\
     --shard_size 5000
 
+To match paper-style experiments with different latency discretizations (e.g. 3, 5, 7, or 9
+duration categories), rerun preprocessing with the desired ``--n_categories`` and train with
+the same value. For Apache-comparable Event / Duration / Multi-task comparisons, see
+``DOCS/dataset-microservice-explaination.md`` (``train_sockshop.py --ood_score``).
+
 Each --splits entry has the format:  split_name:run_dir1,run_dir2,...:label
   split_name  — output folder name (e.g. train_id, valid_ood_cpu)
   run_dirs    — comma-separated paths *relative to* --trace_root
