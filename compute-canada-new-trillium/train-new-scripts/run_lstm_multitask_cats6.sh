@@ -52,6 +52,8 @@ source "$PROJECT/.venv/bin/activate"
 
 srun nvidia-smi
 
+cd "$PROJECT"
+
 srun python -u microservice/train_sockshop.py \
     --preprocessed_dir  "$DATA" \
     --model             lstm \

@@ -52,6 +52,8 @@ source "$PROJECT/.venv/bin/activate"
 
 srun nvidia-smi
 
+cd "$PROJECT"
+
 srun python -u microservice/train_sockshop.py \
     --preprocessed_dir  "$DATA" \
     --model             lstm \
@@ -79,7 +81,7 @@ srun python -u microservice/train_sockshop.py \
     --num_workers       4 \
     --label_smoothing   0.0 \
     --amp \
-    --eval_every        200 \
+    --eval_every        100 \
     --save_every        5000 \
     --lat_score_weight  0.3 \
     --wandb_project     sockshop_lmat \
