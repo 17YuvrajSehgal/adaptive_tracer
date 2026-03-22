@@ -25,7 +25,7 @@ module load python/3.11.5
 SCRATCH=/scratch/yuvraj17/adaptive_tracing_scratch
 PROJECT=$SCRATCH/adaptive_tracer
 DATA=$SCRATCH/micro-service-trace-data/preprocessed_cats${CATS}
-LOG_DIR=$PROJECT/logs/lstm_event_cats${CATS}_${SLURM_JOB_ID}
+LOG_DIR=$PROJECT/logs/lstm_duration_cats${CATS}_${SLURM_JOB_ID}
 
 mkdir -p "$LOG_DIR"
 
@@ -43,7 +43,7 @@ mkdir -p "$TRITON_CACHE_DIR" "$TORCH_HOME"
 
 echo "============================================================"
 echo "Job ID       : $SLURM_JOB_ID"
-echo "Mode         : LSTM  |  Event-only  |  cats=${CATS}"
+echo "Mode         : LSTM  |  Duratin-only  |  cats=${CATS}"
 echo "Data dir     : $DATA"
 echo "Log dir      : $LOG_DIR"
 echo "============================================================"
