@@ -186,6 +186,13 @@ def parse_args():
         "--seed", type=int, default=42,
         help="Random seed (for any stochastic steps)",
     )
+
+    p.add_argument(
+        "--split_ratios", type=str, default=None,
+        metavar="TRAIN:VALID:TEST",
+        help="Split the first normal run into train/valid/test after preprocessing, e.g. '0.70:0.15:0.15'.",
+    )
+
     p.add_argument(
         "--txt_dump_dir", type=str, default=None,
         help="Directory containing pre-converted babeltrace2 text files "
@@ -1261,40 +1268,99 @@ def main():
                 prefix="ERROR")
             sys.exit(1)
 
-        # Save vocab and delay spans (other jobs will load these)
-        os.makedirs(args.output_dir, exist_ok=True)
-        with open(vocab_path, "wb") as f:
-            pickle.dump((dict_sys, dict_proc), f)
-        with open(delay_path, "wb") as f:
-            pickle.dump(delay_spans, f)
+        if args.split_ratios:
+            ratios = [float(x) for x in args.split_ratios.split(":")]
+            if len(ratios) != 3 or abs(sum(ratios) - 1.0) > 1e-6:
+                log("--split_ratios must be 3 floats summing to 1.0 e.g. '0.70:0.15:0.15'",
+                    prefix="ERROR")
+                sys.exit(1)
+            if len(split_specs) < 3:
+                log("--split_ratios requires 3+ splits (train,valid,test,...)",
+                    prefix="ERROR")
+                sys.exit(1)
 
-        log(f"Vocabulary: {len(dict_sys):,} syscalls / {len(dict_proc):,} process names",
-            prefix="VOCAB")
-        log(f"Latency spans: {len(delay_spans or {}):,} event types", prefix="VOCAB")
-        log(f"Saved vocab  → {vocab_path}", prefix="VOCAB")
-        log(f"Saved delays → {delay_path}", prefix="VOCAB")
+            # Shuffle with fixed seed for reproducibility
+            rng = np.random.default_rng(args.seed)
+            rng.shuffle(train_sequences)
 
-        if args.vocab_only:
-            log("--vocab_only set: vocab saved, skipping shard writing.", prefix="DONE")
-            log(f"Submit split jobs with --load_vocab {args.output_dir}", prefix="DONE")
-            return   # no NPZ shards written
+            n = len(train_sequences)
+            n_tr = int(n * ratios[0])
+            n_va = int(n * ratios[1])
+            splits_data = [
+                (split_specs[0], train_sequences[:n_tr]),           # train_id
+                (split_specs[1], train_sequences[n_tr:n_tr + n_va]), # valid_id
+                (split_specs[2], train_sequences[n_tr + n_va:]),     # test_id
+            ]
+            log(f"split_ratios={args.split_ratios}  "
+                f"train={n_tr:,} valid={n_va:,} test={n-n_tr-n_va:,}",
+                prefix="SPLIT")
 
-        # Write train shards
-        train_dir = os.path.join(args.output_dir, train_spec["name"])
-        n = write_shards(train_sequences, train_dir, args.shard_size,
-                         delay_spans, train_spec["label"])
-        meta = {
-            "split":        train_spec["name"],
-            "n_sequences":  n,
-            "n_vocab_sys":  len(dict_sys),
-            "n_vocab_proc": len(dict_proc),
-            "n_categories": args.n_categories,
-            "seg_mode":     args.seg_mode,
-            "is_anomaly":   train_spec["label"],
-            "dirs":         train_spec["dirs"],
-        }
-        with open(os.path.join(train_dir, "meta.json"), "w") as f:
-            json.dump(meta, f, indent=2)
+            # Save vocab/delay_spans ONCE from full dataset
+            os.makedirs(args.output_dir, exist_ok=True)
+            with open(vocab_path, "wb") as f:
+                pickle.dump((dict_sys, dict_proc), f)
+            with open(delay_path, "wb") as f:
+                pickle.dump(delay_spans, f)
+            log(f"Saved vocab → {vocab_path}", prefix="VOCAB")
+            log(f"Saved delays → {delay_path}", prefix="VOCAB")
+
+            if args.vocab_only:
+                log("--vocab_only: vocab saved, skipping shards.", prefix="DONE")
+                return
+
+            # Write the three normal splits
+            for spec, seqs in splits_data:
+                split_dir = os.path.join(args.output_dir, spec["name"])
+                n_written = write_shards(seqs, split_dir, args.shard_size,
+                                         delay_spans, spec["label"])
+                meta = {
+                    "split": spec["name"],
+                    "n_sequences": n_written,
+                    "n_vocab_sys": len(dict_sys),
+                    "n_vocab_proc": len(dict_proc),
+                    "n_categories": args.n_categories,
+                    "seg_mode": args.seg_mode,
+                    "is_anomaly": spec["label"],
+                    "dirs": spec["dirs"],
+                    "split_ratios": args.split_ratios,
+                }
+                with open(os.path.join(split_dir, "meta.json"), "w") as f:
+                    json.dump(meta, f, indent=2)
+
+            # Skip original train write + advance other_specs to anomalies only
+            other_specs = split_specs[3:]
+        else:
+            # ── Original single-train-split path (unchanged) ──────────────────
+            os.makedirs(args.output_dir, exist_ok=True)
+            with open(vocab_path, "wb") as f:
+                pickle.dump((dict_sys, dict_proc), f)
+            with open(delay_path, "wb") as f:
+                pickle.dump(delay_spans, f)
+            log(f"Vocabulary: {len(dict_sys):,} syscalls / {len(dict_proc):,} procs",
+                prefix="VOCAB")
+            log(f"Saved vocab → {vocab_path}", prefix="VOCAB")
+            log(f"Saved delays → {delay_path}", prefix="VOCAB")
+
+            if args.vocab_only:
+                log("--vocab_only set: vocab saved, skipping shard writing.", prefix="DONE")
+                return
+
+            train_dir = os.path.join(args.output_dir, train_spec["name"])
+            n = write_shards(train_sequences, train_dir, args.shard_size,
+                             delay_spans, train_spec["label"])
+            meta = {
+                "split": train_spec["name"],
+                "n_sequences": n,
+                "n_vocab_sys": len(dict_sys),
+                "n_vocab_proc": len(dict_proc),
+                "n_categories": args.n_categories,
+                "seg_mode": args.seg_mode,
+                "is_anomaly": train_spec["label"],
+                "dirs": train_spec["dirs"],
+            }
+            with open(os.path.join(train_dir, "meta.json"), "w") as f:
+                json.dump(meta, f, indent=2)
+
 
     # STEP 2: Process remaining splits (vocab + delay_spans frozen)
     for spec in other_specs:

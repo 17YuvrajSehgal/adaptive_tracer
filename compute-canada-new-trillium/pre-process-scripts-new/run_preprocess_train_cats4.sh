@@ -25,9 +25,10 @@ srun python -u microservice/preprocess_sockshop.py \
     --trace_root "$TRACE_ROOT" --output_dir "$OUTPUT_DIR" \
     --txt_dump_dir "$TXT_DUMP" --load_vocab "$OUTPUT_DIR" \
     --splits \
-        "train_id:normal/run01:0" \
-        "valid_id:normal/run01:0" \
-        "test_id:normal/run01:0" \
+    "train_id:normal/run01:0" \
+    "valid_id:normal/run01:0" \
+    "test_id:normal/run01:0" \
+    --split_ratios 0.70:0.15:0.15 \
     --seg_mode time --window_ms 100 --warmup_s 5 --min_events 8 \
     --max_seq_len 512 --n_categories 4 --shard_size 5000
 
