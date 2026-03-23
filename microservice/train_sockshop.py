@@ -102,9 +102,9 @@ def get_args():
     p.add_argument("--n_categories", type=int, default=6)
     p.add_argument("--max_seq_len",  type=int, default=512)
     p.add_argument("--max_samples",  type=int, default=None)
-    p.add_argument("--lat_score_weight", type=float, default=0.3,
+    p.add_argument("--lat_score_weight", type=float, default=0.5,
                    help="Weight [0,1] for latency cross-entropy in anomaly scoring. "
-                        "Final score = (1-w)*event_xe + w*latency_xe. Default 0.3.")
+                        "Final score = (1-w)*event_xe + w*latency_xe. Default 0.5.")
     p.add_argument(
         "--ood_score",
         choices=["combined", "event", "latency"],

@@ -84,7 +84,7 @@ srun python -u microservice/train_sockshop.py \
     --amp \
     --eval_every        200 \
     --save_every        5000 \
-    --lat_score_weight  0.3 \
+    --lat_score_weight  0.0 \
     --wandb_project     sockshop_lmat \
     --wandb_run_name    "lstm_event_cats${CATS}_${SLURM_JOB_ID}" \
     --log_dir           "$LOG_DIR" \
