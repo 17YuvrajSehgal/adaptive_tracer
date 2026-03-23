@@ -1,0 +1,89 @@
+[02:27:44][rank0] Vocab: 257 syscalls / 6 processes
+[02:27:44][rank0] Train shards for this rank: 64  (total=64)  Valid shards: 64
+[02:27:45][rank0] Model: LSTM  params=47,156,895
+[02:27:45][rank0]   n_hidden=1024  n_layer=6  n_head=8
+[02:27:45][rank0]   AMP(bf16)=True  compile=False  chk=False  DDP=False
+[02:27:45][rank0]   batch=512  accum_steps=4  world_size=1  eff_batch=2048
+[02:27:45][rank0] ======================================================================
+[02:27:45][rank0] Starting training  device=cuda:0  total_steps~=3085  world_size=1
+[02:27:45][rank0] ======================================================================
+[02:30:09][rank0] Epoch   1/20  loss=4.5345  acc_e=27.68%  acc_l=50.31%  elapsed=0:02:23
+[02:30:48][rank0] --- Validation @ step 200 ---
+[02:31:33][rank0]   val loss=2.9163  loss_e=1.7083  acc_e=33.52%  acc_l=56.38%
+[02:31:34][rank0]   New best val loss=2.9163 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/lstm_multitask_cats6_365775/model_best.pt
+[02:33:17][rank0] Epoch   2/20  loss=2.9302  acc_e=33.75%  acc_l=56.38%  elapsed=0:05:31
+[02:34:33][rank0] --- Validation @ step 400 ---
+[02:35:18][rank0]   val loss=2.8954  loss_e=1.6884  acc_e=34.32%  acc_l=56.38%
+[02:35:18][rank0]   New best val loss=2.8954 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/lstm_multitask_cats6_365775/model_best.pt
+[02:36:24][rank0] Epoch   3/20  loss=2.9100  acc_e=34.00%  acc_l=56.38%  elapsed=0:08:39
+[02:36:49][rank0] step=   500  epoch=4  loss=2.8984  acc_e=34.21%  lr=3.00e-04  elapsed=0:09:03
+[02:38:18][rank0] --- Validation @ step 600 ---
+[02:39:03][rank0]   val loss=2.8810  loss_e=1.6735  acc_e=34.32%  acc_l=56.38%
+[02:39:03][rank0]   New best val loss=2.8810 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/lstm_multitask_cats6_365775/model_best.pt
+[02:39:32][rank0] Epoch   4/20  loss=2.8995  acc_e=33.89%  acc_l=56.38%  elapsed=0:11:46
+[02:41:54][rank0] Epoch   5/20  loss=2.8885  acc_e=33.96%  acc_l=56.38%  elapsed=0:14:08
+[02:42:03][rank0] --- Validation @ step 800 ---
+[02:42:48][rank0]   val loss=2.8805  loss_e=1.6706  acc_e=34.32%  acc_l=56.38%
+[02:42:49][rank0]   New best val loss=2.8805 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/lstm_multitask_cats6_365775/model_best.pt
+[02:45:01][rank0] Epoch   6/20  loss=2.8840  acc_e=34.07%  acc_l=56.38%  elapsed=0:17:15
+[02:45:48][rank0] step=  1000  epoch=7  loss=2.8846  acc_e=34.35%  lr=2.74e-04  elapsed=0:18:03
+[02:45:48][rank0] --- Validation @ step 1000 ---
+[02:46:33][rank0]   val loss=2.8690  loss_e=1.6620  acc_e=34.32%  acc_l=56.38%
+[02:46:34][rank0]   New best val loss=2.8690 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/lstm_multitask_cats6_365775/model_best.pt
+[02:48:08][rank0] Epoch   7/20  loss=2.8470  acc_e=34.43%  acc_l=56.15%  elapsed=0:20:22
+[02:49:32][rank0] --- Validation @ step 1200 ---
+[02:50:18][rank0]   val loss=1.5796  loss_e=0.6184  acc_e=78.78%  acc_l=63.63%
+[02:50:18][rank0]   New best val loss=1.5796 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/lstm_multitask_cats6_365775/model_best.pt
+[02:51:16][rank0] Epoch   8/20  loss=1.9635  acc_e=62.45%  acc_l=60.66%  elapsed=0:23:30
+[02:53:17][rank0] --- Validation @ step 1400 ---
+[02:54:03][rank0]   val loss=1.4194  loss_e=0.5078  acc_e=81.32%  acc_l=66.17%
+[02:54:03][rank0]   New best val loss=1.4194 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/lstm_multitask_cats6_365775/model_best.pt
+[02:54:24][rank0] Epoch   9/20  loss=1.4422  acc_e=80.67%  acc_l=65.44%  elapsed=0:26:38
+[02:55:34][rank0] step=  1500  epoch=10  loss=1.3878  acc_e=81.64%  lr=2.07e-04  elapsed=0:27:49
+[02:56:46][rank0] Epoch  10/20  loss=1.3709  acc_e=81.74%  acc_l=67.19%  elapsed=0:29:01
+[02:57:05][rank0] --- Validation @ step 1600 ---
+[02:57:51][rank0]   val loss=1.3363  loss_e=0.4592  acc_e=82.05%  acc_l=67.94%
+[02:57:51][rank0]   New best val loss=1.3363 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/lstm_multitask_cats6_365775/model_best.pt
+[02:59:54][rank0] Epoch  11/20  loss=1.3396  acc_e=82.31%  acc_l=67.90%  elapsed=0:32:09
+[03:00:50][rank0] --- Validation @ step 1800 ---
+[03:01:36][rank0]   val loss=1.3128  loss_e=0.4577  acc_e=82.51%  acc_l=68.89%
+[03:01:36][rank0]   New best val loss=1.3128 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/lstm_multitask_cats6_365775/model_best.pt
+[03:03:02][rank0] Epoch  12/20  loss=1.3178  acc_e=82.53%  acc_l=68.27%  elapsed=0:35:17
+[03:04:36][rank0] step=  2000  epoch=13  loss=1.2975  acc_e=82.71%  lr=1.22e-04  elapsed=0:36:51
+[03:04:36][rank0] --- Validation @ step 2000 ---
+[03:05:22][rank0]   val loss=1.2743  loss_e=0.4435  acc_e=82.87%  acc_l=69.52%
+[03:05:23][rank0]   New best val loss=1.2743 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/lstm_multitask_cats6_365775/model_best.pt
+[03:06:11][rank0] Epoch  13/20  loss=1.2846  acc_e=82.83%  acc_l=69.04%  elapsed=0:38:25
+[03:08:22][rank0] --- Validation @ step 2200 ---
+[03:09:08][rank0]   val loss=1.2343  loss_e=0.4327  acc_e=83.17%  acc_l=70.38%
+[03:09:08][rank0]   New best val loss=1.2343 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/lstm_multitask_cats6_365775/model_best.pt
+[03:09:19][rank0] Epoch  14/20  loss=1.2606  acc_e=83.00%  acc_l=69.58%  elapsed=0:41:34
+[03:11:42][rank0] Epoch  15/20  loss=1.2429  acc_e=83.11%  acc_l=70.08%  elapsed=0:43:56
+[03:12:10][rank0] --- Validation @ step 2400 ---
+[03:12:56][rank0]   val loss=1.2175  loss_e=0.4270  acc_e=83.26%  acc_l=70.85%
+[03:12:56][rank0]   New best val loss=1.2175 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/lstm_multitask_cats6_365775/model_best.pt
+[03:14:24][rank0] step=  2500  epoch=16  loss=1.2281  acc_e=83.09%  lr=4.95e-05  elapsed=0:46:39
+[03:14:50][rank0] Epoch  16/20  loss=1.2281  acc_e=83.15%  acc_l=70.33%  elapsed=0:47:05
+[03:15:55][rank0] --- Validation @ step 2600 ---
+[03:16:41][rank0]   val loss=1.1986  loss_e=0.4252  acc_e=83.30%  acc_l=71.17%
+[03:16:41][rank0]   New best val loss=1.1986 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/lstm_multitask_cats6_365775/model_best.pt
+[03:17:59][rank0] Epoch  17/20  loss=1.2139  acc_e=83.22%  acc_l=70.60%  elapsed=0:50:13
+[03:19:42][rank0] --- Validation @ step 2800 ---
+[03:20:28][rank0]   val loss=1.1818  loss_e=0.4236  acc_e=83.37%  acc_l=71.40%
+[03:20:28][rank0]   New best val loss=1.1818 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/lstm_multitask_cats6_365775/model_best.pt
+[03:21:07][rank0] Epoch  18/20  loss=1.2027  acc_e=83.24%  acc_l=70.80%  elapsed=0:53:22
+[03:23:28][rank0] step=  3000  epoch=19  loss=1.1951  acc_e=83.27%  lr=1.58e-05  elapsed=0:55:42
+[03:23:28][rank0] --- Validation @ step 3000 ---
+[03:24:14][rank0]   val loss=1.1717  loss_e=0.4219  acc_e=83.41%  acc_l=71.67%
+[03:24:14][rank0]   New best val loss=1.1717 -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/lstm_multitask_cats6_365775/model_best.pt
+[03:24:16][rank0] Epoch  19/20  loss=1.1946  acc_e=83.28%  acc_l=71.00%  elapsed=0:56:30
+[03:26:39][rank0] Epoch  20/20  loss=1.1893  acc_e=83.31%  acc_l=71.13%  elapsed=0:58:53
+[03:26:39][rank0] ======================================================================
+[03:26:39][rank0] Training complete — OOD evaluation
+[03:26:39][rank0] ======================================================================
+[03:26:39][rank0] Loaded best model from /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/lstm_multitask_cats6_365775/model_best.pt
+[03:30:05][rank0] [OOD] cpu     AUROC=0.6099  AUPR=0.5721  bal=316026/316026  full=316,026/387,625  F1=0.6667  P=0.5000  R=1.0000  thr=0.0251221
+[03:33:43][rank0] [OOD] disk    AUROC=0.5790  AUPR=0.5570  bal=316026/316026  full=316,026/425,955  F1=0.6673  P=0.5033  R=0.9902  thr=0.0651678
+[03:37:08][rank0] [OOD] mem     AUROC=0.6028  AUPR=0.5597  bal=316026/316026  full=316,026/385,131  F1=0.6732  P=0.5393  R=0.8954  thr=0.234852
+[03:39:45][rank0] [OOD] net     AUROC=0.5918  AUPR=0.5618  bal=220229/220229  full=316,026/220,229  F1=0.6667  P=0.5000  R=1.0000  thr=0.021875
+[03:39:45][rank0] OOD results -> /scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/lstm_multitask_cats6_365775/ood_results.json
