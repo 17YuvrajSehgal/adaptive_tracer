@@ -3,9 +3,9 @@
 #SBATCH --account=def-naser2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=24
-#SBATCH --mem=32G
-#SBATCH --time=10:00:00
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=16G
+#SBATCH --time=05:00:00
 #SBATCH --output=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/%x-%j.out
 #SBATCH --mail-type=BEGIN,END,FAIL
 
@@ -28,6 +28,11 @@ cd "$PROJECT"
 
 source "$PROJECT/.venv/bin/activate"
 
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+
 echo "============================================================"
 echo "Job            : txt_dump_to_shards"
 echo "Job ID         : ${SLURM_JOB_ID:-manual}"
@@ -36,6 +41,8 @@ echo "Project        : $PROJECT"
 echo "Trace root     : $TRACE_ROOT"
 echo "Text dumps     : $TXT_DUMP_DIR"
 echo "Output dir     : $OUTPUT_DIR"
+echo "CPUs           : ${SLURM_CPUS_PER_TASK:-8}"
+echo "Memory         : 16G"
 echo "============================================================"
 
 if [[ ! -d "$TRACE_ROOT" ]]; then
