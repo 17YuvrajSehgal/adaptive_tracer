@@ -74,6 +74,8 @@ try:
             relay_ts_ns = time.time_ns()
 
             # Keep op quoted in case it contains spaces
+            safe_op = op.replace("\\", "\\\\").replace('"', '\\"')
+
             msg = (
                 f'service={service} '
                 f'container={container} '
@@ -83,7 +85,7 @@ try:
                 f'trace_id={trace_id} '
                 f'span_id={span_id} '
                 f'kind={kind} '
-                f'op="{op}"'
+                f'op="{safe_op}"'
             )
 
             logger.info(msg)

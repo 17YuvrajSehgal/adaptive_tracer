@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-RUN_ID=${1:-ultra_01}
-DURATION=${2:-180}                     # 3 min (same as others)
+RUN_ID=${1:-run01}
+DURATION=${2:-100}
 EXPERIMENT_DIR=~/experiments/mem_stress/$RUN_ID
 LOAD_USERS=${LOAD_USERS:-200}          # same load as others
 
@@ -12,9 +12,13 @@ VM_BYTES=${VM_BYTES:-90%}              # aggressive but safer than 100%
 VM_METHOD=${VM_METHOD:-all}
 
 mkdir -p "$EXPERIMENT_DIR"/{metrics}
-RUN_START_EPOCH=$(date -u +%s)
+
+sudo -v
 
 echo "🧠 ULTRA MEM Stress: $RUN_ID (${DURATION}s, ${LOAD_USERS} users, vm=${VM_WORKERS}, bytes=${VM_BYTES})"
+sleep 20
+
+RUN_START_EPOCH=$(date -u +%s)
 
 # 1) Tracing
 (cd ~ && ./collect_trace.sh anomaly_mem "$RUN_ID" "$DURATION") &
@@ -28,6 +32,7 @@ stress-ng \
   --vm-keep \
   --page-in \
   --timeout "${DURATION}s" \
+  --log-level WARNING \
   --metrics-brief &
 STRESS_PID=$!
 
@@ -51,19 +56,27 @@ RUN_END_EPOCH=$(date -u +%s)
 TRACE_DIR=~/traces/anomaly_mem/"$RUN_ID"
 sudo chown -R "$(whoami)" "$TRACE_DIR" 2>/dev/null || true
 
-echo "⏸️  Prometheus flush..."
-sleep 30
+echo "⏸️  Prometheus flush (10s)..."
+sleep 10
 
-START_ISO=$(date -u -d "@$((RUN_START_EPOCH-30))" '+%Y-%m-%dT%H:%M:%SZ')
-END_ISO=$(date -u -d "@$((RUN_END_EPOCH+30))" '+%Y-%m-%dT%H:%M:%SZ')
-./download_metrics.sh "$START_ISO" "$END_ISO" "$EXPERIMENT_DIR/metrics"
+START_ISO=$(date -u -d "@$((RUN_START_EPOCH-10))" '+%Y-%m-%dT%H:%M:%SZ')
+END_ISO=$(date -u -d "@$((RUN_END_EPOCH+10))" '+%Y-%m-%dT%H:%M:%SZ')
 
+STEP=10s RATE_WINDOW=1m ./download_metrics.sh "$START_ISO" "$END_ISO" "$EXPERIMENT_DIR/metrics"
+
+
+# Summary
 REQ_COUNT=$(tail -n +2 "$EXPERIMENT_DIR/load_results.csv" 2>/dev/null | wc -l || echo 0)
+OTEL_SPANS=$(babeltrace "$TRACE_DIR/ust" 2>/dev/null | grep -c "otel.spans" || echo 0)
+BUSINESS_SPANS=$(babeltrace "$TRACE_DIR/ust" 2>/dev/null | grep -c -i "service=carts\|service=orders\|service=shipping\|service=queue-master" || echo 0)
 
 cat << EOF
 
-🧠 ULTRA MEM COMPLETE: $RUN_ID
+✅ $RUN_ID COMPLETE
 📊 Requests: $REQ_COUNT
+🔍 Spans: $OTEL_SPANS ($BUSINESS_SPANS business)
+📈 Metrics: $(find "$EXPERIMENT_DIR/metrics" -type f | wc -l) files
 💾 $(du -sh "$EXPERIMENT_DIR" 2>/dev/null | cut -f1)
+💾 $(du -sh "$TRACE_DIR" 2>/dev/null | cut -f1)
 
 EOF

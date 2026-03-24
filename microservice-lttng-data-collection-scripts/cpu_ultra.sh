@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-RUN_ID=${1:-ultra_01}
-DURATION=${2:-180}           # 3min sustained
+RUN_ID=${1:-run01}
+DURATION=${2:-100}
 EXPERIMENT_DIR=~/experiments/cpu_ultra/$RUN_ID
 LOAD_USERS=200               # high load
 
@@ -10,6 +10,12 @@ mkdir -p "$EXPERIMENT_DIR"/{metrics}
 RUN_START_EPOCH=$(date -u +%s)
 
 echo "💥 ULTRA CPU Stress: $RUN_ID (${DURATION}s, ${LOAD_USERS} users)"
+
+RUN_ID=${1:-run_01}
+RUN_START_EPOCH=$(date -u +%s)
+
+echo "⏳ Warmup for Prometheus/service stability (20s)..."
+sleep 20
 
 # 1) Tracing
 (cd ~ && ./collect_trace.sh anomaly_cpu "$RUN_ID" "$DURATION") &
@@ -33,6 +39,7 @@ python3 ~/load_generator.py \
   --duration "$DURATION" \
   --think-min 0.1 \
   --think-max 0.3 \
+  --log-level WARNING \
   --output "$EXPERIMENT_DIR/load_results.csv" &
 LOAD_PID=$!
 
@@ -45,15 +52,17 @@ TRACE_DIR=~/traces/anomaly_cpu/"$RUN_ID"
 sudo chown -R "$(whoami)" "$TRACE_DIR" 2>/dev/null || true
 
 echo "⏸️  Prometheus flush..."
-sleep 30
+sleep 10
 
-START_ISO=$(date -u -d "@$((RUN_START_EPOCH-30))" '+%Y-%m-%dT%H:%M:%SZ')
-END_ISO=$(date -u -d "@$((RUN_END_EPOCH+30))" '+%Y-%m-%dT%H:%M:%SZ')
-./download_metrics.sh "$START_ISO" "$END_ISO" "$EXPERIMENT_DIR/metrics"
+START_ISO=$(date -u -d "@$((RUN_START_EPOCH-10))" '+%Y-%m-%dT%H:%M:%SZ')
+END_ISO=$(date -u -d "@$((RUN_END_EPOCH+10))" '+%Y-%m-%dT%H:%M:%SZ')
+
+STEP=10s RATE_WINDOW=1m ./download_metrics.sh "$START_ISO" "$END_ISO" "$EXPERIMENT_DIR/metrics"
 
 # Summary
 REQ_COUNT=$(tail -n +2 "$EXPERIMENT_DIR/load_results.csv" 2>/dev/null | wc -l || echo 0)
-OTEL_SPANS=$(babeltrace "$TRACE_DIR" 2>/dev/null | grep -c "otel.spans" || echo 0)
+OTEL_SPANS=$(babeltrace "$TRACE_DIR/ust" 2>/dev/null | grep -c "otel.spans" || echo 0)
+BUSINESS_SPANS=$(babeltrace "$TRACE_DIR/ust" 2>/dev/null | grep -c -i "service=carts\|service=orders\|service=shipping\|service=queue-master" || echo 0)
 
 cat << EOF
 
