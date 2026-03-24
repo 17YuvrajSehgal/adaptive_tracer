@@ -113,7 +113,24 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--warmup_s", type=float, default=5.0)
     p.add_argument("--min_events", type=int, default=8)
     p.add_argument("--max_seq_len", type=int, default=512)
-    p.add_argument("--n_categories", type=int, default=6, choices=[4, 6, 8, 10])
+    p.add_argument(
+        "--n_categories",
+        type=int,
+        default=6,
+        choices=[4, 6, 8, 10],
+        help="Total latency classes used in the shard labels, including the "
+             "reserved 0 class for pad/non-exit tokens. Therefore 6 here is "
+             "logically equivalent to the paper's 5 duration categories.",
+    )
+    p.add_argument(
+        "--paper_duration_bins",
+        type=int,
+        choices=[3, 5, 7, 9],
+        default=None,
+        help="Paper-style duration-bin count excluding the reserved 0 class. "
+             "If set, the script maps 3/5/7/9 to effective n_categories "
+             "4/6/8/10 respectively.",
+    )
     p.add_argument("--shard_size", type=int, default=5000)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument(
@@ -722,6 +739,13 @@ def build_eval_split(spec: SplitSpec, dict_sys: Dictionary, dict_proc: Dictionar
 
 def main():
     args = parse_args()
+    if args.paper_duration_bins is not None:
+        args.n_categories = args.paper_duration_bins + 1
+        log(
+            f"paper_duration_bins={args.paper_duration_bins} -> "
+            f"effective n_categories={args.n_categories}",
+            prefix="START",
+        )
     np.random.seed(args.seed)
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -733,10 +757,17 @@ def main():
             "min_events": args.min_events,
             "max_seq_len": args.max_seq_len,
             "n_categories": args.n_categories,
+            "paper_duration_bins": (
+                args.paper_duration_bins
+                if args.paper_duration_bins is not None
+                else args.n_categories - 1
+            ),
             "event_scope": args.event_scope,
             "notes": [
                 "Event representation follows LMAT syscall sequence modeling.",
                 "Duration categories are built from training exits only.",
+                "Code n_categories includes the reserved 0 class; the paper's "
+                "3/5/7/9 notation refers to the non-zero duration bins only.",
                 "The same shards support event-only, duration-only, and multi-task training.",
             ],
         },
