@@ -6,7 +6,7 @@ DURATION=${2:-180}           # 3min sustained
 EXPERIMENT_DIR=~/experiments/cpu_ultra/$RUN_ID
 LOAD_USERS=200               # high load
 
-mkdir -p "$EXPERIMENT_DIR"/{metrics,load_logs}
+mkdir -p "$EXPERIMENT_DIR"/{metrics}
 RUN_START_EPOCH=$(date -u +%s)
 
 echo "💥 ULTRA CPU Stress: $RUN_ID (${DURATION}s, ${LOAD_USERS} users)"

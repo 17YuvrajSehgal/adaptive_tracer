@@ -1,6 +1,6 @@
 #!/bin/bash
 # download_metrics.sh - Full version w/ output directory
-PROMETHEUS="http://35.226.88.171:9090"
+PROMETHEUS="http://34.58.215.226:9090"
 STEP="30s"
 
 if [ $# -lt 2 ] || [ $# -gt 3 ]; then

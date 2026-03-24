@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 RUN_ID=${1:-run_01}
 DURATION=${2:-300}
@@ -7,9 +7,12 @@ EXPERIMENT_DIR=~/experiments/normal/$RUN_ID
 FRONTEND_HOST=${FRONTEND_HOST:-http://localhost:80}
 LOAD_USERS=${LOAD_USERS:-200}
 
-mkdir -p "$EXPERIMENT_DIR"/{metrics,load_logs}
+mkdir -p "$EXPERIMENT_DIR"/{metrics}
 
 echo "🚀 Normal: $RUN_ID (${DURATION}s, ${LOAD_USERS} users)"
+
+# Make sure sudo is authenticated before background tracing starts
+sudo -v
 
 RUN_START_EPOCH=$(date -u +%s)
 
@@ -47,8 +50,8 @@ END_ISO=$(date -u -d "@$((RUN_END_EPOCH+30))" '+%Y-%m-%dT%H:%M:%SZ')
 
 # Summary
 REQ_COUNT=$(tail -n +2 "$EXPERIMENT_DIR/load_results.csv" 2>/dev/null | wc -l || echo 0)
-OTEL_SPANS=$(babeltrace "$TRACE_DIR" 2>/dev/null | grep -c "otel.spans" || echo 0)
-BUSINESS_SPANS=$(babeltrace "$TRACE_DIR" 2>/dev/null | grep -c -i "cart\|orders" || echo 0)
+OTEL_SPANS=$(babeltrace "$TRACE_DIR/ust" 2>/dev/null | grep -c "otel.spans" || echo 0)
+BUSINESS_SPANS=$(babeltrace "$TRACE_DIR/ust" 2>/dev/null | grep -c -i "service=carts\|service=orders\|service=shipping\|service=queue-master" || echo 0)
 
 cat << EOF
 

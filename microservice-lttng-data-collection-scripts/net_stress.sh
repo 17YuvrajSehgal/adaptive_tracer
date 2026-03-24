@@ -17,7 +17,7 @@ NET_RATE=${NET_RATE:-15mbit}           # bandwidth cap
 NET_BURST=${NET_BURST:-32k}
 NET_LATENCY=${NET_LATENCY:-400ms}
 
-mkdir -p "$EXPERIMENT_DIR"/{metrics,load_logs}
+mkdir -p "$EXPERIMENT_DIR"/{metrics}
 RUN_START_EPOCH=$(date -u +%s)
 
 echo "🌐 NET Anomaly: $RUN_ID (${DURATION}s, ${LOAD_USERS} users) iface=${NET_IFACE} delay=${NET_DELAY_MS}ms±${NET_JITTER_MS}ms loss=${NET_LOSS_PCT}% rate=${NET_RATE}"

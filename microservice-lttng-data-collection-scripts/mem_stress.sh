@@ -11,7 +11,7 @@ VM_WORKERS=${VM_WORKERS:-16}           # more workers
 VM_BYTES=${VM_BYTES:-90%}              # aggressive but safer than 100%
 VM_METHOD=${VM_METHOD:-all}
 
-mkdir -p "$EXPERIMENT_DIR"/{metrics,load_logs}
+mkdir -p "$EXPERIMENT_DIR"/{metrics}
 RUN_START_EPOCH=$(date -u +%s)
 
 echo "🧠 ULTRA MEM Stress: $RUN_ID (${DURATION}s, ${LOAD_USERS} users, vm=${VM_WORKERS}, bytes=${VM_BYTES})"

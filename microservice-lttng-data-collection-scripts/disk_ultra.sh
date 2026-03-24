@@ -13,7 +13,7 @@ DISK_WORKERS=${DISK_WORKERS:-300}   # more concurrency
 DISK_BYTES=${DISK_BYTES:-4G}        # per-worker target (total is still very large; tune carefully)
 HDD_OPTS=${HDD_OPTS:-direct,fsync}  # stronger latency impact (fsync hurts)
 
-mkdir -p "$EXPERIMENT_DIR"/{metrics,load_logs}
+mkdir -p "$EXPERIMENT_DIR"/{metrics}
 RUN_START_EPOCH=$(date -u +%s)
 
 echo "💥 ULTRA DISK Stress: $RUN_ID (${DURATION}s, ${LOAD_USERS} users + ${DISK_WORKERS} workers, ${DISK_BYTES}/worker, opts=${HDD_OPTS})"
