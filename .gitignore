@@ -11,12 +11,11 @@ __pycache__/
 /grafana-pdfs
 experiments.tar.gz
 
-micro-service-trace-data/experiments
-micro-service-trace-data/preprocessed/*/
+micro-service-trace-data/*
 !micro-service-trace-data/preprocessed/delay_spans.pkl
 !micro-service-trace-data/preprocessed/vocab.pkl
 
-logs/*/*.pt
+logs/
 
 logs/overhead_experiments/*/*.pdf
 logs/overhead_experiments/**/*.json

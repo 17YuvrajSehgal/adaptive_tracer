@@ -74,11 +74,19 @@ To match paper-style experiments with different latency discretizations (e.g. 3,
 duration categories), rerun preprocessing with the desired ``--n_categories`` and train with
 the same value. For Apache-comparable Event / Duration / Multi-task comparisons, see
 ``DOCS/dataset-microservice-explaination.md`` (``train_sockshop.py --ood_score``).
+Those three training modes reuse the SAME preprocessed shards; only the training flags change.
 
 Each --splits entry has the format:  split_name:run_dir1,run_dir2,...:label
   split_name  — output folder name (e.g. train_id, valid_ood_cpu)
   run_dirs    — comma-separated paths *relative to* --trace_root
   label       — 0=normal, 1=anomaly (written into is_anomaly field)
+
+Alternatively, use ``--split_preset five_run_ood`` to auto-generate the
+canonical 5-run SockShop layout:
+  normal train = run01,run02,run03
+  normal valid = run04
+  normal test  = run05
+  anomaly valid/test defaults = run04/run05 for each anomaly family
 """
 
 import os
@@ -145,13 +153,19 @@ def parse_args():
         help="Where to write preprocessed NPZ shards and vocab files",
     )
     p.add_argument(
-        "--splits", nargs="+", required=True,
+        "--splits", nargs="+", default=None,
         metavar="NAME:DIRS:LABEL",
         help="One entry per dataset split.  Format: "
              "'split_name:run_dir1,run_dir2,...:label'  "
              "where label is 0 (normal) or 1 (anomaly).  "
              "The FIRST split entry is treated as the TRAINING split "
              "(used to build vocabulary & latency boundaries).",
+    )
+    p.add_argument(
+        "--split_preset", choices=["five_run_ood"], default=None,
+        help="Optional helper that auto-builds split specs for a standard "
+             "5-run SockShop dataset. Useful when trace_root contains "
+             "normal/, anomaly_cpu/, anomaly_disk/, anomaly_mem/, anomaly_net/.",
     )
     p.add_argument(
         "--seg_mode", choices=["ust", "time"], default="ust",
@@ -219,7 +233,108 @@ def parse_args():
         "--ust_event_name", type=str, default="otel.spans",
         help="LTTng Python event name used by the OTel relay",
     )
+    p.add_argument("--normal_dir", type=str, default="normal",
+                   help="Scenario directory name for normal runs")
+    p.add_argument("--cpu_dir", type=str, default="anomaly_cpu",
+                   help="Scenario directory name for CPU anomaly runs")
+    p.add_argument("--disk_dir", type=str, default="anomaly_disk",
+                   help="Scenario directory name for disk anomaly runs")
+    p.add_argument("--mem_dir", type=str, default="anomaly_mem",
+                   help="Scenario directory name for memory anomaly runs")
+    p.add_argument("--net_dir", type=str, default="anomaly_net",
+                   help="Scenario directory name for network anomaly runs")
+    p.add_argument("--normal_train_runs", type=str, default="run01,run02,run03",
+                   help="Comma-separated normal runs used for train_id")
+    p.add_argument("--normal_valid_runs", type=str, default="run04",
+                   help="Comma-separated normal runs used for valid_id")
+    p.add_argument("--normal_test_runs", type=str, default="run05",
+                   help="Comma-separated normal runs used for test_id")
+    p.add_argument("--ood_valid_runs", type=str, default="run04",
+                   help="Comma-separated anomaly runs used for valid_ood_* splits")
+    p.add_argument("--ood_test_runs", type=str, default="run05",
+                   help="Comma-separated anomaly runs used for test_ood_* splits")
     return p.parse_args()
+
+
+def _csv_list(value: str) -> list[str]:
+    return [v.strip() for v in value.split(",") if v.strip()]
+
+
+def _join_runs(scenario_dir: str, runs: list[str]) -> list[str]:
+    return [f"{scenario_dir}/{run}" for run in runs]
+
+
+def build_split_specs(args) -> list[dict]:
+    """Build split specs either from explicit --splits or a preset."""
+    if args.split_preset:
+        normal_train = _join_runs(args.normal_dir, _csv_list(args.normal_train_runs))
+        normal_valid = _join_runs(args.normal_dir, _csv_list(args.normal_valid_runs))
+        normal_test = _join_runs(args.normal_dir, _csv_list(args.normal_test_runs))
+        ood_valid_runs = _csv_list(args.ood_valid_runs)
+        ood_test_runs = _csv_list(args.ood_test_runs)
+
+        split_specs = [
+            {"name": "train_id", "dirs": normal_train, "label": 0},
+            {"name": "valid_id", "dirs": normal_valid, "label": 0},
+            {"name": "test_id", "dirs": normal_test, "label": 0},
+            {"name": "valid_ood_cpu", "dirs": _join_runs(args.cpu_dir, ood_valid_runs), "label": 1},
+            {"name": "test_ood_cpu", "dirs": _join_runs(args.cpu_dir, ood_test_runs), "label": 1},
+            {"name": "valid_ood_disk", "dirs": _join_runs(args.disk_dir, ood_valid_runs), "label": 1},
+            {"name": "test_ood_disk", "dirs": _join_runs(args.disk_dir, ood_test_runs), "label": 1},
+            {"name": "valid_ood_mem", "dirs": _join_runs(args.mem_dir, ood_valid_runs), "label": 1},
+            {"name": "test_ood_mem", "dirs": _join_runs(args.mem_dir, ood_test_runs), "label": 1},
+            {"name": "valid_ood_net", "dirs": _join_runs(args.net_dir, ood_valid_runs), "label": 1},
+            {"name": "test_ood_net", "dirs": _join_runs(args.net_dir, ood_test_runs), "label": 1},
+        ]
+        return split_specs
+
+    if not args.splits:
+        raise ValueError("Provide either --splits or --split_preset.")
+
+    split_specs = []
+    for spec in args.splits:
+        parts = spec.split(":")
+        if len(parts) != 3:
+            raise ValueError(f"Invalid split spec '{spec}' — expected NAME:DIRS:LABEL")
+        name, dirs_str, label_str = parts
+        dirs = [d.strip() for d in dirs_str.split(",") if d.strip()]
+        label = int(label_str)
+        split_specs.append({"name": name, "dirs": dirs, "label": label})
+    return split_specs
+
+
+def resolve_run_dir(trace_root: str, run_rel: str) -> str:
+    """Resolve a run directory under either trace_root/ or trace_root/traces/."""
+    candidates = [
+        os.path.join(trace_root, run_rel),
+        os.path.join(trace_root, "traces", run_rel),
+    ]
+    for candidate in candidates:
+        if os.path.isdir(candidate):
+            return candidate
+    return candidates[0]
+
+
+def find_text_dump(txt_dump_dir: str | None, run_dir: str) -> str | None:
+    """Find a pre-converted kernel text dump across the old and new layouts."""
+    if not txt_dump_dir:
+        return None
+
+    parts = run_dir.replace("\\", "/").rstrip("/").split("/")
+    if len(parts) < 2:
+        return None
+    scenario = parts[-2]
+    run_name = parts[-1]
+    flattened = f"{scenario}_{run_name}_kernel.txt"
+
+    candidates = [
+        os.path.join(txt_dump_dir, scenario, run_name, "kernel.txt"),
+        os.path.join(txt_dump_dir, flattened),
+    ]
+    for candidate in candidates:
+        if os.path.isfile(candidate):
+            return candidate
+    return None
 
 
 ###############################################################################
@@ -1007,19 +1122,12 @@ def process_run(run_dir, seg_mode, window_ms, warmup_s, min_events,
 
     # ── 1. Collect kernel events ─────────────────────────────────────────────
     # Determine whether a pre-converted text file is available (fast path)
-    txt_file = None
+    txt_file = find_text_dump(txt_dump_dir, run_dir)
     if txt_dump_dir:
-        # Convention matches the dump script: <txt_dump_dir>/TYPE/RUN/kernel.txt
-        # e.g.  .../normal/run01/kernel.txt
-        #       .../anomaly_cpu/ultra_01/kernel.txt
-        # run_dir is absolute — take the last two path components.
-        parts = run_dir.replace("\\", "/").rstrip("/").split("/")
-        candidate = os.path.join(txt_dump_dir, parts[-2], parts[-1], "kernel.txt")
-        if os.path.isfile(candidate):
-            txt_file = candidate
-            log(f"Text dump found: {parts[-2]}/{parts[-1]}/kernel.txt", prefix="PARSE")
+        if txt_file:
+            log(f"Text dump found: {txt_file}", prefix="PARSE")
         else:
-            log(f"No text dump at {candidate} — falling back to bt2 API",
+            log(f"No text dump found for {run_dir} — falling back to bt2 API",
                 prefix="WARN")
 
     t0 = time()
@@ -1164,6 +1272,17 @@ def main():
     args = parse_args()
     np.random.seed(args.seed)
 
+    if args.split_preset and args.split_ratios:
+        log("--split_preset and --split_ratios are mutually exclusive; "
+            "use explicit run-based splits for the 5-run preset.",
+            prefix="ERROR")
+        sys.exit(1)
+    if args.load_vocab and args.split_ratios:
+        log("--load_vocab cannot be combined with --split_ratios because "
+            "split_ratios requires rebuilding the training split first.",
+            prefix="ERROR")
+        sys.exit(1)
+
     os.makedirs(args.output_dir, exist_ok=True)
 
     log("="*60, prefix="START")
@@ -1178,17 +1297,11 @@ def main():
     log("="*60, prefix="START")
 
     # Parse split specs ---------------------------------------------------
-    split_specs = []
-    for spec in args.splits:
-        parts = spec.split(":")
-        if len(parts) != 3:
-            log(f"Invalid split spec '{spec}' — expected NAME:DIRS:LABEL",
-                prefix="ERROR")
-            sys.exit(1)
-        name, dirs_str, label_str = parts
-        dirs  = [d.strip() for d in dirs_str.split(",") if d.strip()]
-        label = int(label_str)
-        split_specs.append({"name": name, "dirs": dirs, "label": label})
+    try:
+        split_specs = build_split_specs(args)
+    except ValueError as exc:
+        log(str(exc), prefix="ERROR")
+        sys.exit(1)
 
     log(f"Splits to process ({len(split_specs)} total):", prefix="START")
     for s in split_specs:
@@ -1239,7 +1352,7 @@ def main():
         train_sequences = []
 
         for run_rel in train_spec["dirs"]:
-            run_dir = os.path.join(args.trace_root, run_rel)
+            run_dir = resolve_run_dir(args.trace_root, run_rel)
             if not os.path.isdir(run_dir):
                 log(f"Run dir not found: {run_dir}", prefix="WARN")
                 continue
@@ -1369,7 +1482,7 @@ def main():
 
         split_sequences = []
         for run_rel in spec["dirs"]:
-            run_dir = os.path.join(args.trace_root, run_rel)
+            run_dir = resolve_run_dir(args.trace_root, run_rel)
             if not os.path.isdir(run_dir):
                 log(f"Run dir not found: {run_dir}", prefix="WARN")
                 continue
