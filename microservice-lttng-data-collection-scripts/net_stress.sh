@@ -52,8 +52,8 @@ python3 ~/load_generator.py \
   --host "$FRONTEND_HOST" \
   --users "$LOAD_USERS" \
   --duration "$DURATION" \
-  --think-min 0.1 \
-  --think-max 0.3 \
+  --think-min 0.2 \
+  --think-max 1.0 \
   --log-level WARNING \
   --output "$EXPERIMENT_DIR/load_results.csv" &
 LOAD_PID=$!
