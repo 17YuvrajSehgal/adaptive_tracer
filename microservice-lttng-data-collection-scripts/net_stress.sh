@@ -6,9 +6,7 @@ DURATION=${2:-100}
 EXPERIMENT_DIR=~/experiments/net_stress/$RUN_ID
 FRONTEND_HOST=${FRONTEND_HOST:-http://localhost:80}
 LOAD_USERS=${LOAD_USERS:-200}
-
-# Docker bridge for Sock Shop traffic
-NET_IFACE=${NET_IFACE:-br-324d2469daeb}
+TRACE_START_DELAY=${TRACE_START_DELAY:-8}
 
 # More stable impairment profile
 NET_DELAY_MS=${NET_DELAY_MS:-80}
@@ -19,6 +17,25 @@ NET_BURST=${NET_BURST:-64k}
 NET_LATENCY=${NET_LATENCY:-100ms}
 
 mkdir -p "$EXPERIMENT_DIR"/{metrics}
+TRACE_LOG="$EXPERIMENT_DIR/collect_trace.log"
+
+resolve_sockshop_bridge() {
+  local bridge
+  bridge=$(docker network inspect -f '{{printf "%.12s" .Id}}' docker-compose_default 2>/dev/null || true)
+  if [[ -n "$bridge" ]]; then
+    echo "br-$bridge"
+    return 0
+  fi
+
+  docker network ls --format '{{.Name}}' | grep -qx 'docker-compose_default' || return 1
+  return 1
+}
+
+# Docker bridge for Sock Shop traffic
+NET_IFACE=${NET_IFACE:-$(resolve_sockshop_bridge)}
+
+TRACE_PID=""
+LOAD_PID=""
 
 echo "🌐 NET Anomaly: $RUN_ID (${DURATION}s, ${LOAD_USERS} users) iface=${NET_IFACE} delay=${NET_DELAY_MS}ms±${NET_JITTER_MS}ms loss=${NET_LOSS_PCT}% rate=${NET_RATE}"
 
@@ -30,12 +47,40 @@ RUN_START_EPOCH=$(date -u +%s)
 
 cleanup() {
   sudo tc qdisc del dev "$NET_IFACE" root 2>/dev/null || true
+
+  if [[ -n "${LOAD_PID:-}" ]]; then
+    kill "$LOAD_PID" 2>/dev/null || true
+    wait "$LOAD_PID" 2>/dev/null || true
+  fi
+
+  if [[ -n "${TRACE_PID:-}" ]]; then
+    kill "$TRACE_PID" 2>/dev/null || true
+    wait "$TRACE_PID" 2>/dev/null || true
+  fi
 }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
+
+if [[ -z "$NET_IFACE" ]]; then
+  echo "ERROR: could not resolve the docker-compose_default bridge interface" >&2
+  echo "Set NET_IFACE manually, for example: NET_IFACE=br-3b32b24f077e ./net_stress.sh $RUN_ID $DURATION" >&2
+  exit 1
+fi
+
+if ! ip link show "$NET_IFACE" >/dev/null 2>&1; then
+  echo "ERROR: resolved NET_IFACE '$NET_IFACE' does not exist on this host" >&2
+  exit 1
+fi
+
+echo "Tracing will start first; waiting ${TRACE_START_DELAY}s before applying netem."
+
+# If a previous run was interrupted, stale sessions can block the next one.
+lttng destroy sockshop-ust 2>/dev/null || true
+sudo lttng destroy sockshop-kernel 2>/dev/null || true
 
 # Tracing
-(cd ~ && ./collect_trace.sh anomaly_net "$RUN_ID" "$DURATION") &
+(cd ~ && ./collect_trace.sh anomaly_net "$RUN_ID" "$DURATION") >"$TRACE_LOG" 2>&1 &
 TRACE_PID=$!
+sleep "$TRACE_START_DELAY"
 
 # Apply network impairment
 sudo tc qdisc add dev "$NET_IFACE" root handle 1: netem \
@@ -46,6 +91,7 @@ sudo tc qdisc add dev "$NET_IFACE" parent 1: handle 10: tbf \
   rate "$NET_RATE" burst "$NET_BURST" latency "$NET_LATENCY"
 
 echo "⚠️  tc netem/tbf applied on $NET_IFACE"
+sudo tc qdisc show dev "$NET_IFACE" || true
 
 # Load
 python3 ~/load_generator.py \
