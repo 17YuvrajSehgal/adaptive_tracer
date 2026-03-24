@@ -17,7 +17,7 @@ RUN="$2"
 SCRATCH=/scratch/yuvraj17/adaptive_tracing_scratch
 PROJECT=$SCRATCH/adaptive_tracer
 TRACE_ROOT=$SCRATCH/micro-service-trace-data
-DUMP_ROOT=$SCRATCH/micro-service-trace-data/micro-service-trace-data-txt-dump
+DUMP_ROOT=$SCRATCH/micro-service-trace-data-txt-dump
 
 RUN_DIR="$TRACE_ROOT/$SCENARIO/$RUN"
 OUT_DIR="$DUMP_ROOT/$SCENARIO/$RUN"
