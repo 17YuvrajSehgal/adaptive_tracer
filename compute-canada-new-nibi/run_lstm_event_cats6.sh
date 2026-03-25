@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=12
 #SBATCH --gpus-per-node=h100:1
 #SBATCH --mem=32G
-#SBATCH --time=08:00:00
+#SBATCH --time=12:00:00
 #SBATCH --output=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/%x-%j.out
 #SBATCH --mail-type=BEGIN,END,FAIL
 
