@@ -42,7 +42,6 @@ echo "Trace root     : $TRACE_ROOT"
 echo "Text dumps     : $TXT_DUMP_DIR"
 echo "Output dir     : $OUTPUT_DIR"
 echo "CPUs           : ${SLURM_CPUS_PER_TASK:-8}"
-echo "Memory         : 16G"
 echo "============================================================"
 
 if [[ ! -d "$TXT_DUMP_DIR" ]]; then

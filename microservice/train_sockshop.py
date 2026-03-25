@@ -140,6 +140,13 @@ def get_args():
     p.add_argument("--train_event_model",    action="store_true")
     p.add_argument("--train_latency_model",  action="store_true")
     p.add_argument("--ordinal_latency",      action="store_true")
+    p.add_argument(
+        "--multitask_lambda",
+        type=float,
+        default=0.5,
+        help="Lambda in the paper's multitask loss: L = lambda*L_event + "
+             "(1-lambda)*L_duration. Ignored when only one head is trained.",
+    )
     p.add_argument("--label_smoothing", type=float, default=0.0)
 
     # Training
@@ -175,6 +182,8 @@ def get_args():
         p.error("--ood_score event requires --train_event_model")
     if args.ood_score == "latency" and not args.train_latency_model:
         p.error("--ood_score latency requires --train_latency_model")
+    if not (0.0 <= args.multitask_lambda <= 1.0):
+        p.error("--multitask_lambda must be in [0,1]")
     return args
 
 
@@ -299,19 +308,28 @@ def compute_loss(logits_e, logits_l, batch, device, args, crit_e, crit_l):
     loss = torch.tensor(0.0, device=device)
     loss_e = loss_l = torch.tensor(0.0, device=device)
 
-    if args.train_event_model and crit_e and logits_e.numel() > 0:
+    has_event = args.train_event_model and crit_e and logits_e.numel() > 0
+    has_latency = args.train_latency_model and crit_l and logits_l.numel() > 0
+
+    if has_event:
         B, L, V = logits_e.shape
         loss_e = crit_e(logits_e.reshape(B*L, V), tgt_call.reshape(B*L))
-        loss   = loss + loss_e
 
-    if args.train_latency_model and crit_l and logits_l.numel() > 0:
+    if has_latency:
         B, L, C = logits_l.shape
         if args.ordinal_latency:
             loss_l = crit_l(logits_l.reshape(B*L, C),
                             tgt_lat.reshape(B*L, 1).float().expand(B*L, C))
         else:
             loss_l = crit_l(logits_l.reshape(B*L, C), tgt_lat.reshape(B*L))
-        loss = loss + loss_l
+
+    if has_event and has_latency:
+        lam = float(args.multitask_lambda)
+        loss = lam * loss_e + (1.0 - lam) * loss_l
+    elif has_event:
+        loss = loss_e
+    elif has_latency:
+        loss = loss_l
 
     return loss, loss_e, loss_l
 
