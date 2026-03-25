@@ -18,8 +18,8 @@ module load scipy-stack
 
 SCRATCH=/scratch/yuvraj17/adaptive_tracing_scratch
 PROJECT=$SCRATCH/adaptive_tracer
-TRACE_ROOT=$SCRATCH/micro-service-trace-data
 TXT_DUMP_DIR=$SCRATCH/micro-service-trace-data-txt-dump
+TRACE_ROOT=$TXT_DUMP_DIR
 OUTPUT_DIR=$SCRATCH/micro-service-trace-data/preprocessed_lmat_kernel_cats6
 LOG_DIR=$PROJECT/logs
 
@@ -44,11 +44,6 @@ echo "Output dir     : $OUTPUT_DIR"
 echo "CPUs           : ${SLURM_CPUS_PER_TASK:-8}"
 echo "Memory         : 16G"
 echo "============================================================"
-
-if [[ ! -d "$TRACE_ROOT" ]]; then
-  echo "ERROR: trace root not found: $TRACE_ROOT" >&2
-  exit 1
-fi
 
 if [[ ! -d "$TXT_DUMP_DIR" ]]; then
   echo "ERROR: txt dump dir not found: $TXT_DUMP_DIR" >&2
