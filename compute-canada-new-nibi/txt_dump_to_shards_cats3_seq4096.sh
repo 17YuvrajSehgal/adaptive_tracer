@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=txt_dump_to_shards_5cat_4096
+#SBATCH --job-name=txt_dump_to_shards_3cat_4096
 #SBATCH --account=def-naser2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -20,7 +20,7 @@ SCRATCH=/scratch/yuvraj17/adaptive_tracing_scratch
 PROJECT=$SCRATCH/adaptive_tracer
 TXT_DUMP_DIR=$SCRATCH/micro-service-trace-data-txt-dump
 TRACE_ROOT=$TXT_DUMP_DIR
-OUTPUT_DIR=$SCRATCH/micro-service-trace-data/preprocessed_lmat_kernel_cats5_seq4096
+OUTPUT_DIR=$SCRATCH/micro-service-trace-data/preprocessed_lmat_kernel_cats3_seq4096
 LOG_DIR=$PROJECT/logs
 
 mkdir -p "$OUTPUT_DIR" "$LOG_DIR"
@@ -34,15 +34,15 @@ export OPENBLAS_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 
 echo "============================================================"
-echo "Job            : txt_dump_to_shards_cats5_seq4096"
+echo "Job            : txt_dump_to_shards_cats3_seq4096"
 echo "Job ID         : ${SLURM_JOB_ID:-manual}"
 echo "Node           : ${SLURMD_NODENAME:-unknown}"
 echo "Project        : $PROJECT"
 echo "Trace root     : $TRACE_ROOT"
 echo "Text dumps     : $TXT_DUMP_DIR"
 echo "Output dir     : $OUTPUT_DIR"
-echo "Paper bins     : 5"
-echo "Code cats      : 6"
+echo "Paper bins     : 3"
+echo "Code cats      : 4"
 echo "Max seq len    : 4096"
 echo "Shard size     : 512"
 echo "CPUs           : ${SLURM_CPUS_PER_TASK:-8}"
@@ -82,7 +82,7 @@ python -u microservice/preprocess_lmat_kernel.py \
   --warmup_s 5 \
   --min_events 8 \
   --max_seq_len 4096 \
-  --paper_duration_bins 5 \
+  --paper_duration_bins 3 \
   --shard_size 512 \
   --event_scope syscall \
   --normal_dir normal \
