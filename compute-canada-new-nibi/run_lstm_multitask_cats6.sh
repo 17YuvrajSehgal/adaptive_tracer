@@ -99,6 +99,7 @@ class Args:
     train_event_model = True
     train_latency_model = True
     ordinal_latency = False
+    multitask_lambda = 0.5
     chk = False
     amp = False
     label_smoothing = 0.0
