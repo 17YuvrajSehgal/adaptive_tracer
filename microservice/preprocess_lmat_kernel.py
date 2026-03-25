@@ -55,7 +55,9 @@ import json
 import os
 import pickle
 import re
+import shutil
 import sys
+from array import array
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -625,6 +627,56 @@ def apply_latency_categories(sequences, delay_spans):
         seq["lat_cat"] = categorise_latency(seq["raw_lat"], seq["ev_names"], delay_spans)
 
 
+def iter_exit_latencies(sequence):
+    for latency, raw_name in zip(sequence["raw_lat"], sequence["ev_names"]):
+        if "exit" not in raw_name or latency <= 0:
+            continue
+        base = raw_name.replace("syscall_", "").replace("exit_", "")
+        yield base, int(latency)
+
+
+def append_latency_bins(latency_dir: str, sequences) -> None:
+    os.makedirs(latency_dir, exist_ok=True)
+    grouped = defaultdict(list)
+    for seq in sequences:
+        for base, latency in iter_exit_latencies(seq):
+            grouped[base].append(latency)
+
+    for base, values in grouped.items():
+        safe_name = re.sub(r"[^A-Za-z0-9_.-]", "_", base)
+        path = os.path.join(latency_dir, f"{safe_name}.bin")
+        with open(path, "ab") as fh:
+            array("Q", values).tofile(fh)
+
+
+def build_delay_spans_from_latency_dir(latency_dir: str, n_categories: int):
+    n_cat = n_categories - 1
+    total = n_cat * (n_cat + 1) / 2
+    delay_spans = {}
+
+    if not os.path.isdir(latency_dir):
+        return delay_spans
+
+    for name in sorted(os.listdir(latency_dir)):
+        if not name.endswith(".bin"):
+            continue
+        path = os.path.join(latency_dir, name)
+        values = np.fromfile(path, dtype=np.uint64)
+        if values.size < 2:
+            continue
+        arr = np.sort(values.astype(np.float64))
+        percentiles = []
+        cumulative = 0.0
+        for idx in range(1, n_cat):
+            fraction = (n_cat - idx + 1) / total
+            cumulative += fraction * 100
+            percentiles.append(cumulative)
+        boundaries = np.percentile(arr, percentiles)
+        event_name = name[:-4]
+        delay_spans[event_name] = (boundaries, int(values.size))
+    return delay_spans
+
+
 def pad_array(batch, key: str, max_len: int, pad_value: int, dtype):
     out = np.full((len(batch), max_len), pad_value, dtype=dtype)
     for idx, seq in enumerate(batch):
@@ -672,6 +724,65 @@ def write_shards(sequences, split_dir: str, shard_size: int, is_anomaly: int, me
         json.dump(meta, fh, indent=2)
 
 
+class StreamingShardWriter:
+    def __init__(self, split_dir: str, shard_size: int, is_anomaly: int, meta_extra: dict):
+        self.split_dir = split_dir
+        self.shard_size = shard_size
+        self.is_anomaly = is_anomaly
+        self.meta_extra = meta_extra
+        self.buffer = []
+        self.written = 0
+        self.shard_idx = 0
+        os.makedirs(split_dir, exist_ok=True)
+
+    def _flush_batch(self, batch):
+        if not batch:
+            return
+        max_len = max(seq["seq_len"] for seq in batch)
+        shard = {
+            "call": pad_array(batch, "call", max_len, 0, np.int32),
+            "entry": pad_array(batch, "entry", max_len, 0, np.int8),
+            "duration": pad_array(batch, "duration", max_len, 0, np.int64),
+            "proc": pad_array(batch, "proc", max_len, 0, np.int32),
+            "pid": pad_array(batch, "pid", max_len, 0, np.int32),
+            "tid": pad_array(batch, "tid", max_len, 0, np.int32),
+            "ret": pad_array(batch, "ret", max_len, 0, np.int8),
+            "lat_cat": pad_array(batch, "lat_cat", max_len, 0, np.uint8),
+            "seq_len": np.asarray([seq["seq_len"] for seq in batch], dtype=np.int32),
+            "req_dur_ms": np.asarray([seq["req_dur_ms"] for seq in batch], dtype=np.float32),
+            "is_anomaly": np.full(len(batch), self.is_anomaly, dtype=np.int8),
+        }
+        np.savez_compressed(
+            os.path.join(self.split_dir, f"shard_{self.shard_idx:06d}.npz"),
+            **shard,
+        )
+        self.shard_idx += 1
+        self.written += len(batch)
+
+    def add_sequences(self, sequences):
+        for seq in sequences:
+            self.buffer.append(seq)
+            if len(self.buffer) >= self.shard_size:
+                batch = self.buffer[: self.shard_size]
+                self.buffer = self.buffer[self.shard_size :]
+                self._flush_batch(batch)
+
+    def close(self):
+        if self.buffer:
+            self._flush_batch(self.buffer)
+            self.buffer = []
+
+        meta = {
+            "n_sequences": self.written,
+            "n_shards": self.shard_idx,
+            "is_anomaly": self.is_anomaly,
+            "supported_training_modes": ["event", "duration", "multitask"],
+        }
+        meta.update(self.meta_extra)
+        with open(os.path.join(self.split_dir, "meta.json"), "w", encoding="utf-8") as fh:
+            json.dump(meta, fh, indent=2)
+
+
 def process_run(run_dir: str, dict_sys: Dictionary, dict_proc: Dictionary, args, is_train: bool):
     log(f"Run: {run_dir}", prefix="RUN")
     raw_events = stream_kernel_events(run_dir, args.txt_dump_dir, args.warmup_s)
@@ -695,11 +806,15 @@ def process_run(run_dir: str, dict_sys: Dictionary, dict_proc: Dictionary, args,
     return encoded, run_stats
 
 
-def build_train_split(train_spec: SplitSpec, args):
+def build_train_artifacts(train_spec: SplitSpec, args):
     dict_sys = Dictionary()
     dict_proc = Dictionary()
-    sequences = []
     run_summaries = []
+    latency_dir = os.path.join(args.output_dir, ".tmp_train_latency")
+
+    if os.path.isdir(latency_dir):
+        shutil.rmtree(latency_dir)
+    os.makedirs(latency_dir, exist_ok=True)
 
     for run_rel in train_spec.dirs:
         run_dir = resolve_run_dir(args.trace_root, run_rel)
@@ -707,34 +822,53 @@ def build_train_split(train_spec: SplitSpec, args):
             log(f"Missing run directory: {run_dir}", prefix="WARN")
             continue
         run_sequences, run_stats = process_run(run_dir, dict_sys, dict_proc, args, is_train=True)
-        sequences.extend(run_sequences)
+        append_latency_bins(latency_dir, run_sequences)
         run_summaries.append({"run": run_rel, **run_stats, "n_sequences": len(run_sequences)})
+        del run_sequences
 
-    if not sequences:
+    if not run_summaries:
         raise RuntimeError("Training split produced zero sequences.")
 
-    delay_spans = build_delay_spans(
-        [seq["raw_lat"] for seq in sequences],
-        [seq["ev_names"] for seq in sequences],
-        args.n_categories,
-    )
-    apply_latency_categories(sequences, delay_spans)
-    return dict_sys, dict_proc, delay_spans, sequences, run_summaries
+    delay_spans = build_delay_spans_from_latency_dir(latency_dir, args.n_categories)
+    shutil.rmtree(latency_dir, ignore_errors=True)
+    return dict_sys, dict_proc, delay_spans, run_summaries
 
 
-def build_eval_split(spec: SplitSpec, dict_sys: Dictionary, dict_proc: Dictionary, delay_spans, args):
-    sequences = []
+def stream_split_to_shards(
+    spec: SplitSpec,
+    dict_sys: Dictionary,
+    dict_proc: Dictionary,
+    delay_spans,
+    args,
+    *,
+    is_train_pass: bool,
+):
     run_summaries = []
+    writer = StreamingShardWriter(
+        os.path.join(args.output_dir, spec.name),
+        args.shard_size,
+        spec.label,
+        {
+            "dirs": spec.dirs,
+            "n_categories": args.n_categories,
+            "event_scope": args.event_scope,
+            "run_summaries": run_summaries,
+        },
+    )
+
     for run_rel in spec.dirs:
         run_dir = resolve_run_dir(args.trace_root, run_rel)
         if not os.path.isdir(run_dir):
             log(f"Missing run directory: {run_dir}", prefix="WARN")
             continue
-        run_sequences, run_stats = process_run(run_dir, dict_sys, dict_proc, args, is_train=False)
-        sequences.extend(run_sequences)
+        run_sequences, run_stats = process_run(run_dir, dict_sys, dict_proc, args, is_train=is_train_pass)
+        apply_latency_categories(run_sequences, delay_spans)
+        writer.add_sequences(run_sequences)
         run_summaries.append({"run": run_rel, **run_stats, "n_sequences": len(run_sequences)})
-    apply_latency_categories(sequences, delay_spans)
-    return sequences, run_summaries
+        del run_sequences
+
+    writer.close()
+    return run_summaries
 
 
 def main():
@@ -776,7 +910,7 @@ def main():
 
     log("Building training split and vocabularies", prefix="START")
     train_spec = split_specs[0]
-    dict_sys, dict_proc, delay_spans, train_sequences, train_run_summaries = build_train_split(train_spec, args)
+    dict_sys, dict_proc, delay_spans, train_run_summaries = build_train_artifacts(train_spec, args)
 
     with open(os.path.join(args.output_dir, "vocab.pkl"), "wb") as fh:
         pickle.dump((dict_sys, dict_proc), fh)
@@ -792,34 +926,25 @@ def main():
         train_spec.name: train_run_summaries,
     }
 
-    write_shards(
-        train_sequences,
-        os.path.join(args.output_dir, train_spec.name),
-        args.shard_size,
-        train_spec.label,
-        {
-            "dirs": train_spec.dirs,
-            "n_categories": args.n_categories,
-            "event_scope": args.event_scope,
-            "run_summaries": train_run_summaries,
-        },
+    log(f"Writing split: {train_spec.name}", prefix="START")
+    manifest["split_summaries"][train_spec.name] = stream_split_to_shards(
+        train_spec,
+        dict_sys,
+        dict_proc,
+        delay_spans,
+        args,
+        is_train_pass=False,
     )
 
     for spec in split_specs[1:]:
         log(f"Building split: {spec.name}", prefix="START")
-        sequences, run_summaries = build_eval_split(spec, dict_sys, dict_proc, delay_spans, args)
-        manifest["split_summaries"][spec.name] = run_summaries
-        write_shards(
-            sequences,
-            os.path.join(args.output_dir, spec.name),
-            args.shard_size,
-            spec.label,
-            {
-                "dirs": spec.dirs,
-                "n_categories": args.n_categories,
-                "event_scope": args.event_scope,
-                "run_summaries": run_summaries,
-            },
+        manifest["split_summaries"][spec.name] = stream_split_to_shards(
+            spec,
+            dict_sys,
+            dict_proc,
+            delay_spans,
+            args,
+            is_train_pass=False,
         )
 
     with open(os.path.join(args.output_dir, "dataset_manifest.json"), "w", encoding="utf-8") as fh:
