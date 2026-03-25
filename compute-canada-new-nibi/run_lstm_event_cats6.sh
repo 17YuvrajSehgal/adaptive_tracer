@@ -48,13 +48,13 @@ echo "============================================================"
 source "$PROJECT/.venv/bin/activate"
 cd "$PROJECT"
 
-echo "[1/5] Module list"
+echo "[1/4] Module list"
 module list
 
-echo "[2/5] GPU sanity"
+echo "[2/4] GPU sanity"
 srun nvidia-smi
 
-echo "[3/5] Python + torch sanity"
+echo "[3/4] Python + torch sanity"
 srun python - <<'PY'
 import sys
 import torch
@@ -65,12 +65,7 @@ if torch.cuda.is_available():
     print("GPU:", torch.cuda.get_device_name(0))
 PY
 
-echo "[4/5] Dataset validation"
-srun python microservice/validate_lmat_dataset.py \
-  --data_dir "$DATA" \
-  --strict_manifest
-
-echo "[5/5] One-batch LSTM smoke test"
+echo "[4/4] One-batch LSTM smoke test"
 DATA_DIR="$DATA" srun python - <<'PY'
 import os
 import pickle
@@ -150,7 +145,7 @@ python -u microservice/train_sockshop.py \
   --ood_score event \
   --batch 512 \
   --accum_steps 4 \
-  --n_epochs 20 \
+  --n_epochs 100 \
   --lr 3e-4 \
   --warmup_steps 500 \
   --clip 1.0 \
