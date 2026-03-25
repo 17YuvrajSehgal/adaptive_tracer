@@ -154,6 +154,9 @@ def get_args():
     p.add_argument("--accum_steps",  type=int,   default=4,
                    help="Gradient accumulation steps (eff_batch = batch * accum_steps)")
     p.add_argument("--n_epochs",     type=int,   default=20)
+    p.add_argument("--early_stopping_patience", type=int, default=0,
+                   help="Stop after this many consecutive validations without "
+                        "improvement in validation loss. 0 disables early stopping.")
     p.add_argument("--lr",           type=float, default=3e-4)
     p.add_argument("--warmup_steps", type=int,   default=2000)
     p.add_argument("--clip",         type=float, default=1.0)
@@ -182,6 +185,8 @@ def get_args():
         p.error("--ood_score event requires --train_event_model")
     if args.ood_score == "latency" and not args.train_latency_model:
         p.error("--ood_score latency requires --train_latency_model")
+    if args.early_stopping_patience < 0:
+        p.error("--early_stopping_patience must be >= 0")
     if not (0.0 <= args.multitask_lambda <= 1.0):
         p.error("--multitask_lambda must be in [0,1]")
     return args
@@ -765,6 +770,8 @@ def main():
 
     global_step   = 0
     best_val_loss = float("inf")
+    no_improve_evals = 0
+    early_stop = False
     t_start       = time.time()
 
     for epoch in range(1, args.n_epochs + 1):
@@ -864,13 +871,32 @@ def main():
                                 step=global_step)
                     if res["loss"] < best_val_loss:
                         best_val_loss = res["loss"]
+                        no_improve_evals = 0
                         best_path = os.path.join(args.log_dir, "model_best.pt")
                         raw = (model.module if ddp_enabled else
                                model._orig_mod if hasattr(model, "_orig_mod") else model)
                         if logger: logger.save_model(raw, best_path)
                         log(f"  New best val loss={best_val_loss:.4f} -> {best_path}")
+                    elif args.early_stopping_patience > 0:
+                        no_improve_evals += 1
+                        log(f"  No improvement count: {no_improve_evals}/"
+                            f"{args.early_stopping_patience}")
+                        if no_improve_evals >= args.early_stopping_patience:
+                            early_stop = True
+                            log(f"  Early stopping triggered after "
+                                f"{no_improve_evals} validations without improvement.")
+                if ddp_enabled:
+                    stop_flag = torch.tensor(
+                        1 if (is_main and early_stop) else 0,
+                        device=device,
+                        dtype=torch.int32,
+                    )
+                    dist.broadcast(stop_flag, src=0)
+                    early_stop = bool(stop_flag.item())
                 if ddp_enabled: dist.barrier()
                 model.train()
+                if early_stop:
+                    break
 
             # Periodic checkpoint (rank 0 only)
             if (is_main and is_optim_step and global_step > 0 and
@@ -880,6 +906,11 @@ def main():
                         model._orig_mod if hasattr(model, "_orig_mod") else model)
                 if logger: logger.save_model(raw, ckpt)
                 log(f"  Checkpoint -> {ckpt}")
+
+        if early_stop:
+            elapsed = timedelta(seconds=int(time.time() - t_start))
+            log(f"Stopping early at epoch {epoch}/{args.n_epochs}  elapsed={elapsed}")
+            break
 
         # End of epoch
         elapsed = timedelta(seconds=int(time.time() - t_start))
