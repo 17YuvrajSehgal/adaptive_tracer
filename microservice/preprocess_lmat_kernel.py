@@ -415,8 +415,8 @@ def segment_time_windows_with_stats(event_iter, window_ms: float, min_events: in
     window_ns = int(window_ms * 1e6)
     buffers = defaultdict(list)
     starts = {}
-    sequences = []
     latest_stats = None
+    windows_emitted = 0
 
     for ev, stats in event_iter:
         latest_stats = dict(stats)
@@ -430,7 +430,8 @@ def segment_time_windows_with_stats(event_iter, window_ms: float, min_events: in
             buf = buffers[tid]
             dur_ms = elapsed / 1e6
             if len(buf) >= min_events:
-                sequences.append((list(buf), dur_ms))
+                windows_emitted += 1
+                yield list(buf), dur_ms, None
             buffers[tid] = [ev]
             starts[tid] = ts
         else:
@@ -439,14 +440,15 @@ def segment_time_windows_with_stats(event_iter, window_ms: float, min_events: in
         if stats["events_total"] % 5_000_000 == 0:
             log(
                 f"Scope={stats['events_kept']:,}/{stats['events_total']:,} kept, "
-                f"{len(sequences):,} windows",
+                f"{windows_emitted:,} windows",
                 prefix="SEG",
             )
 
     for tid, buf in buffers.items():
         if len(buf) >= min_events and tid in starts:
             dur_ms = (buf[-1]["timestamp"] - starts[tid]) / 1e6
-            sequences.append((list(buf), dur_ms))
+            windows_emitted += 1
+            yield list(buf), dur_ms, None
 
     if latest_stats is None:
         latest_stats = {
@@ -457,8 +459,8 @@ def segment_time_windows_with_stats(event_iter, window_ms: float, min_events: in
             "nonsyscall_events": 0,
         }
 
-    latest_stats["windows_emitted"] = len(sequences)
-    return sequences, latest_stats
+    latest_stats["windows_emitted"] = windows_emitted
+    yield None, None, latest_stats
 
 
 def segment_time_windows(event_iter, window_ms: float, min_events: int):
@@ -783,27 +785,56 @@ class StreamingShardWriter:
             json.dump(meta, fh, indent=2)
 
 
-def process_run(run_dir: str, dict_sys: Dictionary, dict_proc: Dictionary, args, is_train: bool):
+def process_run_streaming(
+    run_dir: str,
+    dict_sys: Dictionary,
+    dict_proc: Dictionary,
+    args,
+    is_train: bool,
+    on_batch,
+):
     log(f"Run: {run_dir}", prefix="RUN")
     raw_events = stream_kernel_events(run_dir, args.txt_dump_dir, args.warmup_s)
     filtered_events = filter_events_by_scope(raw_events, args.event_scope)
-    windows, run_stats = segment_time_windows_with_stats(
+    encoded_batch = []
+    run_stats = None
+
+    for window_events, dur_ms, final_stats in segment_time_windows_with_stats(
         filtered_events, args.window_ms, args.min_events
-    )
+    ):
+        if final_stats is not None:
+            run_stats = final_stats
+            break
+
+        seq = encode_sequence(window_events, dict_sys, dict_proc, is_train, args.max_seq_len)
+        seq["req_dur_ms"] = dur_ms
+        encoded_batch.append(seq)
+
+        if len(encoded_batch) >= args.shard_size:
+            on_batch(encoded_batch)
+            encoded_batch = []
+
+    if encoded_batch:
+        on_batch(encoded_batch)
+
+    if run_stats is None:
+        run_stats = {
+            "events_total": 0,
+            "events_kept": 0,
+            "events_dropped": 0,
+            "syscall_events": 0,
+            "nonsyscall_events": 0,
+            "windows_emitted": 0,
+        }
+
     log(
-        f"Produced {len(windows):,} windows | kept {run_stats['events_kept']:,}/"
-        f"{run_stats['events_total']:,} events "
+        f"Produced {run_stats['windows_emitted']:,} windows | kept "
+        f"{run_stats['events_kept']:,}/{run_stats['events_total']:,} events "
         f"(syscall={run_stats['syscall_events']:,}, "
         f"other={run_stats['nonsyscall_events']:,})",
         prefix="RUN",
     )
-
-    encoded = []
-    for window_events, dur_ms in windows:
-        seq = encode_sequence(window_events, dict_sys, dict_proc, is_train, args.max_seq_len)
-        seq["req_dur_ms"] = dur_ms
-        encoded.append(seq)
-    return encoded, run_stats
+    return run_stats
 
 
 def build_train_artifacts(train_spec: SplitSpec, args):
@@ -821,10 +852,21 @@ def build_train_artifacts(train_spec: SplitSpec, args):
         if not os.path.isdir(run_dir):
             log(f"Missing run directory: {run_dir}", prefix="WARN")
             continue
-        run_sequences, run_stats = process_run(run_dir, dict_sys, dict_proc, args, is_train=True)
-        append_latency_bins(latency_dir, run_sequences)
-        run_summaries.append({"run": run_rel, **run_stats, "n_sequences": len(run_sequences)})
-        del run_sequences
+        run_state = {"n_sequences": 0}
+
+        def handle_batch(batch):
+            append_latency_bins(latency_dir, batch)
+            run_state["n_sequences"] += len(batch)
+
+        run_stats = process_run_streaming(
+            run_dir,
+            dict_sys,
+            dict_proc,
+            args,
+            is_train=True,
+            on_batch=handle_batch,
+        )
+        run_summaries.append({"run": run_rel, **run_stats, "n_sequences": run_state["n_sequences"]})
 
     if not run_summaries:
         raise RuntimeError("Training split produced zero sequences.")
@@ -861,11 +903,22 @@ def stream_split_to_shards(
         if not os.path.isdir(run_dir):
             log(f"Missing run directory: {run_dir}", prefix="WARN")
             continue
-        run_sequences, run_stats = process_run(run_dir, dict_sys, dict_proc, args, is_train=is_train_pass)
-        apply_latency_categories(run_sequences, delay_spans)
-        writer.add_sequences(run_sequences)
-        run_summaries.append({"run": run_rel, **run_stats, "n_sequences": len(run_sequences)})
-        del run_sequences
+        run_state = {"n_sequences": 0}
+
+        def handle_batch(batch):
+            apply_latency_categories(batch, delay_spans)
+            writer.add_sequences(batch)
+            run_state["n_sequences"] += len(batch)
+
+        run_stats = process_run_streaming(
+            run_dir,
+            dict_sys,
+            dict_proc,
+            args,
+            is_train=is_train_pass,
+            on_batch=handle_batch,
+        )
+        run_summaries.append({"run": run_rel, **run_stats, "n_sequences": run_state["n_sequences"]})
 
     writer.close()
     return run_summaries
