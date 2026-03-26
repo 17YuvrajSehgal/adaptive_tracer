@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=lstm_duration_cats6
+#SBATCH --job-name=trf_duration_cats5
 #SBATCH --account=def-naser2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=12
 #SBATCH --gpus-per-node=h100:1
 #SBATCH --mem=32G
-#SBATCH --time=12:00:00
+#SBATCH --time=10:00:00
 #SBATCH --output=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/%x-%j.out
 #SBATCH --mail-type=BEGIN,END,FAIL
 
@@ -17,10 +17,11 @@ module load StdEnv/2023
 module load cuda/12.6
 module load python/3.11.5
 
-SCRATCH=/scratch/yuvraj17/adaptive_tracing_scratch
-PROJECT=$SCRATCH/adaptive_tracer
-DATA=$SCRATCH/micro-service-trace-data/preprocessed_lmat_kernel_cats6
-LOG_DIR=$PROJECT/logs/lstm_duration_cats6_${SLURM_JOB_ID}
+BASE_SCRATCH=${SCRATCH:-$HOME/scratch}
+WORKROOT=$BASE_SCRATCH/adaptive_tracing_scratch
+PROJECT=$WORKROOT/adaptive_tracer
+DATA=$WORKROOT/micro-service-trace-data/preprocessed_lmat_kernel_cats5_seq4096
+LOG_DIR=$PROJECT/logs/transformer_duration_cats5_seq4096_${SLURM_JOB_ID}
 
 mkdir -p "$LOG_DIR"
 
@@ -30,16 +31,16 @@ export OPENBLAS_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 export WANDB_MODE=offline
 export WANDB_DIR="$LOG_DIR"
-export WANDB_CACHE_DIR="$SCRATCH/wandb_cache"
-export TRITON_CACHE_DIR="$SCRATCH/.triton_cache"
-export TORCH_HOME="$SCRATCH/.torch"
-export HF_HOME="$SCRATCH/.hf_cache"
+export WANDB_CACHE_DIR="$WORKROOT/wandb_cache"
+export TRITON_CACHE_DIR="$WORKROOT/.triton_cache"
+export TORCH_HOME="$WORKROOT/.torch"
+export HF_HOME="$WORKROOT/.hf_cache"
 mkdir -p "$TRITON_CACHE_DIR" "$TORCH_HOME" "$WANDB_CACHE_DIR"
 
 echo "============================================================"
 echo "Job ID       : $SLURM_JOB_ID"
 echo "Node         : ${SLURMD_NODENAME:-unknown}"
-echo "Mode         : LSTM | Duration-only | cats=6"
+echo "Mode         : Transformer | Duration-only | paper bins=5 | seq=4096"
 echo "Project      : $PROJECT"
 echo "Data dir     : $DATA"
 echo "Log dir      : $LOG_DIR"
@@ -65,7 +66,7 @@ if torch.cuda.is_available():
     print("GPU:", torch.cuda.get_device_name(0))
 PY
 
-echo "[4/4] One-batch LSTM smoke test"
+echo "[4/4] One-batch Transformer smoke test"
 DATA_DIR="$DATA" srun python - <<'PY'
 import os
 import pickle
@@ -79,8 +80,8 @@ from microservice.train_sockshop import build_model, forward_batch, compute_loss
 class Args:
     preprocessed_dir = os.environ["DATA_DIR"]
     n_categories = 6
-    max_seq_len = 512
-    model = "lstm"
+    max_seq_len = 4096
+    model = "transformer"
     n_head = 8
     n_hidden = 1024
     n_layer = 6
@@ -99,6 +100,7 @@ class Args:
     train_event_model = False
     train_latency_model = True
     ordinal_latency = False
+    multitask_lambda = 0.5
     chk = False
     amp = False
     label_smoothing = 0.0
@@ -109,9 +111,9 @@ with open(os.path.join(Args.preprocessed_dir, "vocab.pkl"), "rb") as f:
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 ds = SockshopNpzDataset(
     os.path.join(Args.preprocessed_dir, "train_id"),
-    batch_size=8,
+    batch_size=2,
     max_seq_len=Args.max_seq_len,
-    max_samples=8,
+    max_samples=2,
     shuffle_shards=False,
 )
 loader = DataLoader(ds, batch_size=None, collate_fn=sockshop_collate_fn, num_workers=0)
@@ -127,12 +129,14 @@ PY
 
 python -u microservice/train_sockshop.py \
   --preprocessed_dir "$DATA" \
-  --model lstm \
+  --model transformer \
   --n_categories 6 \
-  --max_seq_len 512 \
+  --max_seq_len 4096 \
+  --n_head 8 \
   --n_hidden 1024 \
   --n_layer 6 \
   --dropout 0.1 \
+  --activation gelu \
   --dim_sys 48 \
   --dim_entry 12 \
   --dim_ret 12 \
@@ -143,8 +147,8 @@ python -u microservice/train_sockshop.py \
   --dim_time 12 \
   --train_latency_model \
   --ood_score latency \
-  --batch 512 \
-  --accum_steps 4 \
+  --batch 4 \
+  --accum_steps 16 \
   --n_epochs 100 \
   --early_stopping_patience 20 \
   --lr 3e-4 \
@@ -157,7 +161,7 @@ python -u microservice/train_sockshop.py \
   --save_every 5000 \
   --lat_score_weight 0.0 \
   --wandb_project sockshop_lmat \
-  --wandb_run_name "lstm_duration_cats6_${SLURM_JOB_ID}" \
+  --wandb_run_name "transformer_duration_cats5_seq4096_${SLURM_JOB_ID}" \
   --log_dir "$LOG_DIR" \
   --gpu 0
 
