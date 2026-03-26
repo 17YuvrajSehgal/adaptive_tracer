@@ -3,7 +3,7 @@
 #SBATCH --account=def-naser2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=12
+#SBATCH --cpus-per-task=16
 #SBATCH --gpus-per-node=h100:1
 #SBATCH --mem=32G
 #SBATCH --time=10:00:00
@@ -156,7 +156,7 @@ python -u microservice/train_sockshop.py \
   --lr 3e-4 \
   --warmup_steps 500 \
   --clip 1.0 \
-  --num_workers 4 \
+  --num_workers 8 \
   --label_smoothing 0.1 \
   --amp \
   --eval_every 200 \
