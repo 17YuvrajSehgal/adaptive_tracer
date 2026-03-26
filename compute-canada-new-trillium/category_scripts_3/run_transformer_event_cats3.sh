@@ -79,7 +79,7 @@ from microservice.train_sockshop import build_model, forward_batch, compute_loss
 
 class Args:
     preprocessed_dir = os.environ["DATA_DIR"]
-    n_categories = 6
+    n_categories = 4
     max_seq_len = 4096
     model = "transformer"
     n_head = 8
@@ -130,7 +130,7 @@ PY
 python -u microservice/train_sockshop.py \
   --preprocessed_dir "$DATA" \
   --model transformer \
-  --n_categories 6 \
+  --n_categories 4 \
   --max_seq_len 4096 \
   --n_head 8 \
   --n_hidden 1024 \

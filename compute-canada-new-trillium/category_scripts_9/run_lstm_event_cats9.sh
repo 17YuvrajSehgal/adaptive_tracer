@@ -79,7 +79,7 @@ from microservice.train_sockshop import build_model, forward_batch, compute_loss
 
 class Args:
     preprocessed_dir = os.environ["DATA_DIR"]
-    n_categories = 6
+    n_categories = 10
     max_seq_len = 4096
     model = "lstm"
     n_head = 8
@@ -129,7 +129,7 @@ PY
 python -u microservice/train_sockshop.py \
   --preprocessed_dir "$DATA" \
   --model lstm \
-  --n_categories 6 \
+  --n_categories 10 \
   --max_seq_len 4096 \
   --n_hidden 1024 \
   --n_layer 6 \
