@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=txt_dump_to_shards_5cat_4096
+#SBATCH --job-name=txt_dump_to_shards_5cat_4096_5000
 #SBATCH --account=def-naser2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -20,7 +20,7 @@ SCRATCH=/scratch/yuvraj17/adaptive_tracing_scratch
 PROJECT=$SCRATCH/adaptive_tracer
 TXT_DUMP_DIR=$SCRATCH/micro-service-trace-data-txt-dump
 TRACE_ROOT=$TXT_DUMP_DIR
-OUTPUT_DIR=$SCRATCH/micro-service-trace-data/preprocessed_lmat_kernel_cats5_seq4096
+OUTPUT_DIR=$SCRATCH/micro-service-trace-data/preprocessed_lmat_kernel_cats5_seq4096_5000
 LOG_DIR=$PROJECT/logs
 
 mkdir -p "$OUTPUT_DIR" "$LOG_DIR"
@@ -34,7 +34,7 @@ export OPENBLAS_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 
 echo "============================================================"
-echo "Job            : txt_dump_to_shards_cats5_seq4096"
+echo "Job            : txt_dump_to_shards_cats5_seq4096_5000"
 echo "Job ID         : ${SLURM_JOB_ID:-manual}"
 echo "Node           : ${SLURMD_NODENAME:-unknown}"
 echo "Project        : $PROJECT"
