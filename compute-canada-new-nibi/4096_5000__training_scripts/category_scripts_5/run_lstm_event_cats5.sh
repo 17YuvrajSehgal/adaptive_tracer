@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=lstm_event_cats5
+#SBATCH --job-name=lstm_event_cats5_4096_512
 #SBATCH --account=def-naser2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -20,8 +20,8 @@ module load python/3.11.5
 BASE_SCRATCH=${SCRATCH:-$HOME/scratch}
 WORKROOT=$BASE_SCRATCH/adaptive_tracing_scratch
 PROJECT=$WORKROOT/adaptive_tracer
-DATA=$WORKROOT/micro-service-trace-data/preprocessed_lmat_kernel_cats5_seq4096
-LOG_DIR=$PROJECT/logs/lstm_event_cats5_seq4096_${SLURM_JOB_ID}
+DATA=$WORKROOT/micro-service-trace-data/preprocessed_lmat_kernel_cats5_seq4096_512
+LOG_DIR=$PROJECT/logs/lstm_event_cats5_seq4096_512${SLURM_JOB_ID}
 
 mkdir -p "$LOG_DIR"
 
@@ -40,7 +40,7 @@ mkdir -p "$TRITON_CACHE_DIR" "$TORCH_HOME" "$WANDB_CACHE_DIR"
 echo "============================================================"
 echo "Job ID       : $SLURM_JOB_ID"
 echo "Node         : ${SLURMD_NODENAME:-unknown}"
-echo "Mode         : LSTM | Event-only | paper bins=5 | seq=4096"
+echo "Mode         : LSTM | Event-only | paper bins=5 | seq=4096_512"
 echo "Project      : $PROJECT"
 echo "Data dir     : $DATA"
 echo "Log dir      : $LOG_DIR"
@@ -158,7 +158,7 @@ python -u microservice/train_sockshop.py \
   --save_every 5000 \
   --lat_score_weight 0.0 \
   --wandb_project sockshop_lmat \
-  --wandb_run_name "lstm_event_cats5_seq4096_${SLURM_JOB_ID}" \
+  --wandb_run_name "lstm_event_cats5_seq4096_512${SLURM_JOB_ID}" \
   --log_dir "$LOG_DIR" \
   --gpu 0
 
