@@ -1,9 +1,9 @@
 # ============================================================
-# run_lstm_multitask_cats5_local.ps1
-# Local GPU training - LSTM, multitask, paper bins=5 (effective n_categories=6)
+# run_lstm_event_cats5_local.ps1
+# Local GPU training - LSTM, event, paper bins=5 (effective n_categories=6)
 # Mirrors:
 #   compute-canada-new-trillium/final-preprocessing/step-3-train-512-5000-models/
-#   category_scripts_5/run_lstm_multitask_cats5.sh
+#   category_scripts_5/run_lstm_event_cats5.sh
 #
 # Only the settings most likely to exhaust an 8 GB local GPU are reduced:
 #   - batch size
@@ -19,7 +19,7 @@ $ErrorActionPreference = "Stop"
 $PROJECT = "C:\workplace\adaptive_tracer"
 $DATA = "C:\workplace\adaptive_tracer\micro-service-trace-data\preprocessed_seq512\preprocessed_lmat_kernel_cats5_seq512"
 $RUN_TS = Get-Date -Format "yyyyMMdd_HHmmss"
-$LOG_DIR = "C:\workplace\adaptive_tracer\logs\lstm_multitask_cats5_seq512_local_$RUN_TS"
+$LOG_DIR = "C:\workplace\adaptive_tracer\logs\lstm_event_cats5_seq512_local_$RUN_TS"
 
 New-Item -ItemType Directory -Force -Path $LOG_DIR | Out-Null
 
@@ -33,8 +33,8 @@ $env:WANDB_DIR = $LOG_DIR
 
 # ---- Info ----
 Write-Host "============================================================"
-Write-Host "Script       : run_lstm_multitask_cats5_local.ps1"
-Write-Host "Mode         : LSTM | Multitask | paper bins=5 | seq=512"
+Write-Host "Script       : run_lstm_event_cats5_local.ps1"
+Write-Host "Mode         : LSTM | event | paper bins=5 | seq=512"
 Write-Host "Project dir  : $PROJECT"
 Write-Host "Preprocessed : $DATA"
 Write-Host "Log dir      : $LOG_DIR"
@@ -80,11 +80,10 @@ python -u microservice/train_sockshop.py `
     --dim_order 12 `
     --dim_time 12 `
     --train_event_model `
-    --train_latency_model `
     --batch 16 `
     --accum_steps 4 `
     --n_epochs 1 `
-    --early_stopping_patience 20 `
+    --early_stopping_patience 5 `
     --lr 3e-4 `
     --warmup_steps 500 `
     --clip 1.0 `
@@ -93,9 +92,8 @@ python -u microservice/train_sockshop.py `
     --amp `
     --eval_every 1000 `
     --save_every 10000 `
-    --multitask_lambda 0.5 `
     --wandb_project sockshop_lmat `
-    --wandb_run_name "lstm_multitask_cats5_seq512_local_$RUN_TS" `
+    --wandb_run_name "lstm_event_cats5_seq512_local_$RUN_TS" `
     --log_dir $LOG_DIR `
     --gpu 0
 
