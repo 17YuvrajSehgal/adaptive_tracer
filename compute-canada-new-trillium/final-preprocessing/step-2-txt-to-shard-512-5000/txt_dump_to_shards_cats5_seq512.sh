@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --job-name=txt_dump_to_shards_7cat_512
+#SBATCH --job-name=txt_dump_to_shards_5cat_512
 #SBATCH --account=def-naser2
+#SBATCH --partition=compute
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=32G
 #SBATCH --time=08:00:00
 #SBATCH --output=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/%x-%j.out
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -20,7 +20,7 @@ SCRATCH=/scratch/yuvraj17/adaptive_tracing_scratch
 PROJECT=$SCRATCH/adaptive_tracer
 TXT_DUMP_DIR=$SCRATCH/micro-service-trace-data-txt-dump
 TRACE_ROOT=$TXT_DUMP_DIR
-OUTPUT_DIR=$SCRATCH/micro-service-trace-data/preprocessed_lmat_kernel_cats7_seq512
+OUTPUT_DIR=$SCRATCH/micro-service-trace-data/preprocessed_lmat_kernel_cats5_seq512
 LOG_DIR=$PROJECT/logs
 
 mkdir -p "$OUTPUT_DIR" "$LOG_DIR"
@@ -34,15 +34,15 @@ export OPENBLAS_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 
 echo "============================================================"
-echo "Job            : txt_dump_to_shards_cats7_seq512"
+echo "Job            : txt_dump_to_shards_cats5_seq512"
 echo "Job ID         : ${SLURM_JOB_ID:-manual}"
 echo "Node           : ${SLURMD_NODENAME:-unknown}"
 echo "Project        : $PROJECT"
 echo "Trace root     : $TRACE_ROOT"
 echo "Text dumps     : $TXT_DUMP_DIR"
 echo "Output dir     : $OUTPUT_DIR"
-echo "Paper bins     : 7"
-echo "Code cats      : 8"
+echo "Paper bins     : 5"
+echo "Code cats      : 6"
 echo "Max seq len    : 512"
 echo "Shard size     : 5000"
 echo "CPUs           : ${SLURM_CPUS_PER_TASK:-8}"
@@ -82,7 +82,7 @@ python -u microservice/preprocess_lmat_kernel.py \
   --warmup_s 5 \
   --min_events 8 \
   --max_seq_len 512 \
-  --paper_duration_bins 7 \
+  --paper_duration_bins 5 \
   --shard_size 5000 \
   --event_scope syscall \
   --normal_dir normal \
