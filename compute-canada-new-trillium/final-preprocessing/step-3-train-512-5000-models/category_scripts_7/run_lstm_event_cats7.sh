@@ -143,7 +143,6 @@ python -u microservice/train_sockshop.py \
   --dim_order 12 \
   --dim_time 12 \
   --train_event_model \
-  --ood_score event \
   --batch 64 \
   --accum_steps 4 \
   --n_epochs 100 \
@@ -156,7 +155,6 @@ python -u microservice/train_sockshop.py \
   --amp \
   --eval_every 200 \
   --save_every 5000 \
-  --lat_score_weight 0.0 \
   --wandb_project sockshop_lmat \
   --wandb_run_name "lstm_event_cats7_seq512_${SLURM_JOB_ID}" \
   --log_dir "$LOG_DIR" \

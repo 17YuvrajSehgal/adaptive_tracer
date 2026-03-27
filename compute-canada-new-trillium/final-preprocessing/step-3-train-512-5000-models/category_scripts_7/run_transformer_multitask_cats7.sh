@@ -148,7 +148,6 @@ python -u microservice/train_sockshop.py \
   --dim_time 12 \
   --train_event_model \
   --train_latency_model \
-  --ood_score combined \
   --batch 4 \
   --accum_steps 16 \
   --n_epochs 100 \
@@ -162,7 +161,6 @@ python -u microservice/train_sockshop.py \
   --eval_every 200 \
   --save_every 5000 \
   --multitask_lambda 0.5 \
-  --lat_score_weight 0.5 \
   --wandb_project sockshop_lmat \
   --wandb_run_name "transformer_multitask_cats7_seq512_${SLURM_JOB_ID}" \
   --log_dir "$LOG_DIR" \
