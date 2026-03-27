@@ -103,15 +103,16 @@ def get_args():
     p.add_argument("--max_seq_len",  type=int, default=512)
     p.add_argument("--max_samples",  type=int, default=None)
     p.add_argument("--lat_score_weight", type=float, default=0.5,
-                   help="Weight [0,1] for latency cross-entropy in anomaly scoring. "
-                        "Final score = (1-w)*event_xe + w*latency_xe. Default 0.5.")
+                   help="Legacy option from the old weighted-fusion path. "
+                        "Paper-aligned scoring now uses MAD-normalized "
+                        "event+duration losses when both heads are trained.")
     p.add_argument(
         "--ood_score",
         choices=["combined", "event", "latency"],
         default="combined",
-        help="Which head(s) drive OOD anomaly scores: combined (weighted mix when both "
-             "trained), event-only CE, or latency-only CE. Match to single/multi-task "
-             "training for paper-style Event vs Duration vs Multi-task runs.",
+        help="Which head(s) drive OOD anomaly scores. For paper-aligned runs, "
+             "single-task models use their own head loss and multi-task models "
+             "use MAD-normalized event+duration loss summation.",
     )
     p.add_argument(
         "--ood_threshold_grid",
@@ -387,21 +388,71 @@ def per_sequence_latency_ce(ll, tgt_lat, ordinal_latency):
     return (per_tok * mask).sum(1) / mask.sum(1).clamp(min=1)
 
 
-def select_ood_sequence_score(seq_sc_e, seq_sc_l, args):
-    """Pick OOD score vector per batch (combined / event / latency)."""
-    mode = args.ood_score
-    w = args.lat_score_weight
-    if mode == "event":
-        return seq_sc_e.float() if seq_sc_e is not None else None
-    if mode == "latency":
-        return seq_sc_l.float() if seq_sc_l is not None else None
-    if seq_sc_e is not None and seq_sc_l is not None and w > 0.0:
-        return (1.0 - w) * seq_sc_e.float() + w * seq_sc_l.float()
-    if seq_sc_e is not None:
-        return seq_sc_e.float()
-    if seq_sc_l is not None:
-        return seq_sc_l.float()
-    return None
+def _scores_to_numpy(seq_scores):
+    if seq_scores is None:
+        return np.array([], dtype=np.float64)
+    return seq_scores.detach().cpu().numpy().astype(np.float64, copy=False)
+
+
+def _compute_mad_stats(values: np.ndarray) -> dict[str, float] | None:
+    arr = np.asarray(values, dtype=np.float64)
+    if arr.size == 0:
+        return None
+    median = float(np.median(arr))
+    mad = float(np.median(np.abs(arr - median)))
+    if not np.isfinite(mad) or mad <= 1e-12:
+        mad = 1.0
+    return {"median": median, "mad": mad}
+
+
+def _mad_normalize(values: np.ndarray, stats: dict[str, float] | None) -> np.ndarray:
+    arr = np.asarray(values, dtype=np.float64)
+    if arr.size == 0 or stats is None:
+        return arr
+    return (arr - stats["median"]) / stats["mad"]
+
+
+def combine_paper_ood_scores(
+    scores_event: np.ndarray,
+    scores_latency: np.ndarray,
+    args,
+    mad_stats_event: dict[str, float] | None = None,
+    mad_stats_latency: dict[str, float] | None = None,
+) -> np.ndarray:
+    """Paper-aligned anomaly score.
+
+    Single-task runs use their own head loss directly.
+    Multi-task runs normalize each head loss with MAD and sum them.
+    """
+    has_event = args.train_event_model and scores_event.size > 0
+    has_latency = args.train_latency_model and scores_latency.size > 0
+
+    if has_event and has_latency:
+        return _mad_normalize(scores_event, mad_stats_event) + _mad_normalize(
+            scores_latency, mad_stats_latency
+        )
+    if has_event:
+        return scores_event.astype(np.float64, copy=False)
+    if has_latency:
+        return scores_latency.astype(np.float64, copy=False)
+    return np.array([], dtype=np.float64)
+
+
+def combine_full_binary_scores_labels(
+    scores_id: np.ndarray, scores_ood: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    scores_id = np.asarray(scores_id, dtype=np.float64)
+    scores_ood = np.asarray(scores_ood, dtype=np.float64)
+    if scores_id.size == 0 or scores_ood.size == 0:
+        return np.array([], dtype=np.float64), np.array([], dtype=np.int64)
+    scores = np.concatenate([scores_id, scores_ood])
+    y = np.concatenate(
+        [
+            np.zeros(scores_id.size, dtype=np.int64),
+            np.ones(scores_ood.size, dtype=np.int64),
+        ]
+    )
+    return scores, y
 
 
 ###############################################################################
@@ -415,7 +466,7 @@ def evaluate_split(model, loader, device, args, crit_e, crit_l,
     tot_loss = tot_e = tot_l = 0.0
     ae_sum = ae_cnt = al_sum = al_cnt = 0.0
     n = 0
-    scores, labels = [], []
+    scores_event, scores_latency, labels = [], [], []
 
     for batch in loader:
         with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16,
@@ -451,9 +502,9 @@ def evaluate_split(model, loader, device, args, crit_e, crit_l,
                 if ll.numel() > 0
                 else None
             )
-            seq_sc = select_ood_sequence_score(seq_sc_e, seq_sc_l, args)
-            if seq_sc is not None:
-                scores.append(seq_sc.detach().cpu().numpy())
+            scores_event.append(_scores_to_numpy(seq_sc_e))
+            scores_latency.append(_scores_to_numpy(seq_sc_l))
+            if seq_sc_e is not None or seq_sc_l is not None:
                 labels.append(batch["is_anomaly"].numpy())
 
 
@@ -462,7 +513,12 @@ def evaluate_split(model, loader, device, args, crit_e, crit_l,
                loss_l=tot_l/max(n,1),
                acc_e=ae_sum/max(ae_cnt,1), acc_l=al_sum/max(al_cnt,1))
     if return_scores:
-        out["scores"] = np.concatenate(scores) if scores else np.array([])
+        out["scores_event"] = (
+            np.concatenate(scores_event) if scores_event else np.array([], dtype=np.float64)
+        )
+        out["scores_latency"] = (
+            np.concatenate(scores_latency) if scores_latency else np.array([], dtype=np.float64)
+        )
         out["labels"] = np.concatenate(labels) if labels else np.array([])
     return out
 
@@ -490,7 +546,7 @@ def _make_ood_loader(preprocessed_dir, subdir, batch, max_seq_len, pin_memory):
     )
 
 
-def run_ood_eval(model, args, device, crit_e, crit_l, log_fn):
+def run_ood_eval_legacy_weighted(model, args, device, crit_e, crit_l, log_fn):
     if not HAS_SKLEARN:
         log_fn("[OOD] sklearn not available — skipping")
         return {}
@@ -607,6 +663,243 @@ def run_ood_eval(model, args, device, crit_e, crit_l, log_fn):
 
         if f1_note:
             entry["f1_note"] = f1_note
+
+        msg = (
+            f"[OOD] {atype:6s}  AUROC={rm['auroc']:.4f}  AUPR={rm['aupr']:.4f}  "
+            f"bal={entry['n_test_normal_balanced']}/{entry['n_test_ood_balanced']}  "
+            f"full={entry['n_test_normal_full']:,}/{entry['n_test_ood_full']:,}"
+        )
+        if entry["f1"] is not None:
+            msg += (
+                f"  F1={entry['f1']:.4f}  P={entry['precision']:.4f}  "
+                f"R={entry['recall']:.4f}  thr={entry['best_threshold']:.6g}"
+            )
+        log_fn(msg)
+        results[atype] = entry
+
+    return results
+
+
+def run_ood_eval(model, args, device, crit_e, crit_l, log_fn):
+    if not HAS_SKLEARN:
+        log_fn("[OOD] sklearn not available - skipping")
+        return {}
+
+    pin = device.type == "cuda"
+    base = args.preprocessed_dir
+    if not os.path.isdir(os.path.join(base, "test_id")):
+        log_fn("[OOD] test_id not found")
+        return {}
+
+    valid_id_dir = os.path.join(base, "valid_id")
+    has_valid_root = os.path.isdir(valid_id_dir)
+
+    ld_tid = _make_ood_loader(base, "test_id", args.batch, args.max_seq_len, pin)
+    if ld_tid is None:
+        log_fn("[OOD] test_id loader unavailable")
+        return {}
+    res_tid = evaluate_split(
+        model, ld_tid, device, args, crit_e, crit_l, return_scores=True
+    )
+
+    res_vid = None
+    if has_valid_root:
+        ld_vid = _make_ood_loader(base, "valid_id", args.batch, args.max_seq_len, pin)
+        if ld_vid is not None:
+            res_vid = evaluate_split(
+                model, ld_vid, device, args, crit_e, crit_l, return_scores=True
+            )
+
+    valid_ood_results = {}
+    test_ood_results = {}
+    available_types = []
+    for atype in ["cpu", "disk", "mem", "net"]:
+        test_ood_sub = f"test_ood_{atype}"
+        test_loader = _make_ood_loader(base, test_ood_sub, args.batch, args.max_seq_len, pin)
+        if test_loader is None:
+            continue
+        test_ood_results[atype] = evaluate_split(
+            model, test_loader, device, args, crit_e, crit_l, return_scores=True
+        )
+        if has_valid_root:
+            valid_ood_sub = f"valid_ood_{atype}"
+            valid_loader = _make_ood_loader(
+                base, valid_ood_sub, args.batch, args.max_seq_len, pin
+            )
+            if valid_loader is not None:
+                valid_ood_results[atype] = evaluate_split(
+                    model, valid_loader, device, args, crit_e, crit_l, return_scores=True
+                )
+        available_types.append(atype)
+
+    if not available_types:
+        log_fn("[OOD] no test OOD splits found")
+        return {}
+
+    mad_event = None
+    mad_latency = None
+    global_best_t = None
+    global_val_f1 = None
+    global_val_counts = {
+        "n_val_normal_balanced": None,
+        "n_val_ood_balanced": None,
+        "n_val_normal_full": None,
+        "n_val_ood_full": None,
+    }
+    score_method = (
+        "paper_mad_sum" if (args.train_event_model and args.train_latency_model) else
+        "event_loss" if args.train_event_model else
+        "latency_loss"
+    )
+
+    if res_vid is not None and valid_ood_results:
+        valid_event_pool = []
+        valid_latency_pool = []
+        if res_vid["scores_event"].size > 0:
+            valid_event_pool.append(res_vid["scores_event"])
+        if res_vid["scores_latency"].size > 0:
+            valid_latency_pool.append(res_vid["scores_latency"])
+        for atype in available_types:
+            res_vood = valid_ood_results.get(atype)
+            if res_vood is None:
+                continue
+            if res_vood["scores_event"].size > 0:
+                valid_event_pool.append(res_vood["scores_event"])
+            if res_vood["scores_latency"].size > 0:
+                valid_latency_pool.append(res_vood["scores_latency"])
+
+        if args.train_event_model and args.train_latency_model:
+            mad_event = _compute_mad_stats(
+                np.concatenate(valid_event_pool) if valid_event_pool else np.array([], dtype=np.float64)
+            )
+            mad_latency = _compute_mad_stats(
+                np.concatenate(valid_latency_pool) if valid_latency_pool else np.array([], dtype=np.float64)
+            )
+
+        val_id_scores = combine_paper_ood_scores(
+            res_vid["scores_event"],
+            res_vid["scores_latency"],
+            args,
+            mad_event,
+            mad_latency,
+        )
+        val_ood_scores_all = []
+        for atype in available_types:
+            res_vood = valid_ood_results.get(atype)
+            if res_vood is None:
+                continue
+            s_vood = combine_paper_ood_scores(
+                res_vood["scores_event"],
+                res_vood["scores_latency"],
+                args,
+                mad_event,
+                mad_latency,
+            )
+            if s_vood.size > 0:
+                val_ood_scores_all.append(s_vood)
+
+        if val_id_scores.size > 0 and val_ood_scores_all:
+            val_ood_scores = np.concatenate(val_ood_scores_all)
+            scores_val, y_val = combine_full_binary_scores_labels(
+                val_id_scores, val_ood_scores
+            )
+            if len(y_val) > 0 and len(np.unique(y_val)) >= 2:
+                global_best_t, global_val_f1 = tune_threshold_max_f1(
+                    scores_val, y_val, args.ood_threshold_grid
+                )
+                global_val_counts = {
+                    "n_val_normal_balanced": int((y_val == 0).sum()),
+                    "n_val_ood_balanced": int((y_val == 1).sum()),
+                    "n_val_normal_full": int(len(val_id_scores)),
+                    "n_val_ood_full": int(len(val_ood_scores)),
+                }
+                log_fn(
+                    f"[OOD] global validation threshold ({score_method}) "
+                    f"thr={global_best_t:.6g} F1={global_val_f1:.4f} "
+                    f"bal={global_val_counts['n_val_normal_balanced']}/"
+                    f"{global_val_counts['n_val_ood_balanced']} "
+                    f"full={global_val_counts['n_val_normal_full']:,}/"
+                    f"{global_val_counts['n_val_ood_full']:,}"
+                )
+                if mad_event is not None and mad_latency is not None:
+                    log_fn(
+                        f"[OOD] MAD stats event(median={mad_event['median']:.6g}, "
+                        f"mad={mad_event['mad']:.6g}) latency(median="
+                        f"{mad_latency['median']:.6g}, mad={mad_latency['mad']:.6g})"
+                    )
+            else:
+                log_fn("[OOD] global validation set invalid for threshold tuning")
+        else:
+            log_fn("[OOD] validation scores unavailable for global threshold tuning")
+    else:
+        log_fn("[OOD] valid_id or valid_ood_* missing; threshold-based metrics skipped")
+
+    results = {}
+    test_id_scores = combine_paper_ood_scores(
+        res_tid["scores_event"],
+        res_tid["scores_latency"],
+        args,
+        mad_event,
+        mad_latency,
+    )
+
+    for atype in available_types:
+        res_tood = test_ood_results[atype]
+        s_tood = combine_paper_ood_scores(
+            res_tood["scores_event"],
+            res_tood["scores_latency"],
+            args,
+            mad_event,
+            mad_latency,
+        )
+        if test_id_scores.size == 0 or s_tood.size == 0:
+            log_fn(f"[OOD] {atype}: empty scores - skip")
+            continue
+
+        scores_test, y_test = combine_full_binary_scores_labels(
+            test_id_scores, s_tood
+        )
+        if len(y_test) == 0 or len(np.unique(y_test)) < 2:
+            log_fn(f"[OOD] {atype}: insufficient test data - skip")
+            continue
+
+        rm = rank_metrics(y_test, scores_test)
+        entry = {
+            "score_method": score_method,
+            "auroc": rm["auroc"],
+            "aupr": rm["aupr"],
+            "n_test_normal_balanced": int((y_test == 0).sum()),
+            "n_test_ood_balanced": int((y_test == 1).sum()),
+            "n_test_normal_full": int(len(test_id_scores)),
+            "n_test_ood_full": int(len(s_tood)),
+            "f1": None,
+            "precision": None,
+            "recall": None,
+            "accuracy": None,
+            "best_threshold": global_best_t,
+            "val_f1_tune": global_val_f1,
+            **global_val_counts,
+        }
+
+        if mad_event is not None:
+            entry["mad_event_median"] = mad_event["median"]
+            entry["mad_event"] = mad_event["mad"]
+        if mad_latency is not None:
+            entry["mad_latency_median"] = mad_latency["median"]
+            entry["mad_latency"] = mad_latency["mad"]
+
+        if global_best_t is not None:
+            mt = metrics_at_threshold(y_test, scores_test, global_best_t)
+            entry.update(
+                {
+                    "f1": mt["f1"],
+                    "precision": mt["precision"],
+                    "recall": mt["recall"],
+                    "accuracy": mt["accuracy"],
+                }
+            )
+        else:
+            entry["f1_note"] = "global_validation_threshold_unavailable"
 
         msg = (
             f"[OOD] {atype:6s}  AUROC={rm['auroc']:.4f}  AUPR={rm['aupr']:.4f}  "
