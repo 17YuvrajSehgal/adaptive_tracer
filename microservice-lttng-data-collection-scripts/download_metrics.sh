@@ -2,7 +2,7 @@
 set -u
 set -o pipefail
 
-PROMETHEUS="${PROMETHEUS:-http://34.58.215.226:9090}"
+PROMETHEUS="${PROMETHEUS:-http://136.114.233.241:9090}"
 STEP="${STEP:-10s}"
 RATE_WINDOW="${RATE_WINDOW:-1m}"
 

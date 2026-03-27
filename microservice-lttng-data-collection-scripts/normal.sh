@@ -11,7 +11,6 @@ mkdir -p "$EXPERIMENT_DIR"/{metrics,load_logs}
 
 echo "🚀 Normal: $RUN_ID (${DURATION}s, ${LOAD_USERS} users)"
 
-# Make sure sudo is authenticated before background tracing starts
 sudo -v
 
 echo "⏳ Warmup for Prometheus/service stability (20s)..."
@@ -19,18 +18,16 @@ sleep 20
 
 RUN_START_EPOCH=$(date -u +%s)
 
-# Tracing
 (cd ~ && ./collect_trace.sh normal "$RUN_ID" "$DURATION") &
 TRACE_PID=$!
 
-# Load
 python3 ~/load_generator.py \
   --host "$FRONTEND_HOST" \
   --users "$LOAD_USERS" \
   --duration "$DURATION" \
   --think-min 0.2 \
   --think-max 1.0 \
-  --log-level WARNING \
+  --log-level DEBUG \
   --output "$EXPERIMENT_DIR/load_results.csv" &
 LOAD_PID=$!
 
@@ -38,7 +35,6 @@ wait "$TRACE_PID" "$LOAD_PID"
 
 RUN_END_EPOCH=$(date -u +%s)
 
-# Fix perms
 TRACE_DIR=~/traces/normal/"$RUN_ID"
 sudo chown -R "$(whoami)" "$TRACE_DIR" 2>/dev/null || true
 

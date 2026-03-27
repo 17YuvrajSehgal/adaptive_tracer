@@ -32,7 +32,7 @@ stress-ng \
   --vm-keep \
   --page-in \
   --timeout "${DURATION}s" \
-  --log-level WARNING \
+  --log-level DEBUG \
   --metrics-brief &
 STRESS_PID=$!
 

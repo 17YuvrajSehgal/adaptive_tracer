@@ -100,7 +100,7 @@ python3 ~/load_generator.py \
   --duration "$DURATION" \
   --think-min 0.2 \
   --think-max 1.0 \
-  --log-level WARNING \
+  --log-level DEBUG \
   --output "$EXPERIMENT_DIR/load_results.csv" &
 LOAD_PID=$!
 
