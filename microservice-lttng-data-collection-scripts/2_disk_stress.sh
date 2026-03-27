@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+if ! command -v stress-ng >/dev/null 2>&1; then
+  echo "ERROR: stress-ng is not installed or not on PATH. Disk anomaly cannot be injected." >&2
+  exit 1
+fi
+
 RUN_ID=${1:-run01}
 DURATION=${2:-100}
 EXPERIMENT_DIR=~/experiments/anomaly_disk/$RUN_ID
