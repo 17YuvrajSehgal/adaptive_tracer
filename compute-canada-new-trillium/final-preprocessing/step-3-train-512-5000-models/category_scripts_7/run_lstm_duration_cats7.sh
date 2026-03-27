@@ -86,15 +86,15 @@ python -u microservice/train_sockshop.py \
   --batch 64 \
   --accum_steps 4 \
   --n_epochs 20 \
-  --early_stopping_patience 20 \
+  --early_stopping_patience 10 \
   --lr 3e-4 \
   --warmup_steps 500 \
   --clip 1.0 \
   --num_workers 8 \
   --label_smoothing 0.0 \
   --amp \
-  --eval_every 200 \
-  --save_every 5000 \
+  --eval_every 2000 \
+  --save_every 2000 \
   --wandb_project sockshop_lmat \
   --wandb_run_name "lstm_duration_cats7_seq512_${SLURM_JOB_ID}" \
   --log_dir "$LOG_DIR" \
