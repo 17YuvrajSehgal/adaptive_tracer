@@ -3,16 +3,17 @@ set -e
 
 RUN_ID=${1:-run01}
 DURATION=${2:-100}
-EXPERIMENT_DIR=~/experiments/cpu_ultra/$RUN_ID
+EXPERIMENT_DIR=~/experiments/anomaly_cpu/$RUN_ID
 LOAD_USERS=200               # high load
+CPU_WORKERS=${CPU_WORKERS:-$(nproc)}
+THINK_MIN=${THINK_MIN:-0.1}
+THINK_MAX=${THINK_MAX:-0.3}
 
 mkdir -p "$EXPERIMENT_DIR"/{metrics}
 RUN_START_EPOCH=$(date -u +%s)
 
 echo "💥 ULTRA CPU Stress: $RUN_ID (${DURATION}s, ${LOAD_USERS} users)"
 
-RUN_ID=${1:-run_01}
-RUN_START_EPOCH=$(date -u +%s)
 
 echo "⏳ Warmup for Prometheus/service stability (20s)..."
 sleep 20
@@ -23,7 +24,7 @@ TRACE_PID=$!
 
 # 2) ULTRA CPU: 12 cores + L3 cache thrashing
 stress-ng \
-  --cpu 12 \
+  --cpu "$CPU_WORKERS" \
   --cpu-method all \
   --cpu-load 100 \
   --timeout "${DURATION}s" \
@@ -37,8 +38,8 @@ python3 ~/load_generator.py \
   --host http://localhost:80 \
   --users "$LOAD_USERS" \
   --duration "$DURATION" \
-  --think-min 0.1 \
-  --think-max 0.3 \
+  --think-min "$THINK_MIN" \
+  --think-max "$THINK_MAX" \
   --log-level WARNING \
   --output "$EXPERIMENT_DIR/load_results.csv" &
 LOAD_PID=$!

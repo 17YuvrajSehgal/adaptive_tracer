@@ -3,8 +3,10 @@ set -e
 
 RUN_ID=${1:-run01}
 DURATION=${2:-100}
-EXPERIMENT_DIR=~/experiments/mem_stress/$RUN_ID
+EXPERIMENT_DIR=~/experiments/anomaly_mem/$RUN_ID
 LOAD_USERS=${LOAD_USERS:-200}          # same load as others
+THINK_MIN=${THINK_MIN:-0.1}
+THINK_MAX=${THINK_MAX:-0.3}
 
 # Strong memory pressure knobs
 VM_WORKERS=${VM_WORKERS:-16}           # more workers
@@ -43,8 +45,8 @@ python3 ~/load_generator.py \
   --host "${FRONTEND_HOST:-http://localhost:80}" \
   --users "$LOAD_USERS" \
   --duration "$DURATION" \
-  --think-min 0.1 \
-  --think-max 0.3 \
+  --think-min "$THINK_MIN" \
+  --think-max "$THINK_MAX" \
   --output "$EXPERIMENT_DIR/load_results.csv" &
 LOAD_PID=$!
 

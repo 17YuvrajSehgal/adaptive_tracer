@@ -7,6 +7,8 @@ EXPERIMENT_DIR=~/experiments/net_stress/$RUN_ID
 FRONTEND_HOST=${FRONTEND_HOST:-http://localhost:80}
 LOAD_USERS=${LOAD_USERS:-200}
 TRACE_START_DELAY=${TRACE_START_DELAY:-8}
+THINK_MIN=${THINK_MIN:-0.1}
+THINK_MAX=${THINK_MAX:-0.3}
 
 # More stable impairment profile
 NET_DELAY_MS=${NET_DELAY_MS:-80}
@@ -98,8 +100,8 @@ python3 ~/load_generator.py \
   --host "$FRONTEND_HOST" \
   --users "$LOAD_USERS" \
   --duration "$DURATION" \
-  --think-min 0.2 \
-  --think-max 1.0 \
+  --think-min "$THINK_MIN" \
+  --think-max "$THINK_MAX" \
   --log-level DEBUG \
   --output "$EXPERIMENT_DIR/load_results.csv" &
 LOAD_PID=$!

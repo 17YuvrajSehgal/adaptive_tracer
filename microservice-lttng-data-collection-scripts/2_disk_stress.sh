@@ -3,9 +3,11 @@ set -e
 
 RUN_ID=${1:-run01}
 DURATION=${2:-100}
-EXPERIMENT_DIR=~/experiments/disk_ultra/$RUN_ID
+EXPERIMENT_DIR=~/experiments/anomaly_disk/$RUN_ID
 FRONTEND_HOST=${FRONTEND_HOST:-http://localhost:80}
 LOAD_USERS=${LOAD_USERS:-200}
+THINK_MIN=${THINK_MIN:-0.1}
+THINK_MAX=${THINK_MAX:-0.3}
 
 # Disk stress knobs (safer defaults than "10TB writes")
 DISK_WORKERS=${DISK_WORKERS:-300}   # more concurrency
@@ -42,8 +44,8 @@ python3 ~/load_generator.py \
   --host "${FRONTEND_HOST:-http://localhost:80}" \
   --users "$LOAD_USERS" \
   --duration "$DURATION" \
-  --think-min 0.05 \
-  --think-max 0.2 \
+  --think-min "$THINK_MIN" \
+  --think-max "$THINK_MAX" \
   --log-level WARNING \
   --output "$EXPERIMENT_DIR/load_results.csv" &
 LOAD_PID=$!

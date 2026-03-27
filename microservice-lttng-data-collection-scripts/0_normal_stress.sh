@@ -6,6 +6,8 @@ DURATION=${2:-100}
 EXPERIMENT_DIR=~/experiments/normal/$RUN_ID
 FRONTEND_HOST=${FRONTEND_HOST:-http://localhost:80}
 LOAD_USERS=${LOAD_USERS:-200}
+THINK_MIN=${THINK_MIN:-0.1}
+THINK_MAX=${THINK_MAX:-0.3}
 
 mkdir -p "$EXPERIMENT_DIR"/{metrics,load_logs}
 
@@ -25,8 +27,8 @@ python3 ~/load_generator.py \
   --host "$FRONTEND_HOST" \
   --users "$LOAD_USERS" \
   --duration "$DURATION" \
-  --think-min 0.2 \
-  --think-max 1.0 \
+  --think-min "$THINK_MIN" \
+  --think-max "$THINK_MAX" \
   --log-level DEBUG \
   --output "$EXPERIMENT_DIR/load_results.csv" &
 LOAD_PID=$!
