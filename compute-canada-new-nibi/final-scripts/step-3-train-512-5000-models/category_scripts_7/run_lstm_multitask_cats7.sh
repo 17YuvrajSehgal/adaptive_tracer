@@ -87,7 +87,7 @@ python -u microservice/train_sockshop.py \
   --batch 64 \
   --accum_steps 4 \
   --n_epochs 20 \
-  --early_stopping_patience 10 \
+  --early_stopping_patience 20 \
   --lr 3e-4 \
   --warmup_steps 500 \
   --clip 1.0 \
