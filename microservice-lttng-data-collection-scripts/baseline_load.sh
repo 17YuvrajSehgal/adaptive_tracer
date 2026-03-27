@@ -15,6 +15,8 @@ THINK_MIN=${THINK_MIN:-0.1}
 THINK_MAX=${THINK_MAX:-0.3}
 
 mkdir -p "$EXPERIMENT_DIR"/load_logs
+RUN_LOG="$EXPERIMENT_DIR/run.log"
+exec > >(tee -a "$RUN_LOG") 2>&1
 
 echo "🚀 BASELINE (no tracing, no LMAT): $RUN_ID (${DURATION}s, ${LOAD_USERS} users)"
 

@@ -14,7 +14,9 @@ DISK_WORKERS=${DISK_WORKERS:-300}   # more concurrency
 DISK_BYTES=${DISK_BYTES:-4G}        # per-worker target (total is still very large; tune carefully)
 HDD_OPTS=${HDD_OPTS:-direct,fsync}  # stronger latency impact (fsync hurts)
 
-mkdir -p "$EXPERIMENT_DIR"/{metrics}
+mkdir -p "$EXPERIMENT_DIR"/{metrics,load_logs}
+RUN_LOG="$EXPERIMENT_DIR/run.log"
+exec > >(tee -a "$RUN_LOG") 2>&1
 
 echo "💥 ULTRA DISK Stress: $RUN_ID (${DURATION}s, ${LOAD_USERS} users + ${DISK_WORKERS} workers, ${DISK_BYTES}/worker, opts=${HDD_OPTS})"
 
@@ -46,7 +48,7 @@ python3 ~/load_generator.py \
   --duration "$DURATION" \
   --think-min "$THINK_MIN" \
   --think-max "$THINK_MAX" \
-  --log-level WARNING \
+  --log-level DEBUG \
   --output "$EXPERIMENT_DIR/load_results.csv" &
 LOAD_PID=$!
 

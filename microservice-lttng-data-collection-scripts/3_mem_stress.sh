@@ -13,7 +13,9 @@ VM_WORKERS=${VM_WORKERS:-16}           # more workers
 VM_BYTES=${VM_BYTES:-90%}              # aggressive but safer than 100%
 VM_METHOD=${VM_METHOD:-all}
 
-mkdir -p "$EXPERIMENT_DIR"/{metrics}
+mkdir -p "$EXPERIMENT_DIR"/{metrics,load_logs}
+RUN_LOG="$EXPERIMENT_DIR/run.log"
+exec > >(tee -a "$RUN_LOG") 2>&1
 
 sudo -v
 

@@ -18,8 +18,10 @@ NET_RATE=${NET_RATE:-20mbit}
 NET_BURST=${NET_BURST:-64k}
 NET_LATENCY=${NET_LATENCY:-100ms}
 
-mkdir -p "$EXPERIMENT_DIR"/{metrics}
+mkdir -p "$EXPERIMENT_DIR"/{metrics,load_logs}
 TRACE_LOG="$EXPERIMENT_DIR/collect_trace.log"
+RUN_LOG="$EXPERIMENT_DIR/run.log"
+exec > >(tee -a "$RUN_LOG") 2>&1
 
 resolve_sockshop_bridge() {
   local bridge

@@ -9,7 +9,9 @@ CPU_WORKERS=${CPU_WORKERS:-$(nproc)}
 THINK_MIN=${THINK_MIN:-0.1}
 THINK_MAX=${THINK_MAX:-0.3}
 
-mkdir -p "$EXPERIMENT_DIR"/{metrics}
+mkdir -p "$EXPERIMENT_DIR"/{metrics,load_logs}
+RUN_LOG="$EXPERIMENT_DIR/run.log"
+exec > >(tee -a "$RUN_LOG") 2>&1
 RUN_START_EPOCH=$(date -u +%s)
 
 echo "💥 ULTRA CPU Stress: $RUN_ID (${DURATION}s, ${LOAD_USERS} users)"
@@ -40,7 +42,7 @@ python3 ~/load_generator.py \
   --duration "$DURATION" \
   --think-min "$THINK_MIN" \
   --think-max "$THINK_MAX" \
-  --log-level WARNING \
+  --log-level DEBUG \
   --output "$EXPERIMENT_DIR/load_results.csv" &
 LOAD_PID=$!
 
