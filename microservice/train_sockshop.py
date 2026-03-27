@@ -391,7 +391,9 @@ def per_sequence_latency_ce(ll, tgt_lat, ordinal_latency):
 def _scores_to_numpy(seq_scores):
     if seq_scores is None:
         return np.array([], dtype=np.float64)
-    return seq_scores.detach().cpu().numpy().astype(np.float64, copy=False)
+    return (
+        seq_scores.detach().to(dtype=torch.float32).cpu().numpy().astype(np.float64, copy=False)
+    )
 
 
 def _compute_mad_stats(values: np.ndarray) -> dict[str, float] | None:
