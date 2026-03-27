@@ -6,7 +6,7 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=12
-#SBATCH --time=12:00:00
+#SBATCH --time=20:00:00
 #SBATCH --output=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/%x-%j.out
 #SBATCH --mail-type=BEGIN,END,FAIL
 
@@ -66,67 +66,6 @@ if torch.cuda.is_available():
     print("GPU:", torch.cuda.get_device_name(0))
 PY
 
-echo "[4/4] One-batch Transformer smoke test"
-DATA_DIR="$DATA" srun python - <<'PY'
-import os
-import pickle
-import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
-
-from microservice.NpzDataset import SockshopNpzDataset, sockshop_collate_fn
-from microservice.train_sockshop import build_model, forward_batch, compute_loss
-
-class Args:
-    preprocessed_dir = os.environ["DATA_DIR"]
-    n_categories = 8
-    max_seq_len = 512
-    model = "transformer"
-    n_head = 8
-    n_hidden = 1024
-    n_layer = 6
-    dropout = 0.1
-    activation = "gelu"
-    tfixup = False
-    dim_sys = 48
-    dim_entry = 12
-    dim_ret = 12
-    dim_proc = 48
-    dim_pid = 12
-    dim_tid = 12
-    dim_order = 12
-    dim_time = 12
-    dim_f_mean = 0
-    train_event_model = False
-    train_latency_model = True
-    ordinal_latency = False
-    multitask_lambda = 0.5
-    chk = False
-    amp = False
-    label_smoothing = 0.0
-
-with open(os.path.join(Args.preprocessed_dir, "vocab.pkl"), "rb") as f:
-    dict_sys, dict_proc = pickle.load(f)
-
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-ds = SockshopNpzDataset(
-    os.path.join(Args.preprocessed_dir, "train_id"),
-    batch_size=2,
-    max_seq_len=Args.max_seq_len,
-    max_samples=2,
-    shuffle_shards=False,
-)
-loader = DataLoader(ds, batch_size=None, collate_fn=sockshop_collate_fn, num_workers=0)
-batch = next(iter(loader))
-model = build_model(Args, len(dict_sys), len(dict_proc), device)
-logits_e, logits_l = forward_batch(model, batch, device, Args)
-crit_l = nn.CrossEntropyLoss(ignore_index=0)
-loss, loss_e, loss_l = compute_loss(logits_e, logits_l, batch, device, Args, None, crit_l)
-print("event logits:", tuple(logits_e.shape))
-print("latency logits:", tuple(logits_l.shape))
-print("loss:", float(loss.item()), float(loss_e.item()), float(loss_l.item()))
-PY
-
 python -u microservice/train_sockshop.py \
   --preprocessed_dir "$DATA" \
   --model transformer \
@@ -146,10 +85,10 @@ python -u microservice/train_sockshop.py \
   --dim_order 12 \
   --dim_time 12 \
   --train_latency_model \
-  --batch 4 \
-  --accum_steps 16 \
-  --n_epochs 100 \
-  --early_stopping_patience 20 \
+  --batch 64 \
+  --accum_steps 1 \
+  --n_epochs 20 \
+  --early_stopping_patience 10 \
   --lr 3e-4 \
   --warmup_steps 500 \
   --clip 1.0 \
