@@ -1,11 +1,18 @@
 #!/bin/bash
 set -e
 
+if ! command -v stress-ng >/dev/null 2>&1; then
+  echo "ERROR: stress-ng is not installed or not on PATH. CPU anomaly cannot be injected." >&2
+  exit 1
+fi
+
 RUN_ID=${1:-run01}
 DURATION=${2:-100}
 EXPERIMENT_DIR=~/experiments/anomaly_cpu/$RUN_ID
 LOAD_USERS=200               # high load
-CPU_WORKERS=${CPU_WORKERS:-$(nproc)}
+HOST_CPUS=$(nproc)
+CPU_WORKERS=${CPU_WORKERS:-$(( HOST_CPUS * 2 ))}
+CPU_METHOD=${CPU_METHOD:-matrixprod}
 THINK_MIN=${THINK_MIN:-0.1}
 THINK_MAX=${THINK_MAX:-0.3}
 
@@ -27,7 +34,7 @@ TRACE_PID=$!
 # 2) ULTRA CPU: 12 cores + L3 cache thrashing
 stress-ng \
   --cpu "$CPU_WORKERS" \
-  --cpu-method all \
+  --cpu-method "$CPU_METHOD" \
   --cpu-load 100 \
   --timeout "${DURATION}s" \
   --metrics-brief &
