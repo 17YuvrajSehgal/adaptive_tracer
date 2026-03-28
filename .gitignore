@@ -15,7 +15,7 @@ micro-service-trace-data
 !micro-service-trace-data/preprocessed/delay_spans.pkl
 !micro-service-trace-data/preprocessed/vocab.pkl
 
-logs/
+logs/**/*.pt
 
 logs/overhead_experiments/*/*.pdf
 logs/overhead_experiments/**/*.json
