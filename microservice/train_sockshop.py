@@ -457,6 +457,38 @@ def combine_full_binary_scores_labels(
     return scores, y
 
 
+def combine_balanced_binary_scores_labels(
+    scores_id: np.ndarray, scores_ood: np.ndarray, seed: int = 42
+) -> tuple[np.ndarray, np.ndarray]:
+    """Create a balanced ID/OOD validation set with deterministic subsampling.
+
+    This is used for threshold tuning so the chosen threshold does not collapse
+    to the majority class when pooled validation OOD counts greatly exceed ID.
+    """
+    scores_id = np.asarray(scores_id, dtype=np.float64)
+    scores_ood = np.asarray(scores_ood, dtype=np.float64)
+    m = min(scores_id.size, scores_ood.size)
+    if m == 0:
+        return np.array([], dtype=np.float64), np.array([], dtype=np.int64)
+
+    rng = np.random.default_rng(seed)
+    if scores_id.size > m:
+        idx_id = np.sort(rng.choice(scores_id.size, size=m, replace=False))
+        scores_id = scores_id[idx_id]
+    if scores_ood.size > m:
+        idx_ood = np.sort(rng.choice(scores_ood.size, size=m, replace=False))
+        scores_ood = scores_ood[idx_ood]
+
+    scores = np.concatenate([scores_id, scores_ood])
+    y = np.concatenate(
+        [
+            np.zeros(m, dtype=np.int64),
+            np.ones(m, dtype=np.int64),
+        ]
+    )
+    return scores, y
+
+
 ###############################################################################
 # Evaluation
 ###############################################################################
@@ -755,28 +787,9 @@ def run_ood_eval(model, args, device, crit_e, crit_l, log_fn):
     )
 
     if res_vid is not None and valid_ood_results:
-        valid_event_pool = []
-        valid_latency_pool = []
-        if res_vid["scores_event"].size > 0:
-            valid_event_pool.append(res_vid["scores_event"])
-        if res_vid["scores_latency"].size > 0:
-            valid_latency_pool.append(res_vid["scores_latency"])
-        for atype in available_types:
-            res_vood = valid_ood_results.get(atype)
-            if res_vood is None:
-                continue
-            if res_vood["scores_event"].size > 0:
-                valid_event_pool.append(res_vood["scores_event"])
-            if res_vood["scores_latency"].size > 0:
-                valid_latency_pool.append(res_vood["scores_latency"])
-
         if args.train_event_model and args.train_latency_model:
-            mad_event = _compute_mad_stats(
-                np.concatenate(valid_event_pool) if valid_event_pool else np.array([], dtype=np.float64)
-            )
-            mad_latency = _compute_mad_stats(
-                np.concatenate(valid_latency_pool) if valid_latency_pool else np.array([], dtype=np.float64)
-            )
+            mad_event = _compute_mad_stats(res_vid["scores_event"])
+            mad_latency = _compute_mad_stats(res_vid["scores_latency"])
 
         val_id_scores = combine_paper_ood_scores(
             res_vid["scores_event"],
@@ -802,8 +815,8 @@ def run_ood_eval(model, args, device, crit_e, crit_l, log_fn):
 
         if val_id_scores.size > 0 and val_ood_scores_all:
             val_ood_scores = np.concatenate(val_ood_scores_all)
-            scores_val, y_val = combine_full_binary_scores_labels(
-                val_id_scores, val_ood_scores
+            scores_val, y_val = combine_balanced_binary_scores_labels(
+                val_id_scores, val_ood_scores, seed=args.seed
             )
             if len(y_val) > 0 and len(np.unique(y_val)) >= 2:
                 global_best_t, global_val_f1 = tune_threshold_max_f1(

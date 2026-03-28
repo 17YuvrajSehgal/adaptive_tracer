@@ -43,11 +43,23 @@ def tune_threshold_max_f1(
     thresholds = np.linspace(smin, smax, n_grid)
     best_t = float(thresholds[0])
     best_f1 = -1.0
+    best_precision = -1.0
     for t in thresholds:
         y_pred = (scores > t).astype(np.int64)
         f1 = f1_score(y_true, y_pred, zero_division=0)
-        if f1 > best_f1:
+        precision = precision_score(y_true, y_pred, zero_division=0)
+        if (
+            f1 > best_f1
+            or (
+                np.isclose(f1, best_f1)
+                and (
+                    precision > best_precision
+                    or (np.isclose(precision, best_precision) and t > best_t)
+                )
+            )
+        ):
             best_f1 = f1
+            best_precision = precision
             best_t = float(t)
     return best_t, best_f1
 
