@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=lstm_multitask_cats5_4096
 #SBATCH --account=def-naser2
-#SBATCH --partition=compute
 #SBATCH --nodes=1
-#SBATCH --gpus-per-node=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=12
+#SBATCH --gpus-per-node=h100:1
+#SBATCH --mem=32G
 #SBATCH --time=08:00:00
 #SBATCH --output=/scratch/yuvraj17/adaptive_tracing_scratch/adaptive_tracer/logs/%x-%j.out
 #SBATCH --mail-type=BEGIN,END,FAIL
