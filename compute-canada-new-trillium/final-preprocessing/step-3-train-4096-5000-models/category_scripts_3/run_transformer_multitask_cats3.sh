@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=trf_multitask_cats3_512
+#SBATCH --job-name=trf_multitask_cats3_4096
 #SBATCH --account=def-naser2
 #SBATCH --partition=compute
 #SBATCH --nodes=1
@@ -20,8 +20,8 @@ module load python/3.11.5
 BASE_SCRATCH=${SCRATCH:-$HOME/scratch}
 WORKROOT=$BASE_SCRATCH/adaptive_tracing_scratch
 PROJECT=$WORKROOT/adaptive_tracer
-DATA=$WORKROOT/micro-service-trace-data/preprocessed_lmat_kernel_cats3_seq512
-LOG_DIR=$PROJECT/logs/transformer_multitask_cats3_seq512_${SLURM_JOB_ID}
+DATA=$WORKROOT/micro-service-trace-data/preprocessed_lmat_kernel_cats3_seq4096
+LOG_DIR=$PROJECT/logs/transformer_multitask_cats3_seq4096_${SLURM_JOB_ID}
 
 mkdir -p "$LOG_DIR"
 
@@ -40,7 +40,7 @@ mkdir -p "$TRITON_CACHE_DIR" "$TORCH_HOME" "$WANDB_CACHE_DIR"
 echo "============================================================"
 echo "Job ID       : $SLURM_JOB_ID"
 echo "Node         : ${SLURMD_NODENAME:-unknown}"
-echo "Mode         : Transformer | Multitask | paper bins=3 | seq=512"
+echo "Mode         : Transformer | Multitask | paper bins=3 | seq=4096"
 echo "Project      : $PROJECT"
 echo "Data dir     : $DATA"
 echo "Log dir      : $LOG_DIR"
@@ -70,7 +70,7 @@ python -u microservice/train_sockshop.py \
   --preprocessed_dir "$DATA" \
   --model transformer \
   --n_categories 4 \
-  --max_seq_len 512 \
+  --max_seq_len 4096 \
   --n_head 8 \
   --n_hidden 1024 \
   --n_layer 6 \
@@ -100,7 +100,7 @@ python -u microservice/train_sockshop.py \
   --save_every 10000 \
   --multitask_lambda 0.5 \
   --wandb_project sockshop_lmat \
-  --wandb_run_name "transformer_multitask_cats3_seq512_${SLURM_JOB_ID}" \
+  --wandb_run_name "transformer_multitask_cats3_seq4096_${SLURM_JOB_ID}" \
   --log_dir "$LOG_DIR" \
   --gpu 0
 
