@@ -87,7 +87,7 @@ python -u microservice/train_sockshop.py \
   --train_event_model \
   --batch 64 \
   --accum_steps 1 \
-  --n_epochs 20 \
+  --n_epochs 30 \
   --early_stopping_patience 10 \
   --lr 3e-4 \
   --warmup_steps 500 \
@@ -96,7 +96,7 @@ python -u microservice/train_sockshop.py \
   --label_smoothing 0.1 \
   --amp \
   --eval_every 2000 \
-  --save_every 2000 \
+  --save_every 10000 \
   --wandb_project sockshop_lmat \
   --wandb_run_name "transformer_event_cats7_seq512_${SLURM_JOB_ID}" \
   --log_dir "$LOG_DIR" \

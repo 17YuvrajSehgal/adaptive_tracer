@@ -86,7 +86,7 @@ python -u microservice/train_sockshop.py \
   --train_latency_model \
   --batch 64 \
   --accum_steps 4 \
-  --n_epochs 20 \
+  --n_epochs 30 \
   --early_stopping_patience 10 \
   --lr 3e-4 \
   --warmup_steps 500 \
@@ -95,7 +95,7 @@ python -u microservice/train_sockshop.py \
   --label_smoothing 0.0 \
   --amp \
   --eval_every 2000 \
-  --save_every 2000 \
+  --save_every 10000 \
   --multitask_lambda 0.5 \
   --wandb_project sockshop_lmat \
   --wandb_run_name "lstm_multitask_cats5_seq512_${SLURM_JOB_ID}" \
