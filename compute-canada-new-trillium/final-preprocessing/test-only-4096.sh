@@ -86,7 +86,7 @@ python -u microservice/train_sockshop.py \
   --train_latency_model \
   --batch 24 \
   --accum_steps 4 \
-  --n_epochs 50 \
+  --n_epochs 30 \
   --early_stopping_patience 10 \
   --lr 1e-3 \
   --warmup_steps 500 \
