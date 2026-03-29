@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import importlib.util
 import math
 import os
 import pickle
@@ -24,6 +25,14 @@ _HERE = Path(__file__).resolve().parent
 import sys
 
 sys.path.insert(0, str(_HERE.parent))
+
+_DICT_PATH = _HERE.parent / "dataset" / "Dictionary.py"
+_DICT_SPEC = importlib.util.spec_from_file_location("lmat_dictionary", _DICT_PATH)
+if _DICT_SPEC is None or _DICT_SPEC.loader is None:
+    raise RuntimeError(f"Unable to load Dictionary.py from {_DICT_PATH}")
+_DICT_MODULE = importlib.util.module_from_spec(_DICT_SPEC)
+_DICT_SPEC.loader.exec_module(_DICT_MODULE)
+Dictionary = _DICT_MODULE.Dictionary
 
 from microservice.NpzDataset import SockshopNpzDataset, sockshop_collate_fn
 from microservice.train_sockshop import (
@@ -68,14 +77,23 @@ class ClusterPrototype:
 def load_vocab(preprocessed_dir: str) -> tuple[dict, dict]:
     vocab_path = os.path.join(preprocessed_dir, "vocab.pkl")
     with open(vocab_path, "rb") as f:
-        return pickle.load(f)
+        obj = pickle.load(f)
+
+    if isinstance(obj, tuple) and len(obj) == 2:
+        first, second = obj
+        if hasattr(first, "__len__") and hasattr(second, "__len__"):
+            return first, second
+    raise TypeError(f"Unexpected vocab.pkl structure in {vocab_path}")
 
 
-def invert_vocab(vocab: dict) -> dict[int, str]:
-    out = {}
-    for key, value in vocab.items():
-        out[int(value)] = str(key)
-    return out
+def invert_vocab(vocab) -> dict[int, str]:
+    if hasattr(vocab, "idx2word"):
+        return {int(i): str(word) for i, word in enumerate(vocab.idx2word)}
+    if hasattr(vocab, "word2idx"):
+        return {int(value): str(key) for key, value in vocab.word2idx.items()}
+    if isinstance(vocab, dict):
+        return {int(value): str(key) for key, value in vocab.items()}
+    raise TypeError(f"Unsupported vocabulary object: {type(vocab)!r}")
 
 
 def make_loader(
