@@ -21,16 +21,15 @@ from microservice.root_cause_vectors import (
     MISS_LABEL,
     UNKNOWN_LABEL,
     RootCauseCalibration,
-    build_centroids,
+    build_cluster_prototypes,
     build_model_from_args,
-    classify_record,
+    classify_record_to_prototypes,
     combine_balanced_binary_scores_labels,
     combine_paper_ood_scores,
     confusion_matrix_dict,
     extract_root_cause_records,
-    load_vocab,
     make_loader,
-    summarise_centroid,
+    summarise_prototypes,
     write_predictions_csv,
 )
 from microservice.train_sockshop import _compute_mad_stats, evaluate_split
@@ -77,6 +76,11 @@ def get_args():
 
     p.add_argument("--combine_strategy", choices=["mean", "sum", "concat"], default="mean")
     p.add_argument("--centroid_source", choices=["all", "detected"], default="all")
+    p.add_argument("--cluster_method", choices=["hdbscan"], default="hdbscan")
+    p.add_argument("--cluster_metric", type=str, default="euclidean")
+    p.add_argument("--cluster_min_size", type=int, default=128)
+    p.add_argument("--cluster_min_samples", type=int, default=None)
+    p.add_argument("--cluster_max_records_per_label", type=int, default=None)
 
     args = p.parse_args()
     if not (args.train_event_model or args.train_latency_model):
@@ -103,7 +107,6 @@ def fmt_metric(value):
 
 
 def build_calibration(model, args, device, crit_e, crit_l) -> tuple[RootCauseCalibration, dict]:
-    log("[RCA] calibration: loading valid_id")
     pin = device.type == "cuda"
     ld_vid = make_loader(
         args.preprocessed_dir,
@@ -117,12 +120,10 @@ def build_calibration(model, args, device, crit_e, crit_l) -> tuple[RootCauseCal
     if ld_vid is None:
         raise FileNotFoundError("valid_id split is required for root-cause calibration")
 
-    log("[RCA] calibration: evaluating valid_id")
     res_vid = evaluate_split(model, ld_vid, device, args, crit_e, crit_l, return_scores=True)
 
     valid_ood_results = {}
     for atype in ANOMALY_TYPES:
-        log(f"[RCA] calibration: loading valid_ood_{atype}")
         loader = make_loader(
             args.preprocessed_dir,
             f"valid_ood_{atype}",
@@ -134,7 +135,6 @@ def build_calibration(model, args, device, crit_e, crit_l) -> tuple[RootCauseCal
         )
         if loader is None:
             continue
-        log(f"[RCA] calibration: evaluating valid_ood_{atype}")
         valid_ood_results[atype] = evaluate_split(
             model, loader, device, args, crit_e, crit_l, return_scores=True
         )
@@ -145,7 +145,6 @@ def build_calibration(model, args, device, crit_e, crit_l) -> tuple[RootCauseCal
     mad_event = None
     mad_latency = None
     if args.train_event_model and args.train_latency_model:
-        log("[RCA] calibration: computing MAD stats from valid_id")
         mad_event = _compute_mad_stats(res_vid["scores_event"])
         mad_latency = _compute_mad_stats(res_vid["scores_latency"])
 
@@ -188,7 +187,6 @@ def build_calibration(model, args, device, crit_e, crit_l) -> tuple[RootCauseCal
         n_val_normal=int(val_id_scores.size),
         n_val_ood=int(pooled_val_ood.size),
     )
-    log("[RCA] calibration: threshold tuning complete")
     return calibration, valid_ood_results
 
 
@@ -295,7 +293,6 @@ def main():
     pin = device.type == "cuda"
     valid_records_by_label = {}
     for atype in ANOMALY_TYPES:
-        log(f"[RCA] validation vectors: preparing valid_ood_{atype}")
         loader = make_loader(
             args.preprocessed_dir,
             f"valid_ood_{atype}",
@@ -323,23 +320,31 @@ def main():
         valid_records_by_label[atype] = records
         log(f"[RCA] valid_ood_{atype}: extracted {len(records)} sequences")
 
-    centroids, centroid_meta = build_centroids(
-        valid_records_by_label, centroid_source=args.centroid_source
+    prototypes, prototype_meta = build_cluster_prototypes(
+        valid_records_by_label,
+        centroid_source=args.centroid_source,
+        cluster_method=args.cluster_method,
+        min_cluster_size=args.cluster_min_size,
+        min_samples=args.cluster_min_samples,
+        cluster_metric=args.cluster_metric,
+        cluster_max_records_per_label=args.cluster_max_records_per_label,
+        seed=args.seed,
     )
-    if not centroids:
-        raise RuntimeError("No centroids could be built from validation OOD data")
+    if not prototypes:
+        raise RuntimeError("No cluster centroids could be built from validation OOD data")
 
-    for label, meta in centroid_meta.items():
+    for label, meta in prototype_meta.items():
         log(
-            f"[RCA] centroid {label}: total={meta['n_records_total']} "
-            f"selected={meta['n_records_selected']} used={meta['n_vectors_used']}"
+            f"[RCA] clusters {label}: total={meta['n_records_total']} "
+            f"selected={meta['n_records_selected']} clustered={meta['n_records_clustered']} "
+            f"vectors={meta['n_vectors_used']} n_clusters={meta['n_clusters']} "
+            f"noise={meta['noise_count']}"
         )
 
     test_records_by_label = {}
     flat_predictions = []
-    centroid_labels = sorted(centroids.keys())
+    centroid_labels = sorted({proto.label for proto in prototypes.values()})
     for atype in ANOMALY_TYPES:
-        log(f"[RCA] test vectors: preparing test_ood_{atype}")
         loader = make_loader(
             args.preprocessed_dir,
             f"test_ood_{atype}",
@@ -351,7 +356,6 @@ def main():
         )
         if loader is None:
             continue
-        log(f"[RCA] test vectors: extracting test_ood_{atype}")
         records = extract_root_cause_records(
             model,
             loader,
@@ -365,10 +369,12 @@ def main():
             mad_latency=calibration.mad_latency,
             combine_strategy=args.combine_strategy,
         )
-        log(f"[RCA] test vectors: classifying {len(records)} sequences for {atype}")
         for record in records:
-            pred_label, pred_sim = classify_record(record, centroids)
+            pred_label, pred_cluster_key, pred_sim = classify_record_to_prototypes(
+                record, prototypes
+            )
             record["predicted_label"] = pred_label
+            record["predicted_cluster_key"] = pred_cluster_key
             record["predicted_similarity"] = pred_sim
             record["isolated_correct"] = bool(pred_label == atype)
             record["detected_only_correct"] = bool(record["detected"] and pred_label == atype)
@@ -383,12 +389,9 @@ def main():
 
     metrics = aggregate_metrics(test_records_by_label, centroid_labels)
 
-    centroids_json = {}
-    for label, centroid in centroids.items():
-        centroids_json[label] = {
-            "metadata": centroid_meta[label],
-            "top_features": summarise_centroid(centroid, id_to_syscall, top_k=15),
-        }
+    centroids_json = summarise_prototypes(
+        prototypes, prototype_meta, id_to_syscall, top_k=15
+    )
 
     results = {
         "config": {
@@ -397,6 +400,11 @@ def main():
             "model": args.model,
             "combine_strategy": args.combine_strategy,
             "centroid_source": args.centroid_source,
+            "cluster_method": args.cluster_method,
+            "cluster_metric": args.cluster_metric,
+            "cluster_min_size": args.cluster_min_size,
+            "cluster_min_samples": args.cluster_min_samples,
+            "cluster_max_records_per_label": args.cluster_max_records_per_label,
             "max_samples": args.max_samples,
             "train_event_model": args.train_event_model,
             "train_latency_model": args.train_latency_model,
@@ -421,10 +429,7 @@ def main():
     write_predictions_csv(predictions_path, flat_predictions)
 
     centroids_npz = os.path.join(args.output_dir, "root_cause_centroids.npz")
-    np.savez(
-        centroids_npz,
-        **{f"centroid_{label}": centroid for label, centroid in centroids.items()},
-    )
+    np.savez(centroids_npz, **{proto.key: proto.centroid for proto in prototypes.values()})
 
     log(f"[RCA] results -> {results_path}")
     log(f"[RCA] predictions -> {predictions_path}")

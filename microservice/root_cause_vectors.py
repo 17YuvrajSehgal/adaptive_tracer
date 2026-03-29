@@ -12,6 +12,13 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
+try:
+    import hdbscan as hdbscan_lib
+    HAS_HDBSCAN = True
+except ImportError:
+    hdbscan_lib = None
+    HAS_HDBSCAN = False
+
 # Ensure project root on sys.path when executed as a script helper.
 _HERE = Path(__file__).resolve().parent
 import sys
@@ -47,6 +54,17 @@ class RootCauseCalibration:
     n_val_ood: int
 
 
+@dataclass
+class ClusterPrototype:
+    key: str
+    label: str
+    centroid: np.ndarray
+    cluster_id: int
+    n_records_total: int
+    n_records_used: int
+    source: str
+
+
 def load_vocab(preprocessed_dir: str) -> tuple[dict, dict]:
     vocab_path = os.path.join(preprocessed_dir, "vocab.pkl")
     with open(vocab_path, "rb") as f:
@@ -54,15 +72,8 @@ def load_vocab(preprocessed_dir: str) -> tuple[dict, dict]:
 
 
 def invert_vocab(vocab: dict) -> dict[int, str]:
-    if hasattr(vocab, "word2idx"):
-        items = vocab.word2idx.items()
-    elif isinstance(vocab, dict):
-        items = vocab.items()
-    else:
-        raise TypeError(f"Unsupported vocab type for inversion: {type(vocab)!r}")
-
     out = {}
-    for key, value in items:
+    for key, value in vocab.items():
         out[int(value)] = str(key)
     return out
 
@@ -207,19 +218,9 @@ def extract_root_cause_records(
     records = []
     seq_index = 0
     vocab_size = max(id_to_syscall.keys()) + 1 if id_to_syscall else 1
-    print(
-        f"[RCA] [{split_name}] start extraction"
-        + (f" ({anomaly_label})" if anomaly_label else ""),
-        flush=True,
-    )
 
     model.eval()
     for batch_idx, batch in enumerate(loader):
-        if batch_idx % 100 == 0:
-            print(
-                f"[RCA] [{split_name}] batch={batch_idx} sequences={seq_index}",
-                flush=True,
-            )
         with torch.amp.autocast(
             device_type=device.type,
             dtype=torch.bfloat16,
@@ -306,15 +307,53 @@ def extract_root_cause_records(
             )
             seq_index += 1
 
-    print(
-        f"[RCA] [{split_name}] finished extraction total_sequences={len(records)}",
-        flush=True,
-    )
     return records
 
 
 def select_vector(record: dict) -> np.ndarray:
     return np.asarray(record["combined_error_vector"], dtype=np.float32)
+
+
+def _select_records_for_centroids(
+    records: list[dict],
+    centroid_source: str = "all",
+) -> list[dict]:
+    selected = records
+    if centroid_source == "detected":
+        detected_records = [r for r in records if r["detected"]]
+        if detected_records:
+            selected = detected_records
+    return selected
+
+
+def _nonzero_vectors(records: list[dict]) -> tuple[list[np.ndarray], list[int]]:
+    vectors = []
+    indices = []
+    for idx, record in enumerate(records):
+        vec = select_vector(record)
+        if vec.size == 0:
+            continue
+        if float(np.linalg.norm(vec)) <= 1e-12:
+            continue
+        vectors.append(vec.astype(np.float32, copy=False))
+        indices.append(idx)
+    return vectors, indices
+
+
+def _sample_records_for_clustering(
+    records: list[dict],
+    max_records: int | None,
+    seed: int,
+) -> list[dict]:
+    if max_records is None or len(records) <= max_records:
+        return list(records)
+    rng = np.random.default_rng(seed)
+    idx = np.sort(rng.choice(len(records), size=max_records, replace=False))
+    return [records[int(i)] for i in idx]
+
+
+def _stable_label_seed(label: str) -> int:
+    return sum((i + 1) * ord(ch) for i, ch in enumerate(label))
 
 
 def build_centroids(
@@ -347,6 +386,100 @@ def build_centroids(
     return centroids, metadata
 
 
+def build_cluster_prototypes(
+    records_by_label: dict[str, list[dict]],
+    centroid_source: str = "all",
+    cluster_method: str = "hdbscan",
+    min_cluster_size: int = 128,
+    min_samples: int | None = None,
+    cluster_metric: str = "euclidean",
+    cluster_max_records_per_label: int | None = None,
+    seed: int = 42,
+) -> tuple[dict[str, ClusterPrototype], dict[str, dict]]:
+    if cluster_method != "hdbscan":
+        raise ValueError(f"Unsupported cluster method: {cluster_method}")
+    if not HAS_HDBSCAN:
+        raise ImportError(
+            "hdbscan is required for paper-style root cause clustering. "
+            "Install the 'hdbscan' package in the evaluation environment."
+        )
+
+    prototypes: dict[str, ClusterPrototype] = {}
+    metadata: dict[str, dict] = {}
+
+    for label, records in records_by_label.items():
+        selected = _select_records_for_centroids(records, centroid_source=centroid_source)
+        sampled = _sample_records_for_clustering(
+            selected,
+            max_records=cluster_max_records_per_label,
+            seed=seed + _stable_label_seed(label),
+        )
+        vectors, _ = _nonzero_vectors(sampled)
+        if not vectors:
+            continue
+
+        x = np.stack(vectors, axis=0).astype(np.float32, copy=False)
+        clusterer = hdbscan_lib.HDBSCAN(
+            min_cluster_size=min_cluster_size,
+            min_samples=min_samples,
+            metric=cluster_metric,
+        )
+        labels = clusterer.fit_predict(x)
+        unique_clusters = [int(c) for c in np.unique(labels) if int(c) >= 0]
+
+        cluster_counts = {}
+        for cluster_id in unique_clusters:
+            mask = labels == cluster_id
+            cluster_vecs = x[mask]
+            if cluster_vecs.size == 0:
+                continue
+            centroid = cluster_vecs.mean(axis=0).astype(np.float32, copy=False)
+            key = f"{label}::cluster_{cluster_id}"
+            prototypes[key] = ClusterPrototype(
+                key=key,
+                label=label,
+                centroid=centroid,
+                cluster_id=cluster_id,
+                n_records_total=len(records),
+                n_records_used=int(mask.sum()),
+                source="hdbscan",
+            )
+            cluster_counts[str(cluster_id)] = int(mask.sum())
+
+        noise_count = int(np.sum(labels < 0))
+        if not unique_clusters:
+            fallback_centroid = x.mean(axis=0).astype(np.float32, copy=False)
+            key = f"{label}::cluster_fallback"
+            prototypes[key] = ClusterPrototype(
+                key=key,
+                label=label,
+                centroid=fallback_centroid,
+                cluster_id=-1,
+                n_records_total=len(records),
+                n_records_used=int(x.shape[0]),
+                source="fallback_mean",
+            )
+            cluster_counts["fallback_mean"] = int(x.shape[0])
+
+        metadata[label] = {
+            "n_records_total": len(records),
+            "n_records_selected": len(selected),
+            "n_records_clustered": len(sampled),
+            "n_vectors_used": int(x.shape[0]),
+            "cluster_method": cluster_method,
+            "cluster_metric": cluster_metric,
+            "min_cluster_size": min_cluster_size,
+            "min_samples": min_samples,
+            "cluster_max_records_per_label": cluster_max_records_per_label,
+            "n_clusters": len(unique_clusters) if unique_clusters else 1,
+            "noise_count": noise_count,
+            "clusters": cluster_counts,
+            "used_fallback_mean": not bool(unique_clusters),
+        }
+
+    return prototypes, metadata
+
+
 def classify_record(record: dict, centroids: dict[str, np.ndarray]) -> tuple[str | None, float]:
     vec = select_vector(record)
     if vec.size == 0:
@@ -363,6 +496,29 @@ def classify_record(record: dict, centroids: dict[str, np.ndarray]) -> tuple[str
     if best_label is None:
         return None, float("nan")
     return best_label, best_score
+
+
+def classify_record_to_prototypes(
+    record: dict,
+    prototypes: dict[str, ClusterPrototype],
+) -> tuple[str | None, str | None, float]:
+    vec = select_vector(record)
+    if vec.size == 0:
+        return None, None, float("nan")
+    best_key = None
+    best_label = None
+    best_score = float("-inf")
+    for key, proto in prototypes.items():
+        sim = cosine_similarity(vec, proto.centroid)
+        if math.isnan(sim):
+            continue
+        if sim > best_score:
+            best_key = key
+            best_label = proto.label
+            best_score = sim
+    if best_label is None:
+        return None, None, float("nan")
+    return best_label, best_key, best_score
 
 
 def compute_accuracy(records: list[dict], predicate) -> float | None:
@@ -412,6 +568,35 @@ def summarise_centroid(
     return out
 
 
+def summarise_prototypes(
+    prototypes: dict[str, ClusterPrototype],
+    prototype_meta: dict[str, dict],
+    id_to_syscall: dict[int, str],
+    top_k: int = 10,
+) -> dict[str, dict]:
+    out: dict[str, dict] = {}
+    grouped: dict[str, list[ClusterPrototype]] = {}
+    for proto in prototypes.values():
+        grouped.setdefault(proto.label, []).append(proto)
+
+    for label, protos in grouped.items():
+        protos_sorted = sorted(protos, key=lambda p: p.n_records_used, reverse=True)
+        out[label] = {
+            "metadata": prototype_meta.get(label, {}),
+            "clusters": [
+                {
+                    "key": proto.key,
+                    "cluster_id": proto.cluster_id,
+                    "n_records_used": proto.n_records_used,
+                    "source": proto.source,
+                    "top_features": summarise_centroid(proto.centroid, id_to_syscall, top_k=top_k),
+                }
+                for proto in protos_sorted
+            ],
+        }
+    return out
+
+
 def write_predictions_csv(path: str, records: list[dict]):
     fieldnames = [
         "split",
@@ -426,6 +611,7 @@ def write_predictions_csv(path: str, records: list[dict]):
         "score_latency",
         "detected",
         "predicted_label",
+        "predicted_cluster_key",
         "predicted_similarity",
         "detected_only_correct",
         "end_to_end_correct",
@@ -454,6 +640,7 @@ def write_predictions_csv(path: str, records: list[dict]):
                     "score_latency": record["score_latency"],
                     "detected": record["detected"],
                     "predicted_label": record.get("predicted_label"),
+                    "predicted_cluster_key": record.get("predicted_cluster_key"),
                     "predicted_similarity": record.get("predicted_similarity"),
                     "detected_only_correct": record.get("detected_only_correct"),
                     "end_to_end_correct": record.get("end_to_end_correct"),
