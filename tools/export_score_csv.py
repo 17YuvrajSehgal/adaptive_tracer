@@ -12,11 +12,15 @@ import csv
 import json
 import os
 import pickle
+import sys
 from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn as nn
+
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE.parent))
 
 from microservice.train_sockshop import (
     _compute_mad_stats,
@@ -225,3 +229,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
