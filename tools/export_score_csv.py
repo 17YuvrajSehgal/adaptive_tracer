@@ -62,6 +62,7 @@ def parse_args():
     p.add_argument("--multitask_lambda", type=float, default=0.5)
     p.add_argument("--batch", type=int, default=64)
     p.add_argument("--amp", action="store_true")
+    p.add_argument("--chk", action="store_true")
     p.add_argument("--gpu", type=int, default=0)
     return p.parse_args()
 
@@ -249,3 +250,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
