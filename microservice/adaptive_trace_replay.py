@@ -81,6 +81,23 @@ def get_args():
     p.add_argument("--linger_sequences", type=int, default=16)
     p.add_argument("--normal_split", default="test_id")
     p.add_argument(
+        "--threshold_mode",
+        choices=["f1", "normal_quantile", "f1_plus_margin"],
+        default="normal_quantile",
+    )
+    p.add_argument(
+        "--normal_quantile",
+        type=float,
+        default=0.9995,
+        help="Used when --threshold_mode=normal_quantile; threshold is the given valid_id score quantile.",
+    )
+    p.add_argument(
+        "--threshold_margin",
+        type=float,
+        default=1.0,
+        help="Used when --threshold_mode=f1_plus_margin; adds this value to the F1-tuned threshold.",
+    )
+    p.add_argument(
         "--scenario_mode",
         choices=["abrupt_burst", "pure_normal", "both"],
         default="both",
@@ -99,6 +116,8 @@ def get_args():
         p.error("--warmup_sequences must be >= 0")
     if args.progress_every_batches <= 0:
         p.error("--progress_every_batches must be > 0")
+    if not (0.0 < args.normal_quantile < 1.0):
+        p.error("--normal_quantile must be in (0, 1)")
     return args
 
 
@@ -185,14 +204,26 @@ def build_calibration(model, args, device, crit_e, crit_l):
     scores_val, y_val = combine_full_binary_scores_labels(val_id_scores, pooled_val_ood)
     if y_val.size == 0 or np.unique(y_val).size < 2:
         raise RuntimeError("Could not build a valid binary validation set for threshold tuning")
-    threshold, best_f1 = tune_threshold_max_f1(scores_val, y_val, args.ood_threshold_grid)
+    threshold_f1, best_f1 = tune_threshold_max_f1(scores_val, y_val, args.ood_threshold_grid)
+    threshold_quantile = float(np.quantile(val_id_scores, args.normal_quantile)) if val_id_scores.size > 0 else float("nan")
+    if args.threshold_mode == "f1":
+        threshold = threshold_f1
+    elif args.threshold_mode == "normal_quantile":
+        threshold = threshold_quantile
+    else:
+        threshold = float(threshold_f1 + args.threshold_margin)
     return {
         "threshold": float(threshold),
+        "threshold_f1": float(threshold_f1),
+        "threshold_normal_quantile": float(threshold_quantile),
         "val_f1": float(best_f1),
         "n_val_normal": int(val_id_scores.size),
         "n_val_ood": int(pooled_val_ood.size),
         "mad_event": mad_event,
         "mad_latency": mad_latency,
+        "threshold_mode": args.threshold_mode,
+        "normal_quantile": float(args.normal_quantile),
+        "threshold_margin": float(args.threshold_margin),
     }
 
 
@@ -484,9 +515,17 @@ def main():
     calibration = build_calibration(model, args, device, crit_e, crit_l)
     log(
         f"[ATR] threshold={calibration['threshold']:.6f} "
+        f"(mode={calibration['threshold_mode']}) "
         f"val_f1={calibration['val_f1']:.4f} "
         f"valid_id={calibration['n_val_normal']} valid_ood={calibration['n_val_ood']}"
     )
+    log(
+        f"[ATR] threshold candidates: "
+        f"f1={calibration['threshold_f1']:.6f} "
+        f"normal_q({calibration['normal_quantile']:.4f})={calibration['threshold_normal_quantile']:.6f}"
+    )
+    if calibration["threshold_mode"] == "f1_plus_margin":
+        log(f"[ATR] threshold margin applied: +{calibration['threshold_margin']:.6f}")
     if calibration["mad_event"] is not None and calibration["mad_latency"] is not None:
         log(
             f"[ATR] MAD event(median={calibration['mad_event']['median']:.6g}, "
