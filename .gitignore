@@ -20,3 +20,8 @@ logs/**/*.pt
 logs/overhead_experiments/*/*.pdf
 logs/overhead_experiments/**/*.json
 logs/overhead_experiments/**/*.csv
+
+logs/3-ce-loss-distribution-plots/transformer_multitask_cats5_scores.csv
+logs/3-ce-loss-distribution-plots/lstm_multitask_cats5_scores.csv
+
+tools/
