@@ -112,6 +112,10 @@ def cohen_d(a, b):
 
 def main():
     args = parse_args()
+    print(f"[export] preprocessed_dir={args.preprocessed_dir}")
+    print(f"[export] checkpoint={args.load_model}")
+    print(f"[export] output_csv={args.output_csv}")
+
     if not (args.train_event_model or args.train_latency_model):
         raise SystemExit("At least one of --train_event_model / --train_latency_model is required")
 
@@ -122,12 +126,17 @@ def main():
 
     device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu")
 
+    print("[export] loading vocab ...")
     with open(Path(args.preprocessed_dir) / "vocab.pkl", "rb") as fh:
         dict_sys, dict_proc = pickle.load(fh)
+    print(f"[export] vocab: {len(dict_sys)} syscalls / {len(dict_proc)} processes")
 
+    print(f"[export] building model on {device} ...")
     model = build_model(args, len(dict_sys), len(dict_proc), device)
+    print("[export] loading checkpoint ...")
     model.load_state_dict(torch.load(args.load_model, map_location=device))
     model.eval()
+    print("[export] checkpoint loaded")
 
     crit_e = nn.CrossEntropyLoss(ignore_index=0)
     crit_l = nn.BCEWithLogitsLoss() if args.ordinal_latency else nn.CrossEntropyLoss(ignore_index=0)
@@ -135,15 +144,21 @@ def main():
     base = Path(args.preprocessed_dir)
     pin = device.type == "cuda"
     split_names = detect_splits(base)
+    print(f"[export] discovered splits: {split_names}")
     if not split_names:
         raise SystemExit(f"No valid/test splits found under {base}")
 
     split_results = {}
     for split in split_names:
+        print(f"[export] evaluating split: {split}")
         loader = _make_ood_loader(str(base), split, args.batch, args.max_seq_len, pin)
         if loader is None:
+            print(f"[export] skipped split (no loader): {split}")
             continue
         split_results[split] = evaluate_split(model, loader, device, args, crit_e, crit_l, return_scores=True)
+        n_e = len(split_results[split].get("scores_event", []))
+        n_l = len(split_results[split].get("scores_latency", []))
+        print(f"[export] completed split: {split} (event_scores={n_e}, latency_scores={n_l})")
 
     if not split_results:
         raise SystemExit("No splits could be evaluated")
@@ -151,8 +166,10 @@ def main():
     mad_event = None
     mad_latency = None
     if args.train_event_model and args.train_latency_model and "valid_id" in split_results:
+        print("[export] computing MAD stats from valid_id ...")
         mad_event = _compute_mad_stats(split_results["valid_id"]["scores_event"])
         mad_latency = _compute_mad_stats(split_results["valid_id"]["scores_latency"])
+        print(f"[export] MAD event={mad_event} latency={mad_latency}")
 
     score_method = (
         "paper_mad_sum" if (args.train_event_model and args.train_latency_model) else
@@ -182,6 +199,7 @@ def main():
                 "seq_len": args.max_seq_len,
             })
 
+    print("[export] writing score CSV ...")
     with open(output_csv, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=["split", "label", "score", "score_event", "score_latency", "score_method", "model", "categories", "seq_len"])
         writer.writeheader()
@@ -214,11 +232,13 @@ def main():
                 "cohen_d": cohen_d(normal_scores, scores),
             }
 
+    print("[export] writing summary CSV ...")
     with open(summary_csv, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=["split", "label", "count", "mean", "median", "std", "min", "max"])
         writer.writeheader()
         writer.writerows(summary_rows)
 
+    print("[export] writing summary JSON ...")
     with open(summary_json, "w", encoding="utf-8") as fh:
         json.dump(summary_json_obj, fh, indent=2)
 
@@ -229,4 +249,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
