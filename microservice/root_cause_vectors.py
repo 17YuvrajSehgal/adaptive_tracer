@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import importlib.util
+import inspect
 import math
 import os
 import pickle
@@ -20,11 +21,45 @@ except ImportError:
     hdbscan_lib = None
     HAS_HDBSCAN = False
 
+try:
+    from sklearn.utils.validation import check_array as sklearn_check_array
+except ImportError:
+    sklearn_check_array = None
+
 # Ensure project root on sys.path when executed as a script helper.
 _HERE = Path(__file__).resolve().parent
 import sys
 
 sys.path.insert(0, str(_HERE.parent))
+
+
+def _patch_hdbscan_check_array_compat():
+    """Patch hdbscan for sklearn versions that renamed force_all_finite."""
+    if not HAS_HDBSCAN or sklearn_check_array is None:
+        return
+
+    try:
+        sig = inspect.signature(sklearn_check_array)
+    except (TypeError, ValueError):
+        return
+
+    if "force_all_finite" in sig.parameters or "ensure_all_finite" not in sig.parameters:
+        return
+
+    try:
+        import hdbscan.hdbscan_ as hdbscan_module
+    except ImportError:
+        return
+
+    def _compat_check_array(*args, force_all_finite=None, **kwargs):
+        if force_all_finite is not None and "ensure_all_finite" not in kwargs:
+            kwargs["ensure_all_finite"] = force_all_finite
+        return sklearn_check_array(*args, **kwargs)
+
+    hdbscan_module.check_array = _compat_check_array
+
+
+_patch_hdbscan_check_array_compat()
 
 _DICT_PATH = _HERE.parent / "dataset" / "Dictionary.py"
 _DICT_SPEC = importlib.util.spec_from_file_location("lmat_dictionary", _DICT_PATH)
