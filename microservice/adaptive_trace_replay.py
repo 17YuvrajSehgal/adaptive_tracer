@@ -211,15 +211,8 @@ def extract_stream_scores(model, loader, device, args, split_name, mad_event, ma
     model.eval()
     batch_count = 0
     sequence_count = 0
-    try:
-        total_batches = len(loader)
-    except TypeError:
-        total_batches = None
     start_t = time.perf_counter()
-    log(
-        f"[ATR] {split_name}: starting score extraction"
-        + (f" (batches~{total_batches})" if total_batches is not None else "")
-    )
+    log(f"[ATR] {split_name}: starting score extraction")
     for batch in loader:
         batch_count += 1
         with torch.amp.autocast(
@@ -253,9 +246,8 @@ def extract_stream_scores(model, loader, device, args, split_name, mad_event, ma
         if batch_count % args.progress_every_batches == 0:
             elapsed = time.perf_counter() - start_t
             msg = (
-                f"[ATR] {split_name}: processed {batch_count}"
-                + (f"/{total_batches}" if total_batches is not None else "")
-                + f" batches | {sequence_count} sequences | elapsed={elapsed:.1f}s"
+                f"[ATR] {split_name}: processed {batch_count} batches | "
+                f"{sequence_count} sequences | elapsed={elapsed:.1f}s"
             )
             if elapsed > 0:
                 msg += f" | {sequence_count / elapsed:.1f} seq/s"
@@ -297,6 +289,7 @@ def concat_streams(parts, split_name):
     if not parts:
         return None
     total_wall = float(sum(p["wall_time_s"] for p in parts))
+    batch_counts = [p.get("n_batches") for p in parts if p.get("n_batches") is not None]
     scores = np.concatenate([p["scores"] for p in parts]).astype(np.float64, copy=False)
     scores_event = np.concatenate([p["scores_event"] for p in parts]).astype(np.float64, copy=False)
     scores_latency = np.concatenate([p["scores_latency"] for p in parts]).astype(np.float64, copy=False)
@@ -314,7 +307,7 @@ def concat_streams(parts, split_name):
         "req_dur_ms": req_dur_ms,
         "is_anomaly": is_anomaly,
         "n_sequences": n_seq,
-        "n_batches": int(sum(p["n_batches"] for p in parts)),
+        "n_batches": int(sum(batch_counts)) if batch_counts else None,
         "wall_time_s": total_wall,
         "ms_per_sequence": float((total_wall * 1000.0) / n_seq) if n_seq > 0 else None,
         "sequences_per_s": float(n_seq / total_wall) if total_wall > 0 else None,
