@@ -69,6 +69,7 @@ def get_args():
 
     p.add_argument("--batch", type=int, default=64)
     p.add_argument("--num_workers", type=int, default=2)
+    p.add_argument("--progress_every_batches", type=int, default=100)
     p.add_argument("--amp", action="store_true")
     p.add_argument("--chk", action="store_true")
     p.add_argument("--seed", type=int, default=42)
@@ -96,6 +97,8 @@ def get_args():
         p.error("--linger_sequences must be >= 0")
     if args.warmup_sequences < 0:
         p.error("--warmup_sequences must be >= 0")
+    if args.progress_every_batches <= 0:
+        p.error("--progress_every_batches must be > 0")
     return args
 
 
@@ -207,7 +210,16 @@ def extract_stream_scores(model, loader, device, args, split_name, mad_event, ma
 
     model.eval()
     batch_count = 0
+    sequence_count = 0
+    try:
+        total_batches = len(loader)
+    except TypeError:
+        total_batches = None
     start_t = time.perf_counter()
+    log(
+        f"[ATR] {split_name}: starting score extraction"
+        + (f" (batches~{total_batches})" if total_batches is not None else "")
+    )
     for batch in loader:
         batch_count += 1
         with torch.amp.autocast(
@@ -232,9 +244,22 @@ def extract_stream_scores(model, loader, device, args, split_name, mad_event, ma
         scores.append(arr_score)
         scores_event.append(arr_e)
         scores_latency.append(arr_l)
-        seq_len.append(batch["seq_len"].detach().cpu().numpy().astype(np.int32, copy=False))
+        seq_len_batch = batch["seq_len"].detach().cpu().numpy().astype(np.int32, copy=False)
+        seq_len.append(seq_len_batch)
         req_dur_ms.append(batch["req_dur_ms"].detach().cpu().numpy().astype(np.float64, copy=False))
         is_anomaly.append(batch["is_anomaly"].detach().cpu().numpy().astype(np.int32, copy=False))
+        sequence_count += int(seq_len_batch.shape[0])
+
+        if batch_count % args.progress_every_batches == 0:
+            elapsed = time.perf_counter() - start_t
+            msg = (
+                f"[ATR] {split_name}: processed {batch_count}"
+                + (f"/{total_batches}" if total_batches is not None else "")
+                + f" batches | {sequence_count} sequences | elapsed={elapsed:.1f}s"
+            )
+            if elapsed > 0:
+                msg += f" | {sequence_count / elapsed:.1f} seq/s"
+            log(msg)
 
     wall_time_s = time.perf_counter() - start_t
 
@@ -538,6 +563,10 @@ def main():
     normal_stream = extracted[args.normal_split]
 
     if args.scenario_mode in ("pure_normal", "both"):
+        log(
+            f"[ATR] pure_normal: simulating controller "
+            f"(window={args.window_size}, ratio={args.trigger_ratio:.3f}, linger={args.linger_sequences})"
+        )
         metrics = normal_only_metrics(
             normal_stream,
             threshold=calibration["threshold"],
@@ -575,6 +604,11 @@ def main():
             if split_name not in extracted:
                 continue
             scenario_name = f"{atype}_abrupt_burst"
+            log(
+                f"[ATR] {scenario_name}: simulating controller "
+                f"(warmup={warmup_n}, window={args.window_size}, "
+                f"ratio={args.trigger_ratio:.3f}, linger={args.linger_sequences})"
+            )
             scenario_stream = concat_streams([normal_prefix, extracted[split_name]], scenario_name)
             metrics = simulate_controller(
                 scenario_stream,
