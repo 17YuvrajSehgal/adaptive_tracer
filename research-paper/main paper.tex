@@ -849,7 +849,7 @@ Average        & \textbf{98.6 ± 0.5}        & 96.4 ± 0.9 & 87.7 ± 2.5 & 94.4 
 
 
 \subsection{Root cause analysis}
-The performance of root cause analysis, framed as a classification task, is quantified through accuracy metrics. As outlined in Section \ref{methodology}, to represent an abnormal sequence within the scope of a multi-task model, options include utilizing mispredicted events, mispredicted durations, or a combination of their resulting vectors. To determine the most effective method for root cause classification in further experiments, we initially analyze the root cause analysis module in isolation, focusing solely on the accuracy of root cause classification after changes in the system have been detected. According to Table \ref{tab:root-cause-alone}, each approach for generating sequence representations effectively facilitates the correlation of newly observed abnormalities with established abnormal patterns. Given the slightly enhanced performance observed with representations generated from mispredicted durations, this technique is adopted for conducting root cause analysis using the multi-task model framework.
+The performance of root cause analysis, framed as a classification task, is quantified through accuracy metrics. As outlined in Section \ref{methodology}, to represent an abnormal sequence within the scope of a multi-task model, options include utilizing mispredicted events, mispredicted durations, or a combination of their resulting vectors. To determine the most effective method for root cause classification in further experiments, we initially analyze the root cause analysis module in isolation, focusing solely on the accuracy of root cause classification after changes in the system have been detected. According to Table \ref{tab:root-cause-alone}, each approach for generating sequence representations effectively facilitates the correlation of newly observed abnormalities with established abnormal patterns. Given the slightly enhanced performance observed with representations generated from mispredicted durations, this technique is adopted for conducting root cause analysis using the multi-task model framework. \textcolor{red}{This analysis corresponds to the Apache request-level workload. For the Sock Shop microservice workload, root cause analysis is evaluated using the 5-category multi-task models, which provided the best change-detection balance in Section \ref{results}.}
 
 
 \begin{table}[tb]
@@ -867,7 +867,7 @@ Mean Vec    & 97.6 ± 0.4            \\ \hline
 \end{adjustbox}
 \end{table}
 
-As root cause analysis operates on top of the change detection task, the overall performance of this module should be assessed by considering both tasks as a whole. In other words, detecting a change is a prerequisite for root cause identification; without detecting the change, no root cause can be identified for a false negative. Referring to Table \ref{tab:root-cause}, it is evident that both the event and duration modeling approaches are effective in accurately identifying changes and their root causes. This observation aligns with the change detection task, where the duration model sometimes outperforms the event model and vice versa. However, the duration model generally exhibits superior performance, achieving an average accuracy of 96.9\% with less variability in results. On average, the multi-task model outperforms each of the single-task models by capitalizing on their individual advantages, resulting in more consistent and reliable performance across various noise scenarios.
+As root cause analysis operates on top of the change detection task, the overall performance of this module should be assessed by considering both tasks as a whole. In other words, detecting a change is a prerequisite for root cause identification; without detecting the change, no root cause can be identified for a false negative. Referring to Table \ref{tab:root-cause}, it is evident that both the event and duration modeling approaches are effective in accurately identifying changes and their root causes. This observation aligns with the change detection task, where the duration model sometimes outperforms the event model and vice versa. However, the duration model generally exhibits superior performance, achieving an average accuracy of 96.9\% with less variability in results. On average, the multi-task model outperforms each of the single-task models by capitalizing on their individual advantages, resulting in more consistent and reliable performance across various noise scenarios. \textcolor{red}{For the Apache workload, this end-to-end view confirms that accurate novelty detection and accurate attribution reinforce one another when requests are available as coherent units of execution.}
 
 
 \begin{table}[tb]
@@ -889,6 +889,32 @@ Average           & 92.5 ± 2.5  & 96.9 ± 1.5 & \textbf{97.7 ± 1.0} \\ \hline
 \end{tabular}
 \end{adjustbox}
 \end{table}
+
+\textcolor{red}{For Sock Shop, root cause analysis is carried out by converting each anomalous window into a combined event-duration error vector, clustering validation-set vectors with HDBSCAN to form anomaly prototypes, and assigning each detected test window to the nearest prototype using cosine similarity. Because attribution is meaningful only after a window has first been flagged as abnormal, Table \ref{tab:root-cause-sockshop} reports three complementary measures: detection recall, detected-only accuracy conditioned on successful detection, and end-to-end accuracy that treats missed detections as root-cause failures.}
+
+\begin{table*}[tb]
+\centering
+\caption{\textcolor{red}{Sock Shop root cause analysis performance using 5-category multi-task models and HDBSCAN prototypes. The last four columns report end-to-end accuracy for each anomaly family.}}
+\label{tab:root-cause-sockshop}
+{\color{red}
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.1}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l|ccc|cccc}
+\hline
+Model & Detection Recall & Detected-only Accuracy & End-to-End Accuracy & CPU & Disk & Memory & Network \\
+\hline
+LSTM & 78.8 & 37.4 & 29.5 & \textbf{14.2} & \textbf{34.1} & 25.2 & \textbf{56.9} \\
+Transformer & \textbf{84.6} & \textbf{38.4} & \textbf{32.5} & 11.6 & 31.5 & \textbf{38.0} & 56.8 \\
+\hline
+\end{tabular}%
+}
+}
+\end{table*}
+
+\textcolor{red}{The microservice setting is substantially harder than the Apache request-level case because attribution is performed on short host-level windows that may contain overlapping manifestations of contention across multiple services. Even in this setting, the RCA stage remains informative. The Transformer improves overall detection recall from 78.8 to 84.6 and end-to-end root cause accuracy from 29.5 to 32.5, while the LSTM retains slightly stronger end-to-end accuracy for CPU, disk, and network faults. Network perturbations are the most separable class for both models, reaching end-to-end accuracies of 56.9 and 56.8, whereas CPU perturbations are the most challenging to isolate, with end-to-end accuracies of 14.2 and 11.6.}
+
+\textcolor{red}{The prototype construction itself also yields interpretable structure. Across the four anomaly families, HDBSCAN discovers between 14 and 24 clusters per label across the two models. Representative disk prototypes are dominated by \texttt{fsync}, \texttt{write}, and \texttt{lseek}, CPU and memory prototypes are dominated by \texttt{futex}-centric error patterns, and network prototypes emphasize polling and communication activity. These summaries indicate that the error vectors capture meaningful syscall-level signatures of resource stress, even when end-to-end classification remains challenging.}
 
 
 \subsection{Tracing}
