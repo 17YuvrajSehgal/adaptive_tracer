@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
 TYPE=$1
 RUN=$2
 DURATION=${3:-120}
@@ -76,7 +78,7 @@ snapshot_metadata "start"
 ) &
 SNAP_PID=$!
 
-python3 ~/agents/otel-to-lttng.py ${EXTRA_ARG:+$EXTRA_ARG} &
+python3 "$SCRIPT_DIR/agents/otel-to-lttng.py" ${EXTRA_ARG:+$EXTRA_ARG} &
 RELAY_PID=$!
 
 echo "[$TYPE/$RUN] FULL TRACING (Kernel+UST) for ${DURATION}s..."
@@ -95,7 +97,6 @@ sudo lttng stop || true
 lttng destroy || true
 sudo lttng destroy || true
 
-mkdir -p ~/traces
-echo "$TYPE,$RUN,$(date -u),${DURATION}s,FULL" >> ~/traces/metadata.csv
+echo "$TYPE,$RUN,$(date -u +%Y-%m-%dT%H:%M:%SZ),${DURATION}s,FULL" >> "$META_DIR/trace_runs.csv"
 
 echo "[$TYPE/$RUN] DONE. $(sudo du -sh "$OUTPUT_DIR")"

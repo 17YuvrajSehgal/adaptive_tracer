@@ -16,9 +16,9 @@ CONDITIONS=${CONDITIONS:-"baseline lttng_only lmat_async"}
 QUIET_FLAG=${QUIET_FLAG:---quiet}
 TORCH_THREADS=${TORCH_THREADS:-2}
 
-MODEL_PATH=${MODEL_PATH:-$PROJECT_DIR/checkpoints/model_best_lstm.pt}
-VOCAB_PATH=${VOCAB_PATH:-$PROJECT_DIR/micro-service-trace-data/preprocessed/vocab.pkl}
-DELAY_PATH=${DELAY_PATH:-$PROJECT_DIR/micro-service-trace-data/preprocessed/delay_spans.pkl}
+MODEL_PATH=${MODEL_PATH:-$PROJECT_DIR/logs/lstm_multitask_cats5_seq512_382061/model_best.pt}
+VOCAB_PATH=${VOCAB_PATH:-$PROJECT_DIR/micro-service-trace-data/preprocessed_seq512/preprocessed_lmat_kernel_cats5_seq512/vocab.pkl}
+DELAY_PATH=${DELAY_PATH:-$PROJECT_DIR/micro-service-trace-data/preprocessed_seq512/preprocessed_lmat_kernel_cats5_seq512/delay_spans.pkl}
 MODEL_TYPE=${MODEL_TYPE:-lstm}
 N_HIDDEN=${N_HIDDEN:-1024}
 N_LAYER=${N_LAYER:-6}
@@ -31,6 +31,7 @@ DIM_PID=${DIM_PID:-12}
 DIM_TID=${DIM_TID:-12}
 DIM_ORDER=${DIM_ORDER:-12}
 DIM_TIME=${DIM_TIME:-12}
+N_CATEGORIES=${N_CATEGORIES:-6}
 
 usage() {
     cat <<EOF
@@ -51,9 +52,9 @@ Example:
   FRONTEND_HOST=http://localhost:80 \\
   LOAD_USERS_SERIES="100 200 300 400" \\
   REPEATS=3 DURATION=300 \\
-  MODEL_PATH=~/adaptive_tracer/logs/lstm_best.pt \\
-  VOCAB_PATH=~/adaptive_tracer/micro-service-trace-data/preprocessed/vocab.pkl \\
-  DELAY_PATH=~/adaptive_tracer/micro-service-trace-data/preprocessed/delay_spans.pkl \\
+  MODEL_PATH=~/adaptive_tracer/logs/lstm_multitask_cats5_seq512_382061/model_best.pt \\
+  VOCAB_PATH=~/adaptive_tracer/micro-service-trace-data/preprocessed_seq512/preprocessed_lmat_kernel_cats5_seq512/vocab.pkl \\
+  DELAY_PATH=~/adaptive_tracer/micro-service-trace-data/preprocessed_seq512/preprocessed_lmat_kernel_cats5_seq512/delay_spans.pkl \\
   $0
 EOF
 }
@@ -98,7 +99,7 @@ run_condition() {
 
     export EXPERIMENT_ROOT FRONTEND_HOST THINK_MIN THINK_MAX LOAD_USERS TORCH_THREADS
     export MODEL_PATH VOCAB_PATH DELAY_PATH MODEL_TYPE
-    export N_HIDDEN N_LAYER N_HEAD DIM_SYS DIM_ENTRY DIM_RET DIM_PROC DIM_PID DIM_TID DIM_ORDER DIM_TIME
+    export N_HIDDEN N_LAYER N_HEAD DIM_SYS DIM_ENTRY DIM_RET DIM_PROC DIM_PID DIM_TID DIM_ORDER DIM_TIME N_CATEGORIES
     LOAD_USERS="$users"
 
     case "$condition" in

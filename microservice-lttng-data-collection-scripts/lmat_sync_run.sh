@@ -27,14 +27,15 @@ TORCH_THREADS=${TORCH_THREADS:-2}
 LOAD_GENERATOR=${LOAD_GENERATOR:-$SCRIPT_DIR/load_generator.py}
 
 # ── Edit these paths before running on the GCP VM ────────────────────────────
-MODEL_PATH=${MODEL_PATH:-$PROJECT_DIR/checkpoints/model_best_lstm.pt}
-VOCAB_PATH=${VOCAB_PATH:-$PROJECT_DIR/micro-service-trace-data/preprocessed/vocab.pkl}
-DELAY_PATH=${DELAY_PATH:-$PROJECT_DIR/micro-service-trace-data/preprocessed/delay_spans.pkl}
+MODEL_PATH=${MODEL_PATH:-$PROJECT_DIR/logs/lstm_multitask_cats5_seq512_382061/model_best.pt}
+VOCAB_PATH=${VOCAB_PATH:-$PROJECT_DIR/micro-service-trace-data/preprocessed_seq512/preprocessed_lmat_kernel_cats5_seq512/vocab.pkl}
+DELAY_PATH=${DELAY_PATH:-$PROJECT_DIR/micro-service-trace-data/preprocessed_seq512/preprocessed_lmat_kernel_cats5_seq512/delay_spans.pkl}
 MODEL_TYPE=${MODEL_TYPE:-lstm}
 N_HIDDEN=${N_HIDDEN:-1024}; N_LAYER=${N_LAYER:-6}; N_HEAD=${N_HEAD:-8}
 DIM_SYS=${DIM_SYS:-48};     DIM_ENTRY=${DIM_ENTRY:-12}; DIM_RET=${DIM_RET:-12}
 DIM_PROC=${DIM_PROC:-48};   DIM_PID=${DIM_PID:-12};     DIM_TID=${DIM_TID:-12}
 DIM_ORDER=${DIM_ORDER:-12}; DIM_TIME=${DIM_TIME:-12}
+N_CATEGORIES=${N_CATEGORIES:-6}
 # ─────────────────────────────────────────────────────────────────────────────
 
 mkdir -p "$EXPERIMENT_DIR"
@@ -92,6 +93,7 @@ python3 "$SCRIPT_DIR/online_inference.py" \
     --delay_spans_path "$DELAY_PATH" \
     --trace_dir        "$TRACE_DIR/kernel" \
     --model_type       "$MODEL_TYPE" \
+    --n_categories     "$N_CATEGORIES" \
     --n_hidden "$N_HIDDEN" --n_layer "$N_LAYER" --n_head "$N_HEAD" \
     --dim_sys "$DIM_SYS" --dim_entry "$DIM_ENTRY" --dim_ret "$DIM_RET" \
     --dim_proc "$DIM_PROC" --dim_pid "$DIM_PID" --dim_tid "$DIM_TID" \
