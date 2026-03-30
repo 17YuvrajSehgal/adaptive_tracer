@@ -1,0 +1,785 @@
+\documentclass{article}
+
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{url}
+\usepackage{color}
+\usepackage{multirow}
+\usepackage{multicol}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+
+\title{Adaptive Tracing and Change Detection: A Novel Approach for System Behavior Modeling}
+%\date{}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+In this paper, we introduce an innovative adaptive tracing methodology aimed at optimizing system monitoring. Our approach modifies the level and focus of tracing according to the system's operational state, resulting in a reduction in trace overhead and data volume while enhancing its precision. We also propose a multi-task model that not only predicts the upcoming event but also the expected duration of the current event, addressing a crucial aspect often overlooked in prior system modeling approaches through tracing data. This modeling approach has proven to be highly accurate in identifying a broad range of system changes. The dual-task model allows us to detect changes in the system and pinpoint their sources, indicating potential for root cause analysis and enabling intelligently targeted tracing. To showcase the utility of our model for novelty detection and specifying their root causes, we collect a new dataset of Linux kernel traces representing normal and various abnormal system behaviors.
+\end{abstract}
+
+\section{Introduction}
+Tracing is a valuable tool in monitoring and maintaining complex systems, offering detailed insights into operations and facilitating anomaly detection, performance debugging, and root-cause analysis  \cite{cantrill2004dynamic,parker2020distributed}. Despite its utility, tracing imposes significant burdens, particularly in large systems with numerous concurrent applications \cite{gebai2018survey}. The performance costs and the large volume of produced data, which are challenging to store and analyze, limit practical use of tracing. This fact necessitates an intelligent method for the utilization of tracing tools, a method that reduces the burden of tracing while still preserving its advantages.
+
+There have been efforts to reduce the burden of tracing as a monitoring tool. A part of these works focus on the automation of trace analysis to capture anomalies recorded in the trace \cite{kim2016lstm, dymshits2017process, song2018exad, nedelkoski2019anomaly, ezeme2020framework, fournier2021improving,fournier2023language}. Despite their great contributions, they do not have an inclusive approach towards the system trace, and the duration of events which forms a significant aspect of the information provided by tracers is neglected. The other challenge in the way of making tracers practical is performance and storage overhead. Despite the efforts to minimize the overhead of tracers like LTTng \cite{desnoyers2006low}, their effect on running applications is significant in busy systems. Therefore there has been efforts to find the solution in the way that tracers are utilized \cite{ates2019automated, zhang2020diagnostic}.
+
+In this paper, we propose an innovative adaptive tracing methodology that dynamically adjusts the level and focus of tracing based on the system's state. This approach significantly reduces the volume of recorded data while retaining essential details, capturing a minimal set of events during normal operations and expanding to a detailed trace upon detecting changes in system behavior. Our methodology aims to limit the recorded events to those linked to the identified changes, effectively balancing comprehensive monitoring with resource efficiency. 
+
+Central to our methodology is a novel Language Modeling-based method that detects operational changes in an unsupervised manner through kernel traces. Unlike prior models that primarily focus on event sequences, our approach also considers event durations, another aspect of this data that holds valuable information about the way system operates. By training a multi-task model that predicts both the upcoming event and the duration of the current event, we manage to uncover subtle yet critical insights into system operations. On back of this model, root-cause identification is achieved by a novel method, utilizing the system calls that partake in an abrupt change, which at the end increases the transparency of the model while opens the door for targeted tracing of the system.
+
+In attempt to test the effectiveness of our approach, we use the dataset collected by \cite{fournier2023language} which includes normal and noisy traces of an Apache2 web server, to create test scenarios for the Adaptive Tracer. To further challenge the model, specially on the noises related to duration of system calls, we collect another set of noisy data to complement the benchmark. The results on the test scenarios show that Adaptive tracer collects the events related to abrupt changes with 5.8\% loss, showing the functionality of the method, while reducing the collected trace by 77.1\% proving that it serves the defined goal. We also show that having seven different sets of noisy traces, model can successfully determine the respective noise set with 92.7\% accuracy while the similar approach for root-cause analysis based on previous state of the art trace model has a 20.4\% less accuracy in comparison.
+
+
+%Previous Introduciton: Understanding the behavior of complex systems is a challenging but critical task for their maintenance. This understanding forms the foundation for the detection and analysis of sudden changes in the system's behavior. Reasons behind a change in the system behavior could be non-critical events like software updates or critical ones like intrusions. An accurate tool for the detection of such changes opens the door for more accurate system monitoring and more in-depth analysis of the possible root causes.
+
+
+% In this paper, we introduce a novel Deep Learning based method to accurately model the normal behavior of the system in order to be used to identify the unnormal changes in the system. Based on the model's output, the level tracing is adapted ...
+
+% Tracing the system calls provides a valuable record of the interaction between the userspace applications and the kernel. Therefore the trace of system calls is a reliable source for detecting the novel behavior of the system but may not be sufficient for root cause analysis. Many of the novel behaviors could be originated not from a user space application, but from one of the OS components or the hardware. 
+% So, the record of the system may provide little to no insight when such issues are started, as it basically includes user-space and kernel interactions. 
+
+% To address this limitation, we base our modeling for the behavior of the system on all the kernel events, not only the system calls. This approach includes events that happen at a much deeper level within the kernel, increasing the modeling's accuracy (unclear).
+% We show that this approach has two main advantages: Firstly, the higher accuracy of the model leads to the identification of novel behaviors which were unseen before. Secondly, it allows the model to pinpoint the source of sudden changes when one comes up, even when the user space applications originate them.
+
+
+\section{Related Work}
+
+Past research efforts on reducing the overhead of system tracing have primarily focused on two fronts: first, automating trace analysis to efficiently capture and analyze anomalies within system traces, thereby streamlining the monitoring process and making it more manageable; second, addressing the performance and storage overhead of tracers. This has led to innovative efforts aimed at optimizing tracer utilization, seeking to balance comprehensive monitoring with minimal system interference. The upcoming subsections will detail these areas, exploring both the methods developed for automating trace analysis and the strategies devised to reduce tracer overhead while maintaining effective system surveillance.
+
+
+\subsection{Trace Analysis}
+There has been successful efforts using deep learning techniques, specially LSTM networks to automate the analysis of tracing data for finding anomalies in the system \cite{kim2016lstm, dymshits2017process, song2018exad, nedelkoski2019anomaly, ezeme2020framework}. These methods use the sequence of system call names and neglect their arguments which give valuable information about the system. Fournier et al. \cite{fournier2021improving}, adopt a broader defenition for anomaly detection, encompassing not only anomalies but also non-anomalous acts such as novel normal behaviors. They clarify the distinction between anomalies and novelties, with the latter referring to any deviation from previously observed behaviors, including both unexpected anomalies and normal yet rare occurrences. For the detection of novelties, they introduce a new representation learning method utilizing system call arguments alongside their names. Despite having higher accuracy to previous methods, this work does not cover the other aspect of information in system traces which is the duration of system calls. To cover this aspect of trace sequences, Fournier et al. \cite{fournier2023language} concatenates the encoded duration between two consecutive events to the event representation to engage the model with the concept of duration and to detect novelties in the system more effectively. However, this is not enough as based on our experimentations, the resulting model still fails to detect duration-intensive shifts in the system. 
+
+Kohyarnejadfard et al. \cite{kohyarnejadfard2019system} attempts to utilize the duration aspect of system calls by extracting feature vectors of a window of traces by accumulating the duration of each type of system call. However, this method falls short in providing the fine-grained accuracy and model transparency that is made possible by a precise and unaccumulated modeling of the system call sequence, which is crucial for an effective root-cause analysis. Du et al. \cite{du2017deeplog} utilizes temporal data in textual logs for anomaly detection by predicting the timestamp. Their methodology involves separate models for timestamps and log keys, despite the demonstrated success of multimodal training in other contexts \cite{ngiam2011multimodal, srivastava2012multimodal}. To utilize the correlation between the two data types, Nedelkoski et al. \cite{nedelkoski2019anomaly} employ a single multimodal network to simultaneously model log events and their response times. Inspired by these methods, our approach also models temporal information that we extract from Linux kernel traces in conjunction with event sequences, but with a significantly higher level of granularity.
+
+\subsection{Tracing Methodology}
+In an attempt to balance the quality and the cost of tracing, Pythia \cite{ates2019automated} sets an instrumentation budget to cap tracing expenses, however, the overall analysis overhead of the framework remains undefined. Zhang et al. \cite{zhang2020diagnostic} developed an adaptive instrumentation mechanism, employing linear regression and density-based K-Means algorithms to create a learning model for performance metrics to assess the system. While their approach centers on user space, it does not capture the detailed insights available in the kernel trace. Considering the previous works, there exists a gap towards practical tracing caused by inaccurate modeling of the traces and overwhelming overhead of tracing approaches. Our proposed adaptive tracing approach aims to address these challenges by adaptively abstaining from tracing the system when it is unnecessary and providing a precise modeling of the kernel to make this possible.
+
+
+
+
+\section{Methodology}
+The primary goal of adaptive tracing involves intelligently recording system behaviors only when there's a significant deviation from the expected behavior. Traditional tracing methods, which keep the tracer active during the entire system's operation, can quickly overwhelm storage capacities, especially in large systems. This continual recording is unnecessary when systems operate as expected and only becomes valuable when unusual patterns emerge. Having a robust change detection module and a secondary module to pinpoint the root-cause, paves the way for developing a smart method for tracing computer systems, which has minimal effect on the system's normal functioning. The overview of the adaptive tracing process utilizing the mentioned modules is shown in figure \ref{fig:adaptive_process}. In general, the system is monitored for detection of novel behaviors throughout its operation by tracing a minimal set of events which are fed to model and are not stored for further analysis. In the moment the model detects a novelty, tracer is adapted based on the identified root-cause to capture a more detailed trace around the potential issue. These specific traces are then sent to storage to be further analyzed by a user or other methods. 
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figs/Adaptive_tracer_process.pdf}
+    \caption{The overall process of Adaptive Tracer}
+    \label{fig:adaptive_process}
+\end{figure}
+
+
+To operationalize this approach, our methodology is structured into distinct, interrelated sections, each addressing a critical component of the adaptive tracing process. We begin with an overview of modeling the sequence of events, followed by a detailed exploration of the modeling process for the duration of these events. Next, we detail how these two tasks are combined to train a unified model. In the fourth section, we dive into the root-cause analysis, a critical step taken once a significant change in the trace has been identified. Lastly, we elaborate on how adaptive tracing brings together all these elements, providing a comprehensive approach to system trace analysis.
+
+\subsection{Event sequence modeling}
+A system trace is primarily composed of kernel events accompanied by their arguments. These events can be system calls, function calls, interrupts, and low-level events that stem from underlying subsystems \textcolor{red}{(is this list correct? what else should be mentioned?)}. These sequences are enriched by information from the highest level of the system, user space applications, down to its foundational hardware subsystems. In this section, we concentrate on system calls as previous works have proven their effectiveness for system behavior modeling \cite{kim2016lstm, dymshits2017process, lv2018intrusion, fournier2023language}. Figure \ref{fig:sample_sequence} shows the overall formation of events in trace sequence which are sorted by their timestamps.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figs/sample_trace_sequence.drawio.pdf}
+    \caption{Sequence of trace events sorted by their timestamp.}
+    \label{fig:sample_sequence}
+\end{figure}
+
+Event sequence model is required to predict the next upcoming event given a previously observed sequence. To model these sequences we utilize Language Models (LMs), widely used for processing natural languages which have noticeable similarities to trace sequences \cite{kim2016lstm}. These models are trained to produce a probability distribution for each sequence given to their input and can capture the patterns and semantics of the text fed to them for training. In this work, left-to-right language models are used, a sub-class of language models mainly used for text generation. We utilize LSTMs and Transformers which are two of the widely used neural networks for left-to-right language model implementation owing to their capabilities in handling sequence data and capturing long-range dependencies. \\
+
+The problem is formalized as follows: given a sequence of kernel events $s = (e_1, e_2, e_3, \ldots, e_n)$, the model is set to predict the probability distribution $P$ over the complete set of possible trace events $E = \{e_1, e_2, ..., e_m\}$, where $m$ denotes the total number of unique events. The distribution $P(e_i)$ reflects the likelihood of event $e_i$ being the next in the trace collected from the system. Consequently, the most probable event, $e^*$, is identified as most likely next event, $e_{n+1}$.
+
+\begin{equation*}
+e^* = \arg\max_{e_i \in E} P(e_i).
+\end{equation*}
+
+
+\subsubsection{Event representation}
+Each event of the trace is composed of its name and other arguments detailing the process that initiated the event. This includes the event's status, timestamp, and other information. Disregarding such details significantly degrades the model's performance, as it eliminates the crucial context needed to accurately capture the system's behavior \cite{fournier2021improving}.
+
+Following the approach of \cite{fournier2021improving}, alongside to the event's name, arguments common to all events are incorporated into the representation vector. These arguments, detailed in table \ref{tab:arguments}, comprise the event name (sysname), the process name (procname), and identifiers for the process (pid) and thread (tid), all of which are automatically collected by LTTng. Additionally, delay and return status values are encoded to the event's vector. These two features are calculated based on timestamp and return value, respectively, provided by LTTng. The return status for an event is determined by the operation's success: it is encoded as 'success' if the return value is non-negative and 'failure' otherwise \cite{fournier2021improving}. `Entry' events, in contrast to `Exit' events, lack a return value and are assigned a default neutral encoded value as their return status. The delay is the elapsed time between the current event and the most recent preceding event in the trace, independent of the their types.
+
+\begin{table}[]
+\caption{Key arguments and their descriptions for forming the event representation.}
+\label{tab:arguments}
+\begin{tabular}{|l|l|l|}
+\hline
+Argument & Type    & Description                                \\ \hline
+sysname  & String  & Name of event                              \\ \hline
+procname & String  & Name of process initiating event           \\ \hline
+pid      & Integer & Process id                                 \\ \hline
+tid      & Integer & Thread id                                  \\ \hline
+delay    & Integer & Time difference with previous event        \\ \hline
+retstat  & Integer & Status of event based on it's return value \\ \hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Change detection}
+As mentioned, adaptive tracing requires a module to detect novel behaviors in the system, determining when tracing needs to be adapted and when to start storing the data. A novelty is any kind of systemic change, which is not limited to anomalies and specifically includes new normal trends. After training the model on a large collection of traces, it can be utilize to detect unusual system behaviors. An essential step in this process is to measure the discrepancy between the system's current behavior and the expected behavior predicted by the trained model. One option is to use the same metric utilized for backpropagation during the training phase, the Cross-Entropy Loss.
+
+Cross-Entropy Loss quantifies the dissimilarity between two probability distributions. The expectation is that during normal system operation, the loss remains minimal. However, as the system begins to deviate from its expected behavior, the loss increases correspondingly.
+
+Given a sequence $s = (e_1, e_2, e_3, \ldots, e_n)$, the model predicts a probability distribution over $E$. In this context, the Cross-entropy loss, for a true distribution $p$ (actual behavior of the system) and a predicted distribution $q$ by model, is:
+
+\begin{equation*}
+H(p, q) = -\sum_{e \in E} p(e) \log(q(e)).
+\end{equation*}
+
+
+For classification tasks, such as the mentioned next event prediction, where $p$ is often a one-hot encoded vector, the Cross-entropy Loss simplifies to:
+
+\begin{equation*}
+H(p, q) = -\log(q_{\text{true}}).
+\end{equation*}
+
+Here, $q_{\text{true}}$ is the model-assigned probability for the true next event. Calculating this loss for each event prediction yields individual loss values. The mean of these losses provides the total loss for the predicted sequence:
+
+\begin{equation*}
+H_{\text{sequence}} = \frac{1}{n}\sum_{j=1}^{n} H(p_j, q_j) = -\frac{1}{n}\sum_{j=1}^{n}\log(q_{\text{true}}(j)) .
+\end{equation*}
+
+In this equation, $n$ represents the number of events in the sequence. Thus, a higher sequence loss for implies a more significant divergence between expected and observed behaviors, offering a robust measure to detect unusual system activities.
+
+
+\subsection{Event duration modeling}
+The motivation to model the duration of kernel events arises from the observation that some variations in the system's performance could become more evident through the duration the system requires to fulfill certain requests. In such cases, the kernel's triggered events or even their ordering might remain largely unchanged despite potential issues. Thus, a model trained solely on the type of events and their order may not be a good fit for capturing these sorts of changes. Therefore, by including the duration of kernel events in the modeling process, we aim to enhance the model's ability to identify changes and capture a broader range of anomalies.
+
+Duration modeling can be viewed as a classification problem, in which the category of duration is predicted by the model instead of the exact time it will take for the event to be completed. For enabling a model to detect sudden changes in the duration of events, training it to predict the exact time is not necessary and complicates the process. Instead, By categorizing the durations of events, the model can identify notable changes while ignoring minor inconsistencies.
+
+Similar to the previous task of event sequence modeling, all the common arguments are utilized as features for duration modeling, owing to their vital role in identifying duration patterns. This is particularly relevant considering the high correlation between events and their durations. However, unlike the previous task, the model is not required to make a prediction for all the events in the trace, rather it only focuses on events signaling the end of an execution interval.
+
+The primary training objective is to predict the duration of an event's execution. As shown in figure \ref{fig:sample_sequence}, this duration is specified by two distinct events in the trace: the `Entry' (denoted as \( e_i^{\text{entry}} \)) and `Exit' (denoted as \( e_i^{\text{exit}} \)) events, which are particularly relevant for system call events. While the model encounters an `Entry' event \( e_i^{\text{entry}} \), no prediction is expected. The predicted durations are only considered for loss calculation when the interval is closed, which means when an `Exit' event \( e_i^{\text{exit}} \) is issued. Given a sequence \( s = (e_1^{\text{type}}, e_2^{\text{type}}, \ldots, e_n^{\text{type}}) \), where \( \text{type} \) is either `entry' or `exit', let \( \hat{d}_{i} \) be the predicted duration for event \( e_{i}^{\text{exit}} \) and \( o_{i} \) be the true duration label. If \( e_{i}^{\text{type}} \) is an entry event, \( o_{i} \) will be `none'. The cross-entropy loss for a prediction \( \hat{d}_{i} \) when \( o_{i} \) is not `none' is:
+
+\begin{equation}
+l(\hat{d}_{i}, o_{i}) = -\sum_{d \in D} o_{i}(d) \log(\hat{d}_{i}(d))
+\end{equation}
+
+Where $D$ is the set of all duration categories. The total loss for the sequence \( s \) is computed as:
+
+\begin{equation}
+L(s) = \frac{1}{N_{\text{exit}}} \sum_{i: o_{i} \neq \text{none}}^{n} l(\hat{d}_{i}, o_{i})
+\end{equation}
+
+With \( N_{\text{exit}} \) denoting the count of exit events in \( s \) having labels other than `none'. Now having the loss of sequences regarding the prediction of their durations, we are able to measure the system's deviation from predicted behavior from a different perspective than the sequence of events. This provides us with a complementary measure for detection of novelties which is core to the adaptive tracing approach.
+
+
+\subsection{Multi-task learning}
+Considering the fact that the event model and duration model benefit from the same set of features from trace data, and the correlation between events and their durations, we modify the architecture of the neural network to model them in a multi-task setup. In general, multi-task learning helps to utilize the shared knowledge acquired by the model in each of the tasks. In our case, by unifying the models, we enable the model the have a holistic view of both aspects of the trace. To accommodate both tasks, the encoder of the network is shared between them and each of them has a separate fully-connected layer on top of the encoder to produce the appropriate output. Similar to \cite{jang2021bpm_mt}, the aggregated loss function used during the training phase is calculated as follows:
+
+
+\begin{equation*}
+\mathcal{L}_{\text{Total}} = \lambda \mathcal{L}_{\text{Event}} + (1 - \lambda) \mathcal{L}_{\text{Duration}}
+\end{equation*}
+
+
+The hyper-parameter $\lambda$ moderates the contribution of each modeling task during backpropagation.
+
+As mentioned, the calculated loss for each sequence is the key to determining  its normality. Having two loss values from the event and duration models during the inference phase, we need a combined scheme to make a prediction utilizing both models. However, there exist different scales for the loss values of each model. To address this discrepancy and enable a harmonious integration of the two models, the loss values of each model are normalized using the Median Absolute Deviation (MAD). This rescaling technique ensures that the losses from both models are on a comparable scale, facilitating a more meaningful and effective combination when making predictions. This approach is chosen specifically due to its robustness to outliers and points in the extreme tails of distribution\cite{jain2005score}. For a set of loss values $L = \{l_1, l_2, ..., l_n\}$, resulted from a single model, the normalized values are computed as follows:
+
+
+\begin{equation*}
+l'_{\text{i}} = \frac{l_i - \text{median}(L)}{\text{MAD}(L)}
+\end{equation*}
+
+where $\text{MAD}(L) = \text{median} ( | l_i - \text{median}(L) |)$. Finally, the normalized event loss and duration loss of each sequence is aggregated by summation to measure its total deviation in respect to the trained model.
+
+
+
+\subsection{Root-cause Analysis}
+Whenever a novelty is detected in the system trace, we need to pin-point the root cause of the change and provide transparency to model's decision making. In this section, we detail the method to identify the root cause of novelties which works on top of the trace model and does not require further training. This method will guide the adaptive tracing procedure, ultimately enabling the users monitoring the system for faster and more effective response to potential issues.
+
+When facing an abnormal request in system trace, the reason for the trace to be identified as abnormal includes insights helpful for tracking the source of this deviation. As mentioned, for a trace of a request to be abnormal, it should have a significant deviation from the model's prediction, meaning that a portion of triggered events by the system has low probabilities from the model's perspective. The events contributing to the request's abnormality can provide us with the information needed for pinpointing the source of change. These events could be either the ones predicted by the model but were unsuccessful predictions, or the ones which were actually seen in the trace instead of the model's predicted events. Consequently, the problem boils down to utilizing the mentioned events in the trace of each abnormal request to pinpoint the root cause. Figure \ref{fig:opcache_distro} shows the distribution of incorrect predictions of OPCache set which characterizes this type of anomaly. Each type of abnormal behavior has its own unique distribution of deviation from normal pattern which motivates our approach for root-cause identification. Figure \ref{fig:compare_distro} compares the distribution of incorrect predictions of the OOD sets on a selected set of high repeated events which shows the uniqueness of types and frequency of deviations in each set.
+
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=1.1\textwidth]{figs/count_of_error_single.pdf}
+    \caption{Distribution of events which are incorrectly predicted in the OPCache noise set.}
+    \label{fig:opcache_distro} 
+\end{figure}
+
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=1.3\textwidth]{figs/count_of_error_all.pdf}
+    \caption{Comparison of incorrect events of each noise set}
+    \label{fig:compare_distro} 
+\end{figure} 
+
+As described in Algorithm~\ref{alg:root-cause}, after the model outputs its predicted sequence — event or duration — the error count of each event type is measured by \texttt{count\_errors} function to form the error vector of the respective input sequence. The function \texttt{count\_errors} plays a critical role in the formation of error vectors, which serve as the basis for the subsequent clustering and classification stages. Its operation depends on the type of model being used, as outlined below:
+
+\begin{itemize}
+    \item \textbf{Event Model:} When the event model is employed, \texttt{count\_errors} quantifies the number of events that were incorrectly predicted within the sequence. Specifically, it compares each event in the predicted sequence \(\hat{S}\) with the corresponding event in the true sequence \(S\), incrementing the error count for each discrepancy.
+
+    \item \textbf{Duration Model:} Under the duration model, \texttt{count\_errors} shifts its focus to the durations. It examines each event's predicted duration against the actual duration, aggregating the count of instances where the expected duration deviated from the truth.
+
+    \item \textbf{Combined Approach:} If the system synthesizes both models, \texttt{count\_errors} adopts a more holistic approach. It computes the error metrics for both the events and durations as described above. These individual counts are then averaged to yield a unified error count that reflects the combined insight from both the event and duration perspectives.
+\end{itemize}
+
+The vector is then compared to centroids of clusters of pre-labeled error vectors by cosine similarity, and the label of closest centroid is selected as the label or root-cause of the input abnormal sequence. Pre-clustering is essential for efficiency, as it reduces the computational load when encountering a new abnormal trace, and for noise reduction, as it averages out the noise and captures each subset of traces’ underlying pattern. This approach leads to efficient and robust assignment of new abnormal traces to existing subsets and their associated root-causes.  
+
+\begin{algorithm}
+\label{alg:root-cause}
+\caption{Clustering and Classification using Error Vectors}
+\begin{algorithmic}[1]
+\Procedure{ClusterErrorVectors}{$\mathbf{E}_{\text{label}}$}
+    \State $C(\mathbf{E}_{\text{label}}) \gets \text{HDBSCAN}(\mathbf{E}_{\text{label}})$ \Comment{Clustering}
+    \State \Return $C(\mathbf{E}_{\text{label}})$
+\EndProcedure
+\Statex
+\Procedure{Classify}{$S, C(\mathbf{E}_{\text{label}})$}
+    \State $\hat{S} \gets \text{LM}(S)$ \Comment{Sequence Prediction}
+    \For{each $w_i$ in $S$}
+        \State $e(w_i) \gets \text{count\_errors}(w_i, S, \hat{S})$
+    \EndFor \Comment{Error Counting}
+    \State $\mathbf{E} \gets [e(w_1), e(w_2), \ldots, e(w_n)]$ \Comment{Error Vector Formation}
+    \State $c^* \gets \underset{c_j \in C(\mathbf{E}_{\text{label}})}{\arg\max} \ \text{CosineSimilarity}(\mathbf{E}, c_j)$ \Comment{Finding Closest Centroid}
+    \State $\text{Label}(S) \gets L(c^*)$ \Comment{Classification}
+    \State \Return $\text{Label}(S)$
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+
+% \subsection{Adaptive tracing}
+% The change detection module's core function is to determine intervals of unusual behavior, therefore marking the start and end of trace recording. Utilizing this module, we can detect even slight changes at the level of a request with high accuracy. However, we are mostly looking for significant shifts when it comes to decisions for the start of trace recording. Significant shifts are easier to detect and are even more accurate as the inspection of larger intervals reduces the chance of detecting a shift due to misprediction. We consider a change to be significant if, in a window of length L subsequent requests, at least 20\% of them are categorized as abnormal. The window shifts equal to its size after the process is done. The parameter L allows for tuning the module's sensitivity to changes. With setting large values of L the number of false positives and therefore the recorded volume decreases but the time it takes to recognize a change after it gets started increases.
+
+% However, knowing that the change detection module does not work with 100 percent accuracy, there might be times that it misjudges the situation, even after implementing window-based decision-making. This can cause problems mostly in the false negatives, as false positives will only cause a slight increase in unnecessary recorded trace volume. To increase the recall of the change detector and at the same time limit the increase in the recorded trace volume, we implement a secondary threshold with higher sensitivity to changes. Implementation of this secondary threshold takes advantage of LTTng's buffering capability, which allows for temporary storage of events before deciding to record or discard them. When the more sensitive threshold gets triggered, the events start getting buffered by the LTTng, but they are not recorded for further analysis until the main threshold gets triggered. Once the main threshold does get triggered-even if this happens with a rather significant delay-the module begins recording the new upcoming events, same as before, but at the same time, it also proceeds to record the latest events stored in the buffer. This reduces the loss of events related to a change due to delayed recognition of it. The storing phase stops whenever the percentage of recognized abnormal events is less than 20\% in the main window.
+
+% Having the mentioned tracing method, the recording of the trace is limited only to the times that the system is experiencing a shift. However, the recording captures all the events in the system, regardless of their relevance to the probable issue. To further reduce the burden of tracing, we utilize the root-cause analysis module so that the tracer limits both the time at which it records and the events it selects for recording. ...
+
+
+
+
+
+\section{Data Collection}
+
+To showcase the effectiveness of out approach we require a collection of kernel traces of a real-world application which is 1- large enough to train deep neural networks considered in this work, 2- includes the detailed arguments of kernel events, allowing for event duration computation and effective model training, and 3- includes normal and flawed behavior of system. As of now, the most suitable collection for the mentioned requirements is the dataset introduced by \cite{fournier2023language} which consists of the trace of two million web requests along with the event arguments. This dataset includes a set of traces of normal system behavior, and several sets of trace which are collected while the system is facing different types of issues. 
+
+Although we base a part of our experiments on this dataset for the sake of comparison of results, we collect another set of traces with a similar approach. This allows us to collect traces of another types of system behavior which introduce greater challenge to trace models, and potentially fill in the gaps left by the previous dataset. Our objective in doing so is to enrich the dataset's diversity, thereby more accurately representing real-world applications. Specifically, this focuses on performance-related issues that have a greater impact on the duration of event processing within the system.
+
+Following the methodology outlined in \cite{fournier2023language}, we established a test environment consisting of an Apache2 web server and a client executing a benchmark to send HTTP requests to the server. The experiments were conducted on a machine equipped with an Intel\textregistered{} Core\textsuperscript{TM} i7 CPU and 32 GB of DDR5 RAM, specifications that are robust and detailed in Table~\ref{tbl:systemconfiguration}. A clean installation of Linux Ubuntu 22.04.2 LTS ran on the system, providing a stable and controlled environment for the tests. On the client side, the wrk2 benchmark was configured to send 1000 requests per second to fully engage the server. We collected traces exclusively from the server side, as it is the principal source of latency within the system. For an exhaustive list of the system's hardware components as obtained by the 'inxi -F' command, refer to the dataset's GitHub repository\footnote{----}.
+
+\begin{table}[tb]
+\caption{The specification of the system.}
+\centering{%
+\begin{tabular}{lc}
+\hline \hline 
+Name & \textit{Specification} \\\hline 
+CPU & \textit{Intel\textregistered{} Core\textsuperscript{TM} i7} 3.60GHz\\ 
+Memory & 2*16 GB of DDR5 configured at 4400 MHz \\ 
+Hard disk & 1TB DT01ACA100 Toshiba Desktop\\ 
+OS & \textit{Linux Ubuntu 22.04.2 LTS}\\ 
+\hline \hline 
+\end{tabular}
+}
+\label{tbl:systemconfiguration}
+\end{table}
+
+\subsection{Duration Preprocessing}
+Labeling the events in the trace data with their respective durations involves identifying the start and end kernel events that specify an operation interval within the system. The beginning of this interval is indicated by the timestamp of an `Entry' event, while its conclusion is marked by the timestamp of a corresponding `Exit' event. These `Entry' and `Exit' events are matched based on their pid and tid arguments. The duration of a specific interval is determined by calculating the difference between the timestamps of matched `Entry' and `Exit' events. This calculated duration is then tagged to the `Exit' event. Conversely, the `Entry' event is assigned a `none' tag for its duration, indicating that the duration measurement is not applicable at that point. This method ensures that each operation interval is accurately represented by its corresponding duration, which is essential for precise system analysis and understanding the performance metrics. In the following we describe how these durations are categorized and adjusted throughout the system operation.
+
+
+\subsubsection{Duration Categorization}
+For the sake of simplification of the duration modeling process, the duration of each event is categorized into one of the k categories. There are several approaches for categorizing numerical values, but we adopted a custom percentile-decreasing binning strategy suitable for the specific characteristics of our data.
+
+In the case of Linux kernel events, most of the events are completed in a fast manner and slow events are the minority in the kernel traces, as shown in figure \ref{fig:visualize_cat}. Therefore,  we want to preserve this pattern after the duration of events has been categorized. To do so, we need a method that assigns most of the durations to the category representing the fastest events and gradually decreases the number of events in the categories with longer durations.
+
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.99\textwidth]{figs/visual cat syscall_exit_recvfrom.pdf}
+    \caption{Distribution of durations of "recvfrom" event which are categorized into 3 bins.}
+    \label{fig:visualize_cat}
+\end{figure}
+
+Having a set of durations for a specific type of event, we first sort them in decreasing order. We then divide the durations into bins such that the number of data points in each bin gradually decreases. Specifically, the first bin contains the most data points, and each subsequent bin contains fewer data points than the previous one. The distribution of data points across bins is calculated based on a linear decreasing function. The function begins at k, where k is the total number of bins and decreases by 1 with each subsequent bin. The fractions resulting from this function are then normalized so that their sum is 1. This approach can be formalized as follows:
+
+Given k bins, the total number of points is the sum of an arithmetic series:
+
+\[ 
+Total = \frac{k \cdot (k + 1)}{2} 
+\]
+
+The fraction of points in each bin, starting from the first bin (indexed with i=1) to the nth bin, is calculated as follows:
+
+\[ 
+f(i) = \frac{k - i + 1}{Total} 
+\]
+
+This yields a decreasing sequence of fractions that sum to 1, ensuring that all points are allocated across the bins.
+
+This binning strategy allows us to construct bins that better reflect the actual distribution of durations in our dataset. Moreover, our method mitigates the influence of potential outliers or exceptionally long durations, which could disproportionately affect the distribution if standard equal-width or equal-frequency binning methods were used. As mentioned, our modeling approach can be used for any other type of sequential data that involves the duration of events, therefore the method used for categorizing the durations might need to be changed according to the data.
+
+
+\subsubsection{Duration Interval Adjustment}
+As the server operates in normal mode, the distribution of duration of events undergoes minor variations. These minor shifts in event duration distributions, influenced by changes in the server's load and operational context, could alter which events fall into each category. This could potentially lead to misrepresentations or inaccuracies in the categorization. Therefore, these shifts need to be reflected in the intervals representing each of the duration categories to maintain the intended balance between the number of events assigned to each category and ensure the model's accuracy and effectiveness. Periodic updates to the duration categories are thus necessary to adapt to these changes. Figure \ref{fig:interval_adjst} illustrates the change in duration distribution after 10 seconds of normal operation, highlighting the need for such updates.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.99\textwidth]{figs/Duration Distribution for syscall_exit_connect.pdf}
+    \caption{Changes in distribution of "Connect" system call after 10 seconds of operation.}
+    \label{fig:interval_adjst}
+\end{figure}
+
+To implement these updates, the system blends new data with existing information. For each event type, the system first checks if there's existing data on event durations. If so, it calculates a weighted average of the event durations, combining the newly observed durations with the previously recorded ones. This calculation gives more weight to durations with a higher occurrence count, ensuring that the most common patterns have a greater influence on the updated intervals. For new event types that weren't previously recorded, the system directly adopts the newly observed durations. Through this process, the system dynamically adjusts the duration categories, integrating the latest observations while maintaining continuity with historical data. This approach ensures that the categorization of event durations remains accurate and reflective of the current operational state of the server, effectively capturing both the subtle and significant shifts in event processing times.
+
+
+\subsection{Trace event selection}
+The default approach for training the model and monitoring the system's behavior would involve using all the system calls processed by the system to train the model and monitor the system based on the model. However, this might not be necessary as many of the system calls do not convey significant information the internal state of the system. Reducing the number events involved in model training can help to reduce its size and inference time. This also leads to reduced overhead of the tracer on on normal workloads as a subset of events is gathered. 
+
+To make this minimization possible, we consider two separate sets of events in our design, one collected for monitoring purpose and the other set for recording on drive for further analysis. As mentioned, during the normal system process, events are not recorded and are only fed to the model to detect any possible changes in behavior, therefore having a reduced set of events, specially selected for change detection purpose, has a minimal affect on the whole process. However, as selecting events for second phase of analysis, done by human operator, is not as straightforward, there is a need to provide as much information as possible around any possible issue. Accordingly, when abnormal behavior of system is detected, second set of events is considered for recording the phase change, fulfilling the inclusiveness of the trace.
+
+In line with this strategy of event reduction, various subsets of events were considered for its evaluation. These include 'select-top40', consisting of the 40 most frequently occurring events, and 'select-top20', which narrows it down to the top 20. To explore the impact of disregarding highly frequent but potentially less informative events, we also created subsets 'remove-top10' and 'remove-top20', excluding the top 10 and top 20 events from the 'select-top40' list, respectively. Another approach was 'Category-based', selecting the top 5 events from each category, aiming for a diverse yet representative set. Lastly, the 'TF-IDF' method was used to filter out events that are frequent but have low TF-IDF scores, focusing on events that are uniquely frequent. Each of these subsets was designed with the goal of achieving a balance between providing a thorough insight into the system's functioning and enhancing the model's efficiency and its ability to respond to variations in system behavior in a timely manner. The summary of these combinations and their total number of events is listed in \ref{tab:subset_syscalls}
+
+
+\begin{table}[h!]
+\label{tab:subset_syscalls}
+\caption{Definition and size of each subset of system calls}
+\begin{tabular}{|l|l|l|}
+\hline
+Subset         & Count & Description                                                                                                                                   \\ \hline
+select-top40   & 40                 & \begin{tabular}[c]{@{}l@{}}Top 40 system-calls with the highest frequency are \\ selected\end{tabular}                                        \\ \hline
+select-top20   & 20                 & \begin{tabular}[c]{@{}l@{}}Top 20 system-calls with the highest frequency are \\ selected\end{tabular}                                        \\ \hline
+remove-top10   & 30                 & \begin{tabular}[c]{@{}l@{}}Top 10 events with the highest frequency are disregarded \\ along with others removed in select-top40\end{tabular} \\ \hline
+remove-top20   & 20                 & \begin{tabular}[c]{@{}l@{}}Top 20 events with the highest frequency are disregarded \\ along with others removed in select-top40\end{tabular} \\ \hline
+% Category-based & -                  & \begin{tabular}[c]{@{}l@{}}Top 5 events are selected from each category of \\ system calls\end{tabular}                                       \\ \hline
+% TF-IDF         & -                  & \begin{tabular}[c]{@{}l@{}}High frequency system calls with low TF-IDF score are \\ disregarded\end{tabular}                                  \\ \hline
+\end{tabular}
+\end{table}
+
+
+\section{Evaluation}
+
+\subsection{Experimental Setup}
+In our experiment, we implement the proposed model using LSTM \cite{hochreiter1997long}, a recurrent neural network, and BERT \cite{devlin2018bert},  a Transformer-based architecture \cite{vaswani2017attention}, both of which are commonly employed in tasks related to language modeling. These networks process a sequence of events representing a complete request, except some extreme cases which are truncated to 2048 events. The processing of complete requests is made possible by training the Transformer model with mixed precision \cite{micikevicius2018mixed} and gradient checkpointing \cite{chen2016training}, as these techniques increase memory efficiency, allowing for more effective handling of large sequences \cite{fournier2023language}.
+
+
+The implementation was carried out in Python using the Pytorch framework \cite{paszke2019pytorch}. We set the hyper-parameter $\lambda$ at 0.5. The selection of other hyper-parameters is oriented towards optimizing the change detection task, which is the ultimate objective. To minimize the impact of random variation, each test was performed three times with distinct seeds.
+
+
+% The average duration of each request is 1 ms, and we set the minimum duration of a change to 0.5s to be considered a significant behavior change. Therefore, we set the main window size (L) to 500 (=500ms/1ms), and the secondary window is set to 10 percent of the main window to allow for early recognition of minor changes. 
+
+The training process takes place on a server provided by the Digital Research Alliance of Canada [should I give a refrence?], equipped with two Intel Gold 6148 Skylake processors, four Nvidia V100SXM2 16G GPUs, and 64GB of RAM.
+
+
+\subsection{Event Sequence and Duration Modeling}
+Language modeling and duration prediction tasks form the foundation of the adaptive tracer. The trained models are assessed based on the Cross-entropy loss and top-one accuracy of the model in predicting the next token in a given sequence of events or durations. These metrics effectively evaluate the model's predictive accuracy and its capacity for generalization.
+ 
+Event sequence and duration models are trained and evaluated both in a single-task and multi-task setup to assess the impact of the combination of their modeling objectives. The training results of event and duration models are given in table \cite{tab:modeling-results}. 
+
+
+
+
+
+
+\begin{table}[]
+\label{tab:modeling-results}
+\caption{Performance results of Event and Duration models trained separately vs in the multi-task setup}
+\begin{tabular}{|lll|cccc|cccc|cccc|}
+\hline
+\multicolumn{3}{|c|}{\multirow{3}{*}{Dataset}} & \multicolumn{4}{c|}{LSTM - ST}                                                     & \multicolumn{4}{c|}{LSTM - MT}                                              & \multicolumn{4}{c|}{Transformer - MT}                                              \\ \cline{4-15} 
+\multicolumn{3}{|c|}{}                         & \multicolumn{2}{c|}{Event}                         & \multicolumn{2}{c|}{Duration} & \multicolumn{2}{c|}{Event}                         & \multicolumn{2}{c|}{Duration} & \multicolumn{2}{c|}{Event}                         & \multicolumn{2}{c|}{Duration} \\ \cline{4-15} 
+\multicolumn{3}{|c|}{}                         & \multicolumn{1}{c|}{CE} & \multicolumn{1}{c|}{Acc} & \multicolumn{1}{c|}{CE} & Acc & \multicolumn{1}{c|}{CE} & \multicolumn{1}{c|}{Acc} & \multicolumn{1}{c|}{CE} & Acc & \multicolumn{1}{c|}{CE} & \multicolumn{1}{c|}{Acc} & \multicolumn{1}{c|}{CE} & Acc \\ \hline
+\multicolumn{3}{|l|}{Train}                    & \multicolumn{1}{c|}{0.64}  & \multicolumn{1}{c|}{75.7}   & \multicolumn{1}{c|}{0.26}  & 87.6   & \multicolumn{1}{c|}{0.86}  & \multicolumn{1}{c|}{75.0}   & \multicolumn{1}{c|}{0.16}  & 92.7   & \multicolumn{1}{c|}{1.26}  & \multicolumn{1}{c|}{67.6}   & \multicolumn{1}{c|}{0.31}  & 86.3   \\ \hline
+\multicolumn{3}{|l|}{Test ID}                  & \multicolumn{1}{c|}{0.70}  & \multicolumn{1}{c|}{73.9}   & \multicolumn{1}{c|}{0.26}  & 87.4   & \multicolumn{1}{c|}{0.92}  & \multicolumn{1}{c|}{72.8}   & \multicolumn{1}{c|}{0.17}  & 91.9   & \multicolumn{1}{c|}{1.34}  & \multicolumn{1}{c|}{65.7}   & \multicolumn{1}{c|}{0.33}  & 85.3   \\ \hline
+\multicolumn{3}{|l|}{Test Connection}          & \multicolumn{1}{c|}{0.95}  & \multicolumn{1}{c|}{68.5}   & \multicolumn{1}{c|}{0.27}  & 86.7   & \multicolumn{1}{c|}{1.52}  & \multicolumn{1}{c|}{66.0}   & \multicolumn{1}{c|}{0.55}  & 82.2   & \multicolumn{1}{c|}{2.20}  & \multicolumn{1}{c|}{49.2}   & \multicolumn{1}{c|}{0.58}  & 75.2   \\ \hline
+\multicolumn{3}{|l|}{Test CPU}                 & \multicolumn{1}{c|}{1.03}  & \multicolumn{1}{c|}{63.6}   & \multicolumn{1}{c|}{0.57}  & 76.1   & \multicolumn{1}{c|}{1.29}  & \multicolumn{1}{c|}{75.5}   & \multicolumn{1}{c|}{0.46}  & 88.3   & \multicolumn{1}{c|}{1.74}  & \multicolumn{1}{c|}{68.3}   & \multicolumn{1}{c|}{0.58}  & 80.1   \\ \hline
+\multicolumn{3}{|l|}{Test IO}                  & \multicolumn{1}{c|}{1.80}  & \multicolumn{1}{c|}{47.7}   & \multicolumn{1}{c|}{0.46}  & 80.3   & \multicolumn{1}{c|}{2.69}  & \multicolumn{1}{c|}{37.6}   & \multicolumn{1}{c|}{0.53}  & 81.1   & \multicolumn{1}{c|}{3.84}  & \multicolumn{1}{c|}{23.3}   & \multicolumn{1}{c|}{0.82}  & 66.1   \\ \hline
+\multicolumn{3}{|l|}{Test OPCache}             & \multicolumn{1}{c|}{1.06}  & \multicolumn{1}{c|}{62.5}   & \multicolumn{1}{c|}{0.29}  & 85.3   & \multicolumn{1}{c|}{1.50}  & \multicolumn{1}{c|}{61.9}   & \multicolumn{1}{c|}{0.34}  & 87.0   & \multicolumn{1}{c|}{1.85}  & \multicolumn{1}{c|}{57.9}   & \multicolumn{1}{c|}{0.45}  & 80.5   \\ \hline
+\multicolumn{3}{|l|}{Test Socket}              & \multicolumn{1}{c|}{0.97}  & \multicolumn{1}{c|}{59.2}   & \multicolumn{1}{c|}{0.53}  & 76.5   & \multicolumn{1}{c|}{1.59}  & \multicolumn{1}{c|}{64.0}   & \multicolumn{1}{c|}{0.50}  & 83.3   & \multicolumn{1}{c|}{2.44}  & \multicolumn{1}{c|}{49.1}   & \multicolumn{1}{c|}{0.68}  & 72.8   \\ \hline
+\multicolumn{3}{|l|}{Test SSL}                 & \multicolumn{1}{c|}{1.31}  & \multicolumn{1}{c|}{61.0}   & \multicolumn{1}{c|}{0.70}  & 79.2   & \multicolumn{1}{c|}{1.74}  & \multicolumn{1}{c|}{62.2}   & \multicolumn{1}{c|}{0.64}  & 80.1   & \multicolumn{1}{c|}{2.41}  & \multicolumn{1}{c|}{46.0}   & \multicolumn{1}{c|}{0.65}  & 72.5   \\ \hline
+\multicolumn{3}{|l|}{Test Sysbench}                & \multicolumn{1}{c|}{0.73}  & \multicolumn{1}{c|}{73.7}   & \multicolumn{1}{c|}{0.30}  & 85.4   & \multicolumn{1}{c|}{1.17}  & \multicolumn{1}{c|}{67.3}   & \multicolumn{1}{c|}{0.26}  & 87.2   & \multicolumn{1}{c|}{1.29}  & \multicolumn{1}{c|}{66.1}   & \multicolumn{1}{c|}{0.29}  & 81.9   \\ \hline
+\multicolumn{3}{|l|}{Test Bandwidth}                & \multicolumn{1}{c|}{0.60}  & \multicolumn{1}{c|}{83.8}   & \multicolumn{1}{c|}{0.14}  & 93.0   & \multicolumn{1}{c|}{1.25}  & \multicolumn{1}{c|}{74.9}   & \multicolumn{1}{c|}{0.34}  & 84.9   & \multicolumn{1}{c|}{1.37}  & \multicolumn{1}{c|}{72.3}   & \multicolumn{1}{c|}{0.37}  & 79.3   \\ \hline
+\end{tabular}
+\end{table}
+
+
+The duration prediction models, particularly, demonstrated a notable ability to learn patterns of event completion durations, achieving an average accuracy of 89.2\% in the LSTM network with 5 duration categories. The ability of the duration models to effectively utilize the same features reinforces the potential of a multi-task learning setup. Accordingly, we can observe that multi-task models maintain their performance after having a joint representation learned for both tasks.  
+
+While single-task models showed higher accuracy in some datasets, this did not consistently equate to enhanced performance in subsequent change detection and root-cause identification tasks. In fact, as we will demonstrate in the following subsection, our findings suggest that joint training of tasks within a multi-task learning framework leads to more generalized models. These models show improved efficacy in detecting unknown behaviors, underscoring the advantages of a unified approach over individual task training.
+
+A common trend across both event and duration prediction models is a decline in predictive performance when encountering out-of-distribution datasets. This characteristic is crucial for the detection of novel system behaviors, as major deviations from the model’s predictions can signal unusual activities.
+
+
+
+% % Please add the following required packages to your document preamble:
+% % \usepackage{multirow}
+% \begin{table}[]
+% \label{tab:modeling-single_vs_multi}
+% \caption{Performance results of Event and Duration models trained separately vs in the multi-task setup}
+% \begin{tabular}{|lll|cccc|cccc|}
+% \hline
+% \multicolumn{3}{|c|}{\multirow{3}{*}{Dataset}} & \multicolumn{4}{c|}{Single-task}                                                                & \multicolumn{4}{c|}{Multi-task}                                                         \\ \cline{4-11} 
+% \multicolumn{3}{|c|}{}                         & \multicolumn{2}{c|}{Event model}                   & \multicolumn{2}{c|}{Duration model} & \multicolumn{2}{c|}{Event model}                   & \multicolumn{2}{c|}{Duration model} \\ \cline{4-11} 
+% \multicolumn{3}{|c|}{}                         & \multicolumn{1}{c|}{CE} & \multicolumn{1}{c|}{Acc} & \multicolumn{1}{c|}{CE}    & Acc    & \multicolumn{1}{c|}{CE} & \multicolumn{1}{c|}{Acc} & \multicolumn{1}{c|}{CE}    & Acc    \\ \hline
+% \multicolumn{3}{|l|}{Train}                    & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \multicolumn{3}{|l|}{Test ID}                  & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \multicolumn{3}{|l|}{Test Connection}          & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \multicolumn{3}{|l|}{Test CPU}                 & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \multicolumn{3}{|l|}{Test IO}                  & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \multicolumn{3}{|l|}{Test OPCache}             & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \multicolumn{3}{|l|}{Test Socket}              & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \multicolumn{3}{|l|}{Test SSL}                 & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \multicolumn{3}{|l|}{Test New1}                & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \multicolumn{3}{|l|}{Test New2}                & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \end{tabular}
+% \end{table}
+
+
+% % Please add the following required packages to your document preamble:
+% % \usepackage{multirow}
+% \begin{table}[]
+% \label{tab:modeling-lstm_vs_transformer}
+% \caption{Multi-task modeling performance of LSTM vs BERT}
+% \begin{tabular}{|lll|cccc|cccc|}
+% \hline
+% \multicolumn{3}{|c|}{\multirow{3}{*}{Dataset}} & \multicolumn{4}{c|}{LSTM}                                                                & \multicolumn{4}{c|}{Transformer}                                                         \\ \cline{4-11} 
+% \multicolumn{3}{|c|}{}                         & \multicolumn{2}{c|}{Event model}                   & \multicolumn{2}{c|}{Duration model} & \multicolumn{2}{c|}{Event model}                   & \multicolumn{2}{c|}{Duration model} \\ \cline{4-11} 
+% \multicolumn{3}{|c|}{}                         & \multicolumn{1}{c|}{CE} & \multicolumn{1}{c|}{Acc} & \multicolumn{1}{c|}{CE}    & Acc    & \multicolumn{1}{c|}{CE} & \multicolumn{1}{c|}{Acc} & \multicolumn{1}{c|}{CE}    & Acc    \\ \hline
+% \multicolumn{3}{|l|}{Train}                    & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \multicolumn{3}{|l|}{Test ID}                  & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \multicolumn{3}{|l|}{Test Connection}          & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \multicolumn{3}{|l|}{Test CPU}                 & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \multicolumn{3}{|l|}{Test IO}                  & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \multicolumn{3}{|l|}{Test OPCache}             & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \multicolumn{3}{|l|}{Test Socket}              & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \multicolumn{3}{|l|}{Test SSL}                 & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \multicolumn{3}{|l|}{Test New1}                & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \multicolumn{3}{|l|}{Test New2}                & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}  & \multicolumn{1}{c|}{0}   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+% \end{tabular}
+% \end{table}
+
+
+\subsection{Change detection}
+
+In the task of change detection, the model assesses each request to classify it as either normal or novel. This classification is based on measuring the cross-entropy loss of each request and comparing it to a predetermined threshold. This threshold is chosen by considering the losses of both normal and noisy requests available in validation sets, aiming to maximize the F1-score for this binary classification. F1-score is the harmonic mean of precision and recall metrics. It ranges from 0 to 1, with 1 indicating perfect precision and recall, and 0 showing either precision or recall is zero. The model's performance is also evaluated using the Area under the ROC Curve (AUC). AUC offers a comprehensive measure of effectiveness over all potential classification thresholds, providing a broad perspective on the model's predictive capabilities. 
+
+
+We also examine the effect of duration categorization on the model's change detection proficiency. By employing different numbers of categories and comparing the performance with a regression-based duration model, we can assess the influence of categorization on detection accuracy. Based on the results shown in table \ref{tab:duration-models}, it is evident that enhancing the precision of duration prediction contributes to improved accuracy in detecting changes. However, there is a point beyond which the model's performance begins to decline. This observation suggests a trade-off, similar to what has been observed in the event model, where beyond a certain level of prediction accuracy, the model's ability to generalize effectively diminishes.
+
+
+\begin{table}[]
+\label{tab:duration-models}
+\caption{Change detection results for various selection for number of categories of durations.}
+\begin{tabular}{|lll|cc|cc|cc|cc|cc|}
+\hline
+\multicolumn{3}{|c|}{\multirow{2}{*}{Dataset}} & \multicolumn{2}{c|}{3 Category} & \multicolumn{2}{c|}{5 Category} & \multicolumn{2}{c|}{7 Category} & \multicolumn{2}{c|}{9 Category} & \multicolumn{2}{c|}{Regression} \\ \cline{4-13} 
+\multicolumn{3}{|c|}{}                         & \multicolumn{1}{c|}{F1}  & AUC  & \multicolumn{1}{c|}{F1}  & AUC  & \multicolumn{1}{c|}{F1}  & AUC  & \multicolumn{1}{c|}{F1}  & AUC  & \multicolumn{1}{c|}{F1}  & AUC \\ \hline
+\multicolumn{3}{|l|}{Test Connection}          & \multicolumn{1}{c|}{79.2}   & 93.7    & \multicolumn{1}{c|}{74.0}   & 88.6    & \multicolumn{1}{c|}{93.2}   & 98.1    & \multicolumn{1}{c|}{92.1}   & 97.9    & \multicolumn{1}{c|}{0}   & 0 \\ \hline
+\multicolumn{3}{|l|}{Test CPU}                 & \multicolumn{1}{c|}{97.4}   & 99.7    & \multicolumn{1}{c|}{98.2}   & 99.9    & \multicolumn{1}{c|}{98.6}   & 99.9    & \multicolumn{1}{c|}{97.5}   & 99.7    & \multicolumn{1}{c|}{0}   & 0 \\ \hline
+\multicolumn{3}{|l|}{Test IO}                  & \multicolumn{1}{c|}{99.6}   & 99.8    & \multicolumn{1}{c|}{99.8}   & 99.9    & \multicolumn{1}{c|}{99.8}   & 99.9    & \multicolumn{1}{c|}{99.8}   & 99.9    & \multicolumn{1}{c|}{0}   & 0 \\ \hline
+\multicolumn{3}{|l|}{Test OPCache}             & \multicolumn{1}{c|}{67.5}   & 91.6    & \multicolumn{1}{c|}{70.49}   & 93.9    & \multicolumn{1}{c|}{75.1}   & 97.1    & \multicolumn{1}{c|}{72.3}   & 96.2    & \multicolumn{1}{c|}{0}   & 0 \\ \hline
+\multicolumn{3}{|l|}{Test Socket}              & \multicolumn{1}{c|}{94.5}   & 98.9    & \multicolumn{1}{c|}{94.4}   & 98.6    & \multicolumn{1}{c|}{96.0}   & 99.2    & \multicolumn{1}{c|}{96.1}   & 98.9    & \multicolumn{1}{c|}{0}   & 0 \\ \hline
+\multicolumn{3}{|l|}{Test SSL}                 & \multicolumn{1}{c|}{0}   & 0    & \multicolumn{1}{c|}{0}   & 0    & \multicolumn{1}{c|}{0}   & 0    & \multicolumn{1}{c|}{0}   & 0    & \multicolumn{1}{c|}{0}   & 0 \\ \hline
+\multicolumn{3}{|l|}{Test Sysbench}                 & \multicolumn{1}{c|}{79.0}   & 89.3    & \multicolumn{1}{c|}{79.5}   & 89.9    & \multicolumn{1}{c|}{82.2}   & 90.9    & \multicolumn{1}{c|}{84.7}   & 93.7    & \multicolumn{1}{c|}{0}   & 0 \\ \hline
+\multicolumn{3}{|l|}{Test Bandwidth}                & \multicolumn{1}{c|}{69.3}   & 95.4    & \multicolumn{1}{c|}{71.2}   & 98.2    & \multicolumn{1}{c|}{79.3}   & 99.0    & \multicolumn{1}{c|}{61.9}   & 96.5    & \multicolumn{1}{c|}{0}   & 0 \\ \hline
+\end{tabular}
+\end{table}
+
+
+
+
+Tables \ref{tab:lstm} and \ref{tab:transformer} show the change detection results for event and duration models while being trained simultaneously. We observe an enhancement in change detection capability when duration modeling is incorporated alongside event sequence modeling. Notably, the duration model detects all changes identified by the event model and further identifies additional significant shifts, particularly in `Sysbench' and `Bandwidth' datasets. These datasets, which notably affect event execution durations, underline the limitations of relying solely on event sequences for change detection.
+
+While the duration model proves more effective in several scenarios, there are instances where the event model excels, indicating the value of a combined approach. In fact, the choice between these models is context-dependent, and neither can be deemed universally superior.  This highlights the need for a holistic modeling approach to capture the full spectrum of system behavior changes. Our combined model addresses this need effectively, achieving comprehensive change detection with minimal performance trade-offs.
+
+
+\begin{table}[]
+\label{tab:lstm}
+\caption{Trained and evaluated on our data. (what to do with SSL?)}
+\begin{tabular}{|l|cc|cc|cc|}
+\hline
+\multicolumn{1}{|c|}{\multirow{2}{*}{Dataset - LSTM}} & \multicolumn{2}{c|}{Event model} & \multicolumn{2}{c|}{Duration model} & \multicolumn{2}{c|}{Combined model} \\ \cline{2-7} 
+\multicolumn{1}{|c|}{}                         & \multicolumn{1}{c|}{F1}   & AUC  & \multicolumn{1}{c|}{F1}    & AUC    & \multicolumn{1}{c|}{F1}    & AUC    \\ \hline
+Test Connection                                & \multicolumn{1}{c|}{64.3}    & 99.7    & \multicolumn{1}{c|}{93.2}   & 98.1      & \multicolumn{1}{c|}{64.3}     & 99.7      \\ \hline
+Test CPU                                       & \multicolumn{1}{c|}{98.7}    & 99.9    & \multicolumn{1}{c|}{98.6}   & 99.9      & \multicolumn{1}{c|}{99.2}     & 99.9      \\ \hline
+Test IO                                        & \multicolumn{1}{c|}{100}    & 100    & \multicolumn{1}{c|}{99.8}   & 99.9      & \multicolumn{1}{c|}{99.9}     & 100      \\ \hline
+Test OPCache                                   & \multicolumn{1}{c|}{97.9}    & 99.7    & \multicolumn{1}{c|}{75.1}   & 97.1     & \multicolumn{1}{c|}{95.8}     & 99.6      \\ \hline
+Test Socket                                    & \multicolumn{1}{c|}{97.0}    & 99.4    & \multicolumn{1}{c|}{96.0}   & 99.2      & \multicolumn{1}{c|}{97.2}     & 99.5      \\ \hline
+Test SSL                                       & \multicolumn{1}{c|}{0}    & 0    & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+Test Sysbench                                  & \multicolumn{1}{c|}{88.7}    & 94.6    & \multicolumn{1}{c|}{82.2}   & 90.9      & \multicolumn{1}{c|}{87.3}     & 95.2      \\ \hline
+Test Bandwidth                                 & \multicolumn{1}{c|}{60.1}    & 92.8    & \multicolumn{1}{c|}{79.3}   & 99.0      & \multicolumn{1}{c|}{78.8}     & 99.0      \\ \hline
+\end{tabular}
+\end{table}
+
+
+
+\begin{table}[]
+\label{tab:transformer}
+\caption{Trained and evaluated on our data. (what to do with SSL?)}
+\begin{tabular}{|l|cc|cc|cc|}
+\hline
+\multicolumn{1}{|c|}{\multirow{2}{*}{Dataset - Transformer}} & \multicolumn{2}{c|}{Event model} & \multicolumn{2}{c|}{Duration model} & \multicolumn{2}{c|}{Combined model} \\ \cline{2-7} 
+\multicolumn{1}{|c|}{}                         & \multicolumn{1}{c|}{F1}   & AUC  & \multicolumn{1}{c|}{F1}    & AUC    & \multicolumn{1}{c|}{F1}    & AUC    \\ \hline
+Test Connection                                & \multicolumn{1}{c|}{99.7}    & 99.9    & \multicolumn{1}{c|}{98.8}     & 99.9      & \multicolumn{1}{c|}{99.6}     & 99.9      \\ \hline
+Test CPU                                       & \multicolumn{1}{c|}{99.8}    & 99.9    & \multicolumn{1}{c|}{95.5}     & 99.9      & \multicolumn{1}{c|}{99.4}     & 99.9      \\ \hline
+Test IO                                        & \multicolumn{1}{c|}{99.9}    & 100    & \multicolumn{1}{c|}{99.9}     & 100      & \multicolumn{1}{c|}{99.9}     & 100      \\ \hline
+Test OPCache                                   & \multicolumn{1}{c|}{98.3}    & 99.6    & \multicolumn{1}{c|}{95.0}     & 99.4      & \multicolumn{1}{c|}{98.8}     & 99.8      \\ \hline
+Test Socket                                    & \multicolumn{1}{c|}{99.0}    & 99.9    & \multicolumn{1}{c|}{94.5}     & 99.7      & \multicolumn{1}{c|}{76.2}     & 99.9      \\ \hline
+Test SSL                                       & \multicolumn{1}{c|}{0}    & 0    & \multicolumn{1}{c|}{0}     & 0      & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+Test Sysbench                                  & \multicolumn{1}{c|}{84.9}    & 93.0    & \multicolumn{1}{c|}{97.1}     & 99.6      & \multicolumn{1}{c|}{93.4}     & 98.9      \\ \hline
+Test Bandwidth                                 & \multicolumn{1}{c|}{52.5}    & 89.6    & \multicolumn{1}{c|}{91.6}     & 99.7      & \multicolumn{1}{c|}{93.1}     & 99.6      \\ \hline
+\end{tabular}
+\end{table}
+
+
+
+
+
+
+When comparing the LSTM and Transformer models, it is notable that the LSTM, despite its relative simplicity, competes closely with, and in some cases surpasses, the more resource-intensive Transformer model. This comparable performance suggests that the LSTM's strength in capturing local dependencies is particularly beneficial in this case, somewhat mitigating the Transformer's advantage in broader contextual understanding. However, it is important to consider scenarios involving system traces with patterns extending over larger spans, where the Transformer model's capacity for wider context might prove more advantageous.
+
+
+Furthermore, we evaluate our approach using the dataset provided by \cite{fournier2023language} to benchmark our results against their event sequence based novelty detection approach, and to test the duration modeling on an additional dataset. The results, as shown in \ref{tab:quentin_results}, indicate that while the event sequence model achieves results which are consistent with that of \cite{fournier2023language}, the duration model shows superior performance, reinforcing the robustness of the multi-task setup. For a fair comparison, a consistent threshold was applied across all OOD sets.
+
+
+\begin{table}[]
+\label{tab:quentin_results}
+\caption{Trained and evaluated on Quentin data. (Quentin results slightly differ because of unification of threshold)}
+\begin{tabular}{|l|cc|cc|cc|cc|}
+\hline
+\multicolumn{1}{|c|}{\multirow{2}{*}{Dataset}} & \multicolumn{2}{c|}{LSTM}     & \multicolumn{2}{c|}{Transformer} & \multicolumn{2}{c|}{Q\_LSTM}  & \multicolumn{2}{c|}{Q\_Transformer} \\ \cline{2-9} 
+\multicolumn{1}{|c|}{}                         & \multicolumn{1}{c|}{F1} & AUC & \multicolumn{1}{c|}{F1}   & AUC  & \multicolumn{1}{c|}{F1} & AUC & \multicolumn{1}{c|}{F1}    & AUC    \\ \hline
+Test Connection                                & \multicolumn{1}{c|}{96.7}  & 96.7   & \multicolumn{1}{c|}{0}    & 0    & \multicolumn{1}{c|}{67.9}  & 72.3   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+Test CPU                                       & \multicolumn{1}{c|}{93.6}  & 95.4   & \multicolumn{1}{c|}{0}    & 0    & \multicolumn{1}{c|}{88.6}  & 90.7   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+Test IO                                        & \multicolumn{1}{c|}{98.5}  & 98.5   & \multicolumn{1}{c|}{0}    & 0    & \multicolumn{1}{c|}{93.4}  & 92.9   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+Test OPCache                                   & \multicolumn{1}{c|}{98.0}  & 98.0   & \multicolumn{1}{c|}{0}    & 0    & \multicolumn{1}{c|}{93.3}  & 92.8   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+Test Socket                                    & \multicolumn{1}{c|}{98.5}  & 98.4   & \multicolumn{1}{c|}{0}    & 0    & \multicolumn{1}{c|}{93.0}  & 92.5   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+Test SSL                                       & \multicolumn{1}{c|}{98.2}  & 98.2   & \multicolumn{1}{c|}{0}    & 0    & \multicolumn{1}{c|}{86.0}  & 86.0   & \multicolumn{1}{c|}{0}     & 0      \\ \hline
+\end{tabular}
+\end{table}
+
+
+
+
+
+% \begin{table}[h]
+% \begin{tabular}{|l|l|l|l|}
+% \hline
+% \textbf{Datasets}              & \textbf{\begin{tabular}[c]{@{}l@{}}using latency \\ LSTM\end{tabular}} & \textbf{\begin{tabular}[c]{@{}l@{}}Quentine \\ LSTM\end{tabular}} & \textbf{\begin{tabular}[c]{@{}l@{}}Quentine\\ Transformer\end{tabular}} \\ \hline
+% \textbf{Test OOD (Connection)} & 99.6                                                                   & 74.8 +- 2.9                                                       & 94.3 +- 2.9                                                             \\ \hline
+% \textbf{Test OOD (CPU)}        & 98.8                                                                   & 93.6 +- 2.1                                                       & 85.1 +- 3.4                                                             \\ \hline
+% \textbf{Test OOD (IO)}         & 99.9                                                                   & 100 +- 0.0                                                        & 100 +- 0.0                                                              \\ \hline
+% \textbf{Test OOD (OPCache)}    & 96.8                                                                   & 98.3 +- 0.2                                                       & 96.7 +- 0.4                                                             \\ \hline
+% \textbf{Test OOD (Socket)}     & 99.9                                                                   & 94.7 +- 2.3                                                       & 99.1 +- 0.6                                                             \\ \hline
+% \textbf{Valid OOD (SSL)}       & 99.8                                                                   & 85.4 +- 2.0                                                       & 98.5 +- 0.9                                                             \\ \hline
+% \end{tabular}
+% \end{table}
+
+% \begin{table}[h]
+% \begin{tabular}{|l|llllll|}
+% \hline
+%                                                               & \multicolumn{6}{l|}{\textbf{Multi-task (request based) - 3 \& 5 category}}                                                                                                                                                                                                                    \\ \cline{2-7} 
+% \multirow{-2}{*}{\textbf{LSTM}} & \multicolumn{2}{l|}{\textbf{using events}}                                & \multicolumn{2}{l|}{\textbf{\begin{tabular}[c]{@{}l@{}}using latency \\  (perplexity)\end{tabular}}} & \multicolumn{2}{l|}{\textbf{\begin{tabular}[c]{@{}l@{}}using events + \\ latency (MAD)\end{tabular}}} \\ \hline
+% \textbf{number of categories}                                 & \multicolumn{1}{l|}{\textbf{3 cat}} & \multicolumn{1}{l|}{\textbf{5 cat}} & \multicolumn{1}{l|}{\textbf{3 cat}}        & \multicolumn{1}{l|}{\textbf{5 cat}}                     & \multicolumn{1}{l|}{\textbf{3 cat}}                          & \textbf{5 cat}                         \\ \hline
+% \textbf{Test OOD (Connection)}                                & \multicolumn{1}{l|}{83.5}           & \multicolumn{1}{l|}{85.3}           & \multicolumn{1}{l|}{99.6}                  & \multicolumn{1}{l|}{99.6}                               & \multicolumn{1}{l|}{93.4}                                    & 95.6                                   \\ \hline
+% \textbf{Test OOD (CPU)}                                       & \multicolumn{1}{l|}{72.6}           & \multicolumn{1}{l|}{71.7}           & \multicolumn{1}{l|}{96.2}                  & \multicolumn{1}{l|}{98.8}                               & \multicolumn{1}{l|}{88.4}                                    & 94.7                                   \\ \hline
+% \textbf{Test OOD (IO)}                                        & \multicolumn{1}{l|}{100}            & \multicolumn{1}{l|}{100}            & \multicolumn{1}{l|}{99.9}                  & \multicolumn{1}{l|}{99.9}       & \multicolumn{1}{l|}{100}                                     & 100                                    \\ \hline
+% \textbf{Test OOD (OPCache)}                                   & \multicolumn{1}{l|}{97.1}           & \multicolumn{1}{l|}{97.6}           & \multicolumn{1}{l|}{94.2}                  & \multicolumn{1}{l|}{96.8}                               & \multicolumn{1}{l|}{97.3}                                    & 98.2                                   \\ \hline
+% \textbf{Test OOD (Socket)}                                    & \multicolumn{1}{l|}{98.6}           & \multicolumn{1}{l|}{98.3}           & \multicolumn{1}{l|}{99.9}                  & \multicolumn{1}{l|}{99.9}                               & \multicolumn{1}{l|}{99.7}                                    & 99.4                                   \\ \hline
+% \textbf{Valid OOD (SSL)}                                      & \multicolumn{1}{l|}{93.7}           & \multicolumn{1}{l|}{94.6}           & \multicolumn{1}{l|}{99.9}                  & \multicolumn{1}{l|}{99.8}                               & \multicolumn{1}{l|}{98.6}                                    & 98.6                                   \\ \hline
+% %IN case you want to have them all in the same table uncomment the followings code:
+% % \multirow{-2}{*}{\textbf{Transformer - full dataset - all features}} & \multicolumn{2}{l|}{\textbf{using events}}                                & \multicolumn{2}{l|}{\textbf{\begin{tabular}[c]{@{}l@{}}using latency \\  (perplexity)\end{tabular}}} & \multicolumn{2}{l|}{\textbf{\begin{tabular}[c]{@{}l@{}}using events + \\ latency (MAD)\end{tabular}}} \\ \hline
+% % \textbf{number of categories}                                        & \multicolumn{1}{l|}{\textbf{3 cat}} & \multicolumn{1}{l|}{\textbf{5 cat}} & \multicolumn{1}{l|}{\textbf{3 cat}}        & \multicolumn{1}{l|}{\textbf{5 cat}}                     & \multicolumn{1}{l|}{\textbf{3 cat}}                          & \textbf{5 cat}                         \\ \hline
+% % \textbf{Test OOD (Connection)}                                       & \multicolumn{1}{l|}{89.2}           & \multicolumn{1}{l|}{99.3}           & \multicolumn{1}{l|}{98.1}                  & \multicolumn{1}{l|}{96.1}                               & \multicolumn{1}{l|}{95.5}                                    & 98.6                                   \\ \hline
+% % \textbf{Test OOD (CPU)}                                              & \multicolumn{1}{l|}{86}             & \multicolumn{1}{l|}{77.3}           & \multicolumn{1}{l|}{89.3}                  & \multicolumn{1}{l|}{95.5}                               & \multicolumn{1}{l|}{90.4}                                    & 91.4                                   \\ \hline
+% % \textbf{Test OOD (IO)}                                               & \multicolumn{1}{l|}{100}            & \multicolumn{1}{l|}{100}            & \multicolumn{1}{l|}{99.9}                  & \multicolumn{1}{c|}{\cellcolor[HTML]{F3F3F3}99.9}       & \multicolumn{1}{l|}{100}                                     & 100                                    \\ \hline
+% % \textbf{Test OOD (OPCache)}                                          & \multicolumn{1}{l|}{96.1}           & \multicolumn{1}{l|}{97}             & \multicolumn{1}{l|}{89.7}                  & \multicolumn{1}{l|}{86.4}                               & \multicolumn{1}{l|}{95}                                      & 93.9                                   \\ \hline
+% % \textbf{Test OOD (Socket)}                                           & \multicolumn{1}{l|}{98.7}           & \multicolumn{1}{l|}{99.8}           & \multicolumn{1}{l|}{99.2}                  & \multicolumn{1}{l|}{99}                                 & \multicolumn{1}{l|}{99.2}                                    & 99.6                                   \\ \hline
+% % \textbf{Valid OOD (SSL)}                                             & \multicolumn{1}{l|}{96.1}           & \multicolumn{1}{l|}{99.8}           & \multicolumn{1}{l|}{99}                    & \multicolumn{1}{l|}{98.5}                               & \multicolumn{1}{l|}{98.5}                                    & 99.7                                   \\ \hline
+% \end{tabular}
+% \end{table}
+
+
+% \begin{table}[h]
+% \begin{tabular}{|l|llllll|}
+% \hline
+%                                                                      & \multicolumn{6}{l|}{\textbf{Multi-task (request based) - 3 \& 5 category}}                                                                                                                                                                                                                    \\ \cline{2-7} 
+% \multirow{-2}{*}{\textbf{Transformer}} & \multicolumn{2}{l|}{\textbf{using events}}                                & \multicolumn{2}{l|}{\textbf{\begin{tabular}[c]{@{}l@{}}using latency \\  (perplexity)\end{tabular}}} & \multicolumn{2}{l|}{\textbf{\begin{tabular}[c]{@{}l@{}}using events + \\ latency (MAD)\end{tabular}}} \\ \hline
+% \textbf{number of categories}                                        & \multicolumn{1}{l|}{\textbf{3 cat}} & \multicolumn{1}{l|}{\textbf{5 cat}} & \multicolumn{1}{l|}{\textbf{3 cat}}        & \multicolumn{1}{l|}{\textbf{5 cat}}                     & \multicolumn{1}{l|}{\textbf{3 cat}}                          & \textbf{5 cat}                         \\ \hline
+% \textbf{Test OOD (Connection)}                                       & \multicolumn{1}{l|}{89.2}           & \multicolumn{1}{l|}{99.3}           & \multicolumn{1}{l|}{98.1}                  & \multicolumn{1}{l|}{96.1}                               & \multicolumn{1}{l|}{95.5}                                    & 98.6                                   \\ \hline
+% \textbf{Test OOD (CPU)}                                              & \multicolumn{1}{l|}{86}             & \multicolumn{1}{l|}{77.3}           & \multicolumn{1}{l|}{89.3}                  & \multicolumn{1}{l|}{95.5}                               & \multicolumn{1}{l|}{90.4}                                    & 91.4                                   \\ \hline
+% \textbf{Test OOD (IO)}                                               & \multicolumn{1}{l|}{100}            & \multicolumn{1}{l|}{100}            & \multicolumn{1}{l|}{99.9}                  & \multicolumn{1}{l|}{99.9}       & \multicolumn{1}{l|}{100}                                     & 100                                    \\ \hline
+% \textbf{Test OOD (OPCache)}                                          & \multicolumn{1}{l|}{96.1}           & \multicolumn{1}{l|}{97}             & \multicolumn{1}{l|}{89.7}                  & \multicolumn{1}{l|}{86.4}                               & \multicolumn{1}{l|}{95}                                      & 93.9                                   \\ \hline
+% \textbf{Test OOD (Socket)}                                           & \multicolumn{1}{l|}{98.7}           & \multicolumn{1}{l|}{99.8}           & \multicolumn{1}{l|}{99.2}                  & \multicolumn{1}{l|}{99}                                 & \multicolumn{1}{l|}{99.2}                                    & 99.6                                   \\ \hline
+% \textbf{Valid OOD (SSL)}                                             & \multicolumn{1}{l|}{96.1}           & \multicolumn{1}{l|}{99.8}           & \multicolumn{1}{l|}{99}                    & \multicolumn{1}{l|}{98.5}                               & \multicolumn{1}{l|}{98.5}                                    & 99.7                                   \\ \hline
+% \end{tabular}
+% \end{table}
+
+\subsection{Root-cause analysis}
+The effectiveness of root-cause analysis, treated as a classification task, is evaluated using the F1-measure. Initially, we analyze the root-cause analysis module in isolation, assuming changes in the system have already been detected, and we focus on the F1-measure for root-cause classification.  The error vector representing an anomalous input is constructed based on the event sequence mispredictions for the event model and on duration mispredictions for the duration model. According to Table \ref{tab:root-cause-alone}, relying solely on discrepancies between duration predictions and actual traces proves less effective in pinpointing the origin of changes. Error vectors created from event mispredictions and then aligned with previously known abnormal traces generally result in higher accuracy, as event mispredictions provide a more granular representation of novel inputs. While most of the system changes are reflected in the duration of events, these results suggest that identifying the type of change based on duration patterns alone is more challenging. Event sequences, by contrast, tend to display more distinctive patterns, making them more effective for precise root-cause identification.
+
+The multi-task model has the capability to use events or durations for constructing error vectors. However, for the remainder of our experiments, we employ the average of these vectors. This method is particularly beneficial given that our results might be influenced by the specific out-of-distribution (OOD) behaviors we selected for this study. By averaging the vectors, we aim to balance the distinct insights provided by both events and durations, enhancing the overall accuracy of root-cause identification.
+
+
+\begin{table}[h!]
+\centering
+\caption{Change detection results using different data sources.}
+\label{tab:root-cause-alone}
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Test OOD} & \textbf{using events} & \textbf{using durations} & \textbf{using mean of both} \\ \hline
+Connection        & 94.2                  & 82.8                     & 85.5                        \\ \hline
+CPU               & 99.2                  & 99.5                     & 99.1                        \\ \hline
+IO                & 99.9                  & 99.9                     & 99.9                        \\ \hline
+OPCache           & 99.1                  & 97.4                     & 98.4                        \\ \hline
+Socket            & 99.5                  & 99.7                     & 99.6                        \\ \hline
+SSL               & 91.1                  & 81.4                     & 84.2                        \\ \hline
+\end{tabular}
+\end{table}
+
+
+As root-cause analysis works on top of the change detection task, the overall performance of this module should be assessed considering these two tasks as a whole. In other words, detecting a change is the prerequisite for root-cause identification, as without detecting the change, no root-cause is identified for a false negative. Referring to table \ref{tab:root-cause}, it is evident that both the event and duration modeling approaches are effective in accurately identifying changes and their root-causes. These overall results show a closer performance on the event and duration models as the lower root-cause classification accuracy of the duration model is compensated by its better performance on change detection. However, the multi-task model outperforms each of the single-task models by capitalizing on their individual advantages. It utilizes the accurate root-cause classification ability of the event model and the superior change detection capability of the duration model. This combination results in a more consistent and reliable performance across various noise scenarios, effectively combining the best aspects of both models.
+
+
+\begin{table}[h!]
+\label{tab:root-cause}
+\caption{Results of root-cause analysis on top of change detection}
+\begin{tabular}{|l|l|l|l|}
+\hline
+\textbf{Datasets (EDIT)}              & \textbf{\begin{tabular}[c]{@{}l@{}}Event model\end{tabular}} & \textbf{\begin{tabular}[c]{@{}l@{}}Duration model\end{tabular}} & \textbf{\begin{tabular}[c]{@{}l@{}}Mixed model\end{tabular}} \\ \hline
+\textbf{OOD (Connection)} & 99.6                                                                   & 74.8                                                       & 94.3                                                             \\ \hline
+\textbf{OOD (CPU)}        & 98.8                                                                   & 93.6                                                       & 85.1                                                            \\ \hline
+\textbf{OOD (IO)}         & 99.9                                                                   & 100                                                        & 100                                                             \\ \hline
+\textbf{OOD (OPCache)}    & 96.8                                                                   & 98.3                                                       & 96.7                                                             \\ \hline
+\textbf{OOD (Socket)}     & 99.9                                                                   & 94.7                                                       & 99.1                                                             \\ \hline
+\textbf{OOD (SSL)}       & 99.8                                                                   & 85.4                                                      & 98.5   
+\\ \hline
+\textbf{OOD (Bandwidth)}       & 56.4                                                                   & 85.4                                                      & 85.4  
+\\ \hline
+\end{tabular}
+\end{table}
+
+
+
+
+
+
+\subsection{Tracing}
+The overall effectiveness of the Adaptive tracer is evaluated based on its accuracy for the selection of traces related to a new pattern and the volume of trace data it manages to reduce. Trace data reduction is used as a general measurement of the tracing overhead, especially on disk space usage. Evaluation is based on a set of test traces with varying levels and types of noise, giving us a comprehensive view of the model’s performance under different conditions. These test traces are created by randomly distributing already collected noisy requests among the requests from traces of normal workload to represent changes in system behavior. Model processes trace data per request and using request as a unit to create test scenarios helps with keeping the integrity of the collected trace and model's input. Figure \ref{fig:adaptive_detailed} shows a portion of one of these sets and how the adaptive tracer reacts to minor and major changes. Utilizing the window-based decision-making process, the adaptive tracer abstains from recording insignificant shifts and starts recording only after a change is persistent enough. This process leads to the loss of some information at the start of a change and before the decision to record is made, especially if the model is inaccurate or has high latency. However, by leveraging the lttng's buffer, one can recover some of this information after the behavior shift is recognized.
+
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.9\textwidth]{figs/adaptive_detailed.png}
+    \caption{Adaptive tracing and reaction to injection of noise}
+    \label{fig:adaptive_detailed}
+\end{figure}
+
+
+Responsiveness to system changes is another crucial aspect of adaptive tracer that we look into. Based on the test scenarios, we measure the time between the start of a major change burst and the time at which the tracer decides to start recording. This time shows the effectiveness of our approach to capture sufficient details about a possible issue in the system. 
+
+% As mentioned, we implement a secondary window with higher sensitivity to take advantage of the LTTng buffer and reduce the loss of events due to delayed recognition of change. Therefore, the number of lost details and time delay are reported considering the second buffer.
+
+
+Figure \ref{fig:event_model} and figure \ref{fig:multitask_model} compare the event and multi-task model's performance on adaptive tracing for various levels of noise in trace data. Although we measured a 10\% lower performance for change detection in the event model, the performance is much more severe on the overall delay of change detection. While the multi-task model's duration remains steady around 150ms for various percentages of noise, event model's delay increases by the increase in the noise percentage upto 400,000ms. 
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.9\textwidth]{figs/plot_output_event_all3metrics.pdf}
+    \caption{Event model's performance on adaptive tracing for various levels of noise in trace data.}
+    \label{fig:event_model}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.9\textwidth]{figs/plot_output_duration_all3metrics.pdf}
+    \caption{Multi-task model's performance on adaptive tracing for various levels of noise in trace data.}
+    \label{fig:multitask_model} 
+\end{figure} 
+
+Change detection delays directly affect the amount of data that is lost during adaptive tracing operation. Comparing the miss rates of the different modeling approaches used in this study in figure \ref{fig:missrates}, the importance of high precision in change detection becomes evident. While less than 10\% trace related to novel behaviors are lost in all the test scenarios utilizing the multi-task model, the loss is about 5 times higher when adaptive tracer functions based on event sequence modeling. In general, increasing the ratio of noisy requests leads to lower loss of information for all models as the detection of significant shifts becomes easier as each window of requests is less sparse.
+
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.9\textwidth]{figs/miss_rates.pdf}
+    \caption{Comparison of miss rates.}
+    \label{fig:missrates} 
+\end{figure}
+
+
+Independent of the base model, adaptive tracing leads to substantial decrease in the amount of trace data that is stored in the system. When there is no noisy request in the trace, the volume of trace is reduced by about 100\% as no significant deviation is detected by the model. Considering this result, we can conclude that the importance of change detection precision is mostly evident on the delay and loss rate, making the method accurate while it reduces the burden of tracing. 
+
+\subsection{Trace event reduction}
+To gain a deeper understanding of which system calls contribute most significantly to the model’s comprehension of the system, we trained the model using various subsets of system calls, as detailed in section 4. The aggregated results from training the model on these selected subsets are presented in Table \ref{tab:subset_syscalls_results}. Overall, the model demonstrates the capability to operate effectively with any of the experimented subsets of the available events, thus validating the feasibility of employing two distinct sets of events for our approach.
+
+
+
+% Please add the following required packages to your document preamble:
+% \usepackage{multirow}
+\begin{table}[h!]
+\label{tab:subset_syscalls_results}
+\caption{Aggregated results of each subset of system calls}
+\begin{tabular}{|l|ll|ll|ll|}
+\hline
+\multirow{2}{*}{Subset} & \multicolumn{2}{l|}{Event model}     & \multicolumn{2}{l|}{Duration model}  & \multicolumn{2}{l|}{Combined model}  \\ \cline{2-7} 
+                        & \multicolumn{1}{l|}{F1}   & Accuracy & \multicolumn{1}{l|}{F1}   & Accuracy & \multicolumn{1}{l|}{F1}   & Accuracy \\ \hline
+Normal                  & \multicolumn{1}{l|}{89.8} & 90       & \multicolumn{1}{l|}{98.6} & 98.7     & \multicolumn{1}{l|}{97.6} & 97.6     \\ \hline
+select-top40            & \multicolumn{1}{l|}{88.3} & 88.4     & \multicolumn{1}{l|}{98.2} & 98.3     & \multicolumn{1}{l|}{93}   & 92.8     \\ \hline
+select-top20            & \multicolumn{1}{l|}{89.9} & 90.2     & \multicolumn{1}{l|}{96.1} & 96.2     & \multicolumn{1}{l|}{68.6} & 64.5     \\ \hline
+remove-top10            & \multicolumn{1}{l|}{97.4} & 97.5     & \multicolumn{1}{l|}{85.5} & 87.2     & \multicolumn{1}{l|}{97.1} & 97.2     \\ \hline
+remove-top20            & \multicolumn{1}{l|}{79.3} & 82.8     & \multicolumn{1}{l|}{73.1} & 76.2     & \multicolumn{1}{l|}{64.9} & 48.1     \\ \hline
+% Category-based          & \multicolumn{1}{l|}{-}    & -        & \multicolumn{1}{l|}{-}    & -        & \multicolumn{1}{l|}{-}    & -        \\ \hline
+% TF-IDF                  & \multicolumn{1}{l|}{-}    & -        & \multicolumn{1}{l|}{-}    & -        & \multicolumn{1}{l|}{-}    & -        \\ \hline
+\end{tabular}
+\end{table}
+
+
+the most frequently occurring events are not always the richest source of information for monitoring system behavior and tracking its trends. For instance, by excluding the top-10 most repeated event types, the model is able to nearly retain its accuracy in detecting behavioral shifts, even though the input volume to the model is reduced by 68\%. However, as shown in Figure \ref{fig:Reduced_sizereduction_vs_normal}, this significant reduction in input volume comes at the cost of an approximate 10\% increase in the loss of events across all scenarios.  [volume in this figure is incorrect]
+
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.9\textwidth]{figs/reduced_syscall.pdf}
+    \caption{Reduced syscall vs entire syscall}
+    \label{fig:Reduced_sizereduction_vs_normal} 
+\end{figure}
+
+\subsection{Overhead analysis}
+The latency involved in executing the model's steps for adaptive tracing is a critical factor in assessing its feasibility in real-world scenarios. The latencies for the various modeling approaches used in this study are documented in table \ref{tab:model_latency}, measured using a V100 GPU. The prediction phase is the most time consuming step, with a slight increase in latency observed in the multi-task approach due to the additional duration prediction task. Notably, reducing the number of monitored event types decreases the model's inference time by 9\%, which is the result of the substantial reduction in the length of input sequences and the number of potential events for prediction. 
+
+
+Overall, the model processes a batch of 8 requests in under 100 seconds. Therefore, as in this experiment the client side sends about 1000 requests per second, the model is unable to keep up with the stream of data as the cap for processing is 85 requests per second. However, given the high accuracy and granularity of our model in detecting abnormalities, it is feasible to implement continuous monitoring for change detection by selectively analyzing a subset of randomly chosen samples within each time frame. This strategy could substantially reduce the overhead associated with full-scale monitoring, making the approach more suitable for practical applications.
+
+
+\begin{table}[]
+\centering
+\caption{Model latency on different modules.}
+\label{tab:model_latency}
+\begin{tabular}{|c|c|c|c|}
+\hline
+                 & Event & Multi-task & Reduced \\ \hline
+Sequence Model   & 44.76      & 46.33         & 41.16        \\ \hline
+Change Detection & 12.19      & 12.22         & 12.41        \\ \hline
+Root-cause       & 33.93      & 34.80         & 29.49        \\ \hline
+Total            & 90.88      & 93.35         & 83.06        \\ \hline
+\end{tabular}
+\end{table}
+
+
+
+\section{Discussion}
+Adaptive tracing significantly reduces both the tracing overhead and time required for its manual analysis. It narrows down the analysis to the most relevant segments of the system operation trace, thus directing the user's focus to key periods that may require closer examination. Additionally, it further simplifies the analysis by highlighting the most mispredicted events and aligning them with previously identified abnormal behaviors, offering valuable insights into potential root causes.
+
+The utilization of language models for behavior modeling is key to fulfilling the requirements of our approach, where the primary requirement is robust change detection. While previous works have successfully used language models to detect novelties through event sequences \cite{fournier2023language}, our work further strengthens this approach by incorporating event durations into the modeling process. Event durations are a crucial aspect of trace data, revealing changes in behavior, especially in scenarios predominantly characterized by variations in  event timings.
+
+Given its inclusion of event durations, our approach is capable of being utilized in various data types for identifying and analyzing deviations from standard behavior. This includes any data that conveys information about a system or application, which contains sequences of tokens, durations, or a combination of both. [exactly what kinds of data are we talking about here and why are they important? among these which ones need duration: database query logs, API call traces, network traffic data, and application logs.]
+
+However, the approach faces limitations for long-term usage, requiring regular updates of the model’s weights in response to the evolving ``normal" behavior of the system. To address this, future work could seamlessly integrate online learning techniques (cite here) into the approach, enabling the model to continuously learn in real-time and thus maintaining its accuracy and relevance over extended periods.
+
+[what are potential objections to our study?]
+
+
+
+\section{Conclusion}
+In summary, Adaptive Tracing marks a significant development in system behavior analysis by efficiently managing tracing overhead and analytical effort. Its ability to focus on essential segments of system operations paves the way for more accurate and detailed analysis of system behaviors. This innovative application of language models, particularly the inclusion of event durations, represents an analysis approach beyond traditional system trace analysis methods and shows potential for broad applicability across various data types.
+
+Looking ahead, a key aspect of furthering the practicality of Adaptive Tracing involves addressing recurring abnormalities that could be deemed normal by administrators or identified automatically. The base model utilized in our approach needs periodic adjustments to maintain low tracing overhead. Without these updates, the cost of tracing could approach that of traditional methods, as it would identify changes more frequently than necessary. Future work will therefore concentrate on refining the model to better recognize and adapt to such recurring patterns, ensuring that this method remains efficient over time.
+
+
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}
