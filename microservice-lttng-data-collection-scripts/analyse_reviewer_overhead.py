@@ -267,8 +267,9 @@ def main():
     lines.append("")
     lines.append("## P95/P99 Latency At Reference Load")
     lines.append("")
-    lines.append("| Condition | Throughput (req/s) | P50 (ms) | P95 (ms) | P99 (ms) | Error rate | P95 overhead vs baseline |")
-    lines.append("|---|---:|---:|---:|---:|---:|---:|")
+    lines.append("| Condition | Throughput (req/s) | P50 (ms) | P95 (ms) | P99 (ms) | Error rate | P95 overhead vs baseline | P95 overhead vs LTTng only |")
+    lines.append("|---|---:|---:|---:|---:|---:|---:|---:|")
+    lttng_ref = ref_rows.get("lttng_only")
     for cond in ["baseline", "lttng_only", "lmat_async", "lmat_sync"]:
         row = ref_rows.get(cond)
         if row is None:
@@ -277,11 +278,15 @@ def main():
             p95_oh = ((row["p95_mean"] - baseline_ref["p95_mean"]) / baseline_ref["p95_mean"] * 100.0) if baseline_ref["p95_mean"] else float("nan")
         else:
             p95_oh = float("nan")
+        if lttng_ref:
+            p95_vs_lttng = ((row["p95_mean"] - lttng_ref["p95_mean"]) / lttng_ref["p95_mean"] * 100.0) if lttng_ref["p95_mean"] else float("nan")
+        else:
+            p95_vs_lttng = float("nan")
         lines.append(
             f"| {cond} | "
             f"{fmt(row['throughput_mean'])} ± {fmt(row['throughput_std'])} | "
             f"{fmt(row['p50_mean'])} | {fmt(row['p95_mean'])} | {fmt(row['p99_mean'])} | "
-            f"{fmt(row['error_rate_mean'], 2)}% | {fmt(p95_oh, 1)}% |"
+            f"{fmt(row['error_rate_mean'], 2)}% | {fmt(p95_oh, 1)}% | {fmt(p95_vs_lttng, 1)}% |"
         )
 
     lines.append("")
@@ -303,6 +308,11 @@ def main():
     lines.append("")
     lines.append(f"- Per-user summary CSV: `{detail_csv}`")
     lines.append(f"- Maximum-throughput CSV: `{max_csv}`")
+    lines.append("")
+    lines.append("## Interpretation Note")
+    lines.append("")
+    lines.append("- `lttng_only` is the direct tracing-overhead condition.")
+    lines.append("- `lmat_async` is a co-located replay-based proxy for tracing-plus-inference CPU overhead, so its fairest incremental comparison is against `lttng_only`, not against a colder baseline run.")
 
     md_path = output_prefix.with_name(output_prefix.name + "_summary.md")
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")

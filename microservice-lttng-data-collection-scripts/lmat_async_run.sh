@@ -25,6 +25,7 @@ THINK_MIN=${THINK_MIN:-0.2}
 THINK_MAX=${THINK_MAX:-1.0}
 TORCH_THREADS=${TORCH_THREADS:-2}
 LOAD_GENERATOR=${LOAD_GENERATOR:-$SCRIPT_DIR/load_generator.py}
+WARMUP_DURATION=${WARMUP_DURATION:-0}
 
 # ── Edit these paths before running on the GCP VM ────────────────────────────
 MODEL_PATH=${MODEL_PATH:-$PROJECT_DIR/logs/lstm_multitask_cats5_seq512_382061/model_best.pt}
@@ -46,7 +47,20 @@ sudo mkdir -p "$TRACE_DIR"/{kernel,ust} 2>/dev/null || true
 sudo chown -R "$(whoami)" ~/traces/lmat_async 2>/dev/null || true
 
 echo "🚀 LMAT ASYNC: $RUN_ID (${DURATION}s, ${LOAD_USERS} users)"
-echo "   Host=$FRONTEND_HOST  think=${THINK_MIN}-${THINK_MAX}s  root=$EXPERIMENT_ROOT  torch_threads=$TORCH_THREADS"
+echo "   Host=$FRONTEND_HOST  think=${THINK_MIN}-${THINK_MAX}s  root=$EXPERIMENT_ROOT  torch_threads=$TORCH_THREADS  warmup=${WARMUP_DURATION}s"
+
+if [[ "$WARMUP_DURATION" -gt 0 ]]; then
+    echo "🔥 Warm-up load for ${WARMUP_DURATION}s before measured LMAT run ..."
+    python3 "$LOAD_GENERATOR" \
+        --host "$FRONTEND_HOST" \
+        --users "$LOAD_USERS" \
+        --duration "$WARMUP_DURATION" \
+        --think-min "$THINK_MIN" \
+        --think-max "$THINK_MAX" \
+        --log-level WARNING \
+        --output "$EXPERIMENT_DIR/warmup_load_results.csv" >/dev/null 2>&1 || true
+    sleep 5
+fi
 
 # ── PHASE 1: Collect trace + load data (no inference yet) ───────────────────
 echo "📡 Phase 1: LTTng tracing + load generator ($DURATION s)..."

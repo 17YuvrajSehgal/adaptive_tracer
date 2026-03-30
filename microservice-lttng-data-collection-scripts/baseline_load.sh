@@ -16,13 +16,14 @@ LOAD_USERS=${LOAD_USERS:-200}
 THINK_MIN=${THINK_MIN:-0.2}
 THINK_MAX=${THINK_MAX:-1.0}
 LOAD_GENERATOR=${LOAD_GENERATOR:-$SCRIPT_DIR/load_generator.py}
+WARMUP_DURATION=${WARMUP_DURATION:-0}
 
 mkdir -p "$EXPERIMENT_DIR"/load_logs
 RUN_LOG="$EXPERIMENT_DIR/run.log"
 exec > >(tee -a "$RUN_LOG") 2>&1
 
 echo "🚀 BASELINE (no tracing, no LMAT): $RUN_ID (${DURATION}s, ${LOAD_USERS} users)"
-echo "   Host=$FRONTEND_HOST  think=${THINK_MIN}-${THINK_MAX}s  root=$EXPERIMENT_ROOT"
+echo "   Host=$FRONTEND_HOST  think=${THINK_MIN}-${THINK_MAX}s  root=$EXPERIMENT_ROOT  warmup=${WARMUP_DURATION}s"
 
 # ── Stop ALL tracing (idempotent — safe even if no sessions exist) ──────────
 echo "🔇 Destroying any active LTTng sessions..."
@@ -42,6 +43,19 @@ if [[ "$ACTIVE" -gt 0 ]] || [[ "$SUDO_ACTIVE" -gt 0 ]]; then
     exit 1
 fi
 echo "✅ LTTng is silent. Starting pure baseline run."
+
+if [[ "$WARMUP_DURATION" -gt 0 ]]; then
+    echo "🔥 Warm-up load for ${WARMUP_DURATION}s before measured baseline run ..."
+    python3 "$LOAD_GENERATOR" \
+        --host "$FRONTEND_HOST" \
+        --users "$LOAD_USERS" \
+        --duration "$WARMUP_DURATION" \
+        --think-min "$THINK_MIN" \
+        --think-max "$THINK_MAX" \
+        --log-level WARNING \
+        --output "$EXPERIMENT_DIR/warmup_load_results.csv" >/dev/null 2>&1 || true
+    sleep 5
+fi
 
 RUN_START_EPOCH=$(date -u +%s)
 
