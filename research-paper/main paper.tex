@@ -245,7 +245,7 @@ We evaluate LMAT on the benchmark of Fournier \textit{et al.}~\cite{fournier2023
 
 
 \section{Methodology}\label{methodology}
-We present the Language Model-based Approach for Adaptive Tracing (LMAT), which dynamically adjusts system tracing based on real-time behavior deviations. LMAT is designed to intelligently monitor system behavior and initiate detailed tracing only when novel or anomalous patterns are detected. During normal operation, the system traces a minimal set of events, feeding them to the model without storing them. Upon detecting novel behavior, the tracing configuration is adapted to capture fine-grained details surrounding the anomaly. These detailed traces are then saved for further analysis, conducted either manually or through automated tools.
+We present the Language Model-based Approach for Adaptive Tracing (LMAT), which dynamically adjusts system tracing based on real-time behavior deviations. LMAT is designed to intelligently monitor system behavior and initiate detailed tracing only when novel or anomalous patterns are detected. During normal operation, the system traces a minimal set of events, feeding them to the model without storing them. Upon detecting novel behavior, the tracing configuration is adapted to capture fine-grained details surrounding the anomaly. These detailed traces are then saved for further analysis, conducted either manually or through automated tools. \textcolor{red}{LMAT operates on timestamp-ordered host-level kernel-event sequences. Depending on the instrumentation available in a given environment, a sequence can correspond either to a naturally delimited request trace or to a fixed-duration segment of activity grouped by execution context such as thread ID.}
 
 
 Figure~\ref{fig:adaptive_process} illustrates the overall process. The \textit{Online Learning} module constructs a language model using sequences of events and their durations. To differentiate between anomalous behavior and rare-but-expected normal behavior (e.g., a surge in traffic on Black Friday), the system incorporates administrator feedback. Traces initially flagged as anomalous but later verified as benign are used to update the model, ensuring the evolving notion of ``normal" is continuously refined. This feedback loop enables LMAT to learn from novel but acceptable behaviors and adapt its predictions accordingly.
@@ -266,7 +266,7 @@ The rest of this section details the five core components of our methodology. We
 
 
 \subsection{Event sequence modeling}
-A system trace consists of kernel-level events enriched with arguments such as process information and timestamps. These events include system calls, function calls, interrupts, and other low-level system operations. As prior research has shown~\cite{kim2016lstm, dymshits2017process, lv2018intrusion, fournier2023language}, system calls are particularly effective for capturing system behavior. Figure~\ref{fig:sample_sequence} shows a sample sequence sorted by event timestamps.
+A system trace consists of kernel-level events enriched with arguments such as process information and timestamps. These events include system calls, function calls, interrupts, and other low-level system operations. As prior research has shown~\cite{kim2016lstm, dymshits2017process, lv2018intrusion, fournier2023language}, system calls are particularly effective for capturing system behavior. Figure~\ref{fig:sample_sequence} shows a sample sequence sorted by event timestamps. \textcolor{red}{In our experiments, these sequences are materialized either from complete request traces or from fixed 100\,ms windows of kernel activity grouped by thread, but the predictive objective remains identical in both cases: estimate the next event conditioned on the observed prefix.}
 
 \begin{figure}[tbp]
     \centering
@@ -296,6 +296,8 @@ Following~\cite{fournier2021improving}, we represent each event with a vector th
 
 We also incorporate two derived features: \textit{Return status} (\texttt{retstat}) is set to “success” if the return value is non-negative, “failure” otherwise. \textit{Delay} is the time elapsed since the previous event, regardless of type.
 
+\textcolor{red}{In the implemented LMAT pipeline, syscall entry and exit records are further normalized by storing the base syscall identity once and encoding the execution phase separately through an \textit{entry/exit indicator}. This design lets the model share statistical strength across the two phases of the same syscall while still distinguishing call initiation from completion.}
+
 \begin{table}[tb]
 \caption{Key arguments and their descriptions for forming the event representation.}
 \label{tab:arguments}
@@ -304,6 +306,7 @@ We also incorporate two derived features: \textit{Return status} (\texttt{retsta
 \hline \hline
 Argument & Type    & Description                                \\ \hline
 sysname  & String  & Name of event                              \\
+\textcolor{red}{etype} & \textcolor{red}{Integer} & \textcolor{red}{Entry/exit indicator for the event record} \\
 procname & String  & Name of process initiating event           \\
 pid      & Integer & Process id                                 \\
 tid      & Integer & Thread id                                  \\
@@ -339,6 +342,8 @@ H_{\text{sequence}} = \frac{1}{n}\sum_{j=1}^{n} H(p_j, q_j) = \frac{-1}{n}\sum_{
 
 In this equation, $n$ represents the number of events in the sequence. Thus, a higher sequence loss indicates a greater mismatch between expected and observed behavior, making it a reliable signal for detecting anomalies or novelties.
 
+\textcolor{red}{At deployment time, LMAT computes one novelty score per sequence. In single-task configurations, this score is the corresponding sequence-level loss. In the multi-task configuration, the event and duration losses are first normalized with Median Absolute Deviation statistics estimated from held-out in-distribution validation data and are then summed to produce a single decision score before thresholding.}
+
 
 
 
@@ -350,6 +355,8 @@ We treat duration modeling as a classification task by discretizing durations in
 Similar to event sequence modeling, we use common event arguments as input features, since durations are often highly correlated with these attributes. However, the model does not need to predict durations for all events in the trace; instead, it focuses only on events that signal the end of an execution interval.
 
 The primary training objective is to predict the duration of an event's execution. As shown in Figure \ref{fig:sample_sequence}, this duration is specified by two distinct events in the trace: the `Entry' (denoted as \( e_i^{\text{entry}} \)) and `Exit' (denoted as \( e_i^{\text{exit}} \)) events, which are particularly relevant for system call events. While the model encounters an `Entry' event \( e_i^{\text{entry}} \), no prediction is expected. The predicted durations are only considered for loss calculation when the interval is closed, which means when an `Exit' event \( e_i^{\text{exit}} \) is issued.
+
+\textcolor{red}{Operationally, non-exit tokens are assigned a reserved no-duration label and are excluded from the sequence-level duration loss. This keeps the latency objective focused on events for which an execution interval can actually be recovered from the trace.}
 
 Given a sequence \( s = (e_1^{\text{type}}, e_2^{\text{type}}, \ldots, e_n^{\text{type}}) \), where \( \text{type} \) is either `entry' or `exit', let \( q' \) be the predicted distribution over the set of duration categories $D = \{d_1, d_2, ..., d_k\}$ and \( p' \) be the true distribution. Accordingly the cross-entropy loss for a predicted duration of an event with exit type can be calculated as:
 
@@ -414,11 +421,13 @@ where $\text{MAD}(L) = \text{median} ( | l_i - \text{median}(L) | )$.
 
 The normalized event and duration losses for each sequence are then summed to yield a final anomaly score. This composite score enables a holistic assessment of system deviations by incorporating both control flow (event type) and timing behavior (duration).
 
+\textcolor{red}{This shared representation is used consistently across all three training regimes in our implementation, namely event-only, duration-only, and joint multi-task learning, which allows direct comparison of the modeling objectives without altering the underlying sequence construction pipeline.}
+
 
 \subsection{Root cause Analysis}
 When a novelty is detected in the system trace, it is essential to identify its root cause and ensure transparency in the model’s decision-making process. This section presents a root cause analysis method that operates on top of the trained trace model and does not require further training. This module guides adaptive tracing by enabling faster and more informed responses to emerging issues.
 
-Upon detecting an abnormal request trace, the events that led the model to classify it as abnormal often contain valuable signals for diagnosing the deviation. As discussed earlier, abnormal traces deviate significantly from model predictions, meaning that certain events are assigned low probabilities. These events—whether incorrectly predicted or entirely unexpected—can be analyzed to locate the source of deviation.
+Upon detecting an abnormal request trace, the events that led the model to classify it as abnormal often contain valuable signals for diagnosing the deviation. As discussed earlier, abnormal traces deviate significantly from model predictions, meaning that certain events are assigned low probabilities. These events—whether incorrectly predicted or entirely unexpected—can be analyzed to locate the source of deviation. \textcolor{red}{More generally, LMAT performs this analysis on any abnormal sequence unit, whether that unit is request-aligned or window-aligned.}
 
 Our method extracts these events and uses them to identify the root cause of each abnormal trace. Figure~\ref{fig:opcache_distro} illustrates the distribution of incorrect predictions in the OPCache anomaly set. Each type of anomaly exhibits a unique deviation pattern, reinforcing the viability of using error patterns for root cause inference. Figure~\ref{fig:compare_distro} compares distributions of incorrect predictions across various out-of-distribution (OOD) sets for frequently occurring events, showing how the deviation profiles differ across anomaly types.
 
@@ -450,6 +459,8 @@ The behavior of \texttt{count\_errors} depends on the model used:
 
 Once the error vector is formed, it is compared against the centroids of pre-labeled error vector clusters using cosine similarity. The label of the closest cluster centroid is assigned as the predicted root cause. Pre-clustering the labeled vectors not only improves efficiency by avoiding repeated computation during inference but also mitigates noise by capturing stable error patterns in each anomaly type.
 
+\textcolor{red}{In our implementation, these prototypes are built from validation out-of-distribution sequences using HDBSCAN and are then reused during test-time inference. This keeps the diagnosis stage lightweight: the sequence model is not retrained for root-cause analysis, and inference reduces to vector construction followed by similarity matching against the learned prototypes.}
+
 
 \begin{algorithm}[tbp]
   \footnotesize               % shrink the pseudocode text
@@ -474,6 +485,8 @@ Once the error vector is formed, it is compared against the centroids of pre-lab
 \EndProcedure
   \end{algorithmic}
 \end{algorithm}
+
+\textcolor{red}{For online trace control, LMAT does not react to a single anomalous token in isolation. Instead, sequence-level novelty decisions are aggregated over a rolling window of recent sequences, and tracing is escalated only when the proportion of abnormal sequences exceeds a configurable threshold. After activation, recording is maintained for a short linger interval so that contextual events immediately following the trigger are also preserved. This policy reduces oscillation and aligns the tracing controller with practical deployment constraints.}
 
 
 \section{Data Collection}\label{dcollection}
