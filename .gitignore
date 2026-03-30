@@ -25,3 +25,9 @@ logs/3-ce-loss-distribution-plots/transformer_multitask_cats5_scores.csv
 logs/3-ce-loss-distribution-plots/lstm_multitask_cats5_scores.csv
 
 tools/
+
+rough_work.txt
+inference_scripts.txt
+
+logs/5_root_cause_lstm_multitask_cats5_382061_hdbscan/root_cause_predictions.csv
+logs/5_root_cause_transformer_multitask_cats5_382062_hdbscan/root_cause_predictions.csv
