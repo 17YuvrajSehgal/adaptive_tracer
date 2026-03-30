@@ -651,13 +651,13 @@ discard-top20   & 20    & Top 20 events with the highest frequency are disregard
 In our experiment, we implement the proposed LMAT using LSTM, a recurrent neural network, and BERT \cite{devlin2018bert},  a Transformer-based architecture, both of which are commonly employed in tasks related to language modeling. These networks process a sequence of events representing a complete request, except some extreme cases which are truncated to 2048 events. The processing of complete requests is made possible by training the Transformer model with mixed precision \cite{micikevicius2018mixed} and gradient checkpointing \cite{chen2016training}, as these techniques increase memory efficiency, allowing for more effective handling of large sequences \cite{fournier2023language}.
 
 
-The implementation was carried out in Python using the Pytorch framework \cite{paszke2019pytorch}. We set the hyper-parameter $\lambda$ at 0.5. The selection of other hyper-parameters is oriented towards optimizing the change detection task, which is the ultimate objective. To minimize the impact of random variation, each test was performed three times with distinct seeds. The training process takes place on a server provided by the Digital Research Alliance of Canada~\footnote{https://alliancecan.ca}, equipped with two Intel Gold 6148 Skylake processors, four Nvidia V100SXM2 16G GPUs, and 64GB of RAM.
+The implementation was carried out in Python using the Pytorch framework \cite{paszke2019pytorch}. We set the hyper-parameter $\lambda$ at 0.5. The selection of other hyper-parameters is oriented towards optimizing the change detection task, which is the ultimate objective. To minimize the impact of random variation, each test was performed three times with distinct seeds. The training process takes place on a server provided by the Digital Research Alliance of Canada~\footnote{https://alliancecan.ca}, equipped with two Intel Gold 6148 Skylake processors, four Nvidia V100SXM2 16G GPUs, and 64GB of RAM. \textcolor{red}{The Apache experiments were trained on this configuration.} \textcolor{red}{For the Sock Shop experiments, training was conducted on a separate Alliance compute allocation using one node, 12 CPU cores, one NVIDIA H100 GPU, and 32\,GB of memory.}
 
 
 \subsection{Event Sequence and Duration Modeling}
 Language modeling and duration prediction tasks form the foundation of the Adaptive Tracer module of LMAT. The trained models are assessed based on the cross-entropy loss and top-one accuracy next token prediction, given a sequence of events or durations. These metrics effectively evaluate the model's predictive accuracy and its capacity for generalization.
 
-Event sequence and duration models are trained and evaluated both in a single-task and multi-task setup to assess the impact of the combination of their modeling objectives. The training results of event and duration models are given in Table \ref{tab:modeling-results}.
+Event sequence and duration models are trained and evaluated both in a single-task and multi-task setup to assess the impact of the combination of their modeling objectives. The training results of event and duration models are given in Table \ref{tab:modeling-results}. \textcolor{red}{For the Apache workload, we report these modeling characteristics directly through next-token and duration-prediction metrics because the traces are request-aligned. For the Sock Shop workload, the same event-and-duration objectives are retained, but their effectiveness is evaluated through downstream novelty-detection performance on fixed execution windows; these results are therefore presented in the following change-detection subsection.}
 
 \begin{table*}[tb]
 \centering
@@ -687,14 +687,14 @@ Duration models, particularly, demonstrated a notable ability to learn patterns 
 
 A consistent observation across both the event and duration prediction models is a decline in predictive performance when encountering out-of-distribution datasets. This characteristic is crucial for detecting novel system behaviors, as significant deviations from the model's predictions can signal unusual activities. The decrease in performance on the Sysbench and Bandwidth datasets was less pronounced for the event models, highlighting the limitations of relying solely on the event sequence model for capturing anomalies, particularly those related to \textcolor{black}{event\_durations}. In contrast, duration models exhibited increased sensitivity to these datasets, suggesting that they are more adept at identifying such deviations.
 
-Despite single-task models excelling in next-token prediction accuracy compared to their multi-task counterparts, this superiority did not always translate into better outcomes for change detection or root cause analysis. Our subsequent analysis will demonstrate that multi-task training fosters more generalized models, thereby enhancing the detection of unknown behaviors. This improvement is particularly evident in the increased prediction loss for the event prediction component in multi-task models when evaluated on the Sysbench and Bandwidth datasets. For instance, in the LSTM model applied to the Bandwidth dataset, the prediction loss difference widened from (0.71, 0.89) to (0.8, 1.28), highlighting the effectiveness of a unified approach for identifying abnormal behaviors.
+Despite single-task models excelling in next-token prediction accuracy compared to their multi-task counterparts, this superiority did not always translate into better outcomes for change detection or root cause analysis. Our subsequent analysis will demonstrate that multi-task training fosters more generalized models, thereby enhancing the detection of unknown behaviors. This improvement is particularly evident in the increased prediction loss for the event prediction component in multi-task models when evaluated on the Sysbench and Bandwidth datasets. For instance, in the LSTM model applied to the Bandwidth dataset, the prediction loss difference widened from (0.71, 0.89) to (0.8, 1.28), highlighting the effectiveness of a unified approach for identifying abnormal behaviors. \textcolor{red}{This observation also motivates our Sock Shop evaluation, where the practical question is not only whether the model predicts the next event or duration accurately on normal traces, but whether the learned joint representation yields separable abnormality scores under microservice-level resource perturbations.}
 
 
 \subsection{Change detection}
 
-In the change detection task, the LMAT model evaluates each request to classify it as either normal or novel. This classification is based on measuring the cross-entropy loss of each request and comparing it to a predetermined threshold. This threshold is selected by considering the losses of both normal and noisy requests available in the validation sets, with the goal of maximizing the F1-score for this binary classification. The F1-score is the harmonic mean of precision and recall metrics, ranging from 0 to 1, where 1 indicates perfect precision and recall, and 0 signifies that either precision or recall is zero. The model's performance is also assessed using the Area Under the ROC Curve (AUC), which provides a comprehensive measure of effectiveness across all potential classification thresholds, offering a broad perspective on the model's predictive capabilities.
+In the change detection task, the LMAT model evaluates each request to classify it as either normal or novel. \textcolor{red}{More generally, the detection unit follows the sequence construction used by the target workload: complete requests for Apache and fixed execution windows for Sock Shop.} This classification is based on measuring the cross-entropy loss of each request and comparing it to a predetermined threshold. \textcolor{red}{In the multi-task setting, this score is formed from the combined normalized event and duration losses described in Section \ref{methodology}.} This threshold is selected by considering the losses of both normal and noisy requests available in the validation sets, with the goal of maximizing the F1-score for this binary classification. The F1-score is the harmonic mean of precision and recall metrics, ranging from 0 to 1, where 1 indicates perfect precision and recall, and 0 signifies that either precision or recall is zero. The model's performance is also assessed using the Area Under the ROC Curve (AUC), which provides a comprehensive measure of effectiveness across all potential classification thresholds, offering a broad perspective on the model's predictive capabilities.
 
-To understand how duration categorization impacts the model's ability to detect changes, we explore various numbers of categories, assessing the model's performance across a range of 3 to 9 categories. Based on the results detailed in Table \ref{tab:duration-models}, employing 7 categories provided the most effective balance, establishing our standard for subsequent experiments. Expanding beyond this number leads to a decline in model performance, likely due to the introduction of excessive complexity that does not proportionately enhance predictive capability, ultimately reducing the model's efficiency.
+To understand how duration categorization impacts the model's ability to detect changes, we explore various numbers of categories, assessing the model's performance across a range of 3 to 9 categories. \textcolor{red}{For the Apache workload,} based on the results detailed in Table \ref{tab:duration-models}, employing 7 categories provided the most effective balance, establishing our standard for subsequent experiments. Expanding beyond this number leads to a decline in model performance, likely due to the introduction of excessive complexity that does not proportionately enhance predictive capability, ultimately reducing the model's efficiency.
 
 \begin{table*}[tb]
 \centering
@@ -717,7 +717,63 @@ To understand how duration categorization impacts the model's ability to detect 
 \end{adjustbox}
 \end{table*}
 
-Tables \ref{tab:lstm} and \ref{tab:transformer} present a comparative analysis of change detection outcomes between single-task and multi-task configurations for LSTM and BERT models, respectively. The integration of duration modeling is shown to significantly improve change detection capabilities. Importantly, the duration model not only captures all changes recognized by the event model but also uncovers further notable variations, especially within the Sysbench and Bandwidth datasets. This increased detection is attributed to the distinctively higher loss values that the duration model associates with these datasets.
+\textcolor{red}{For the Sock Shop workload, the same analysis leads to a different operating point. Tables \ref{tab:lstm_multitask_all_metrics} and \ref{tab:transformer_multitask_all_metrics} report the multi-task change-detection results across 3, 5, 7, and 9 duration categories for CPU, disk, memory, and network perturbations. In contrast to the Apache workload, both architectures achieve their highest average F1-score with 5 categories, reaching 65.0 for LSTM and 65.3 for Transformer.}
+
+\begin{table*}[t]
+\centering
+\caption{\textcolor{red}{LSTM multitask OOD results across category settings.}}
+\label{tab:lstm_multitask_all_metrics}
+{\color{red}
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.1}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l|ccccc|ccccc|ccccc|ccccc}
+\hline
+\multirow{2}{*}{Dataset} & \multicolumn{5}{c|}{3 Categories} & \multicolumn{5}{c|}{5 Categories} & \multicolumn{5}{c|}{7 Categories} & \multicolumn{5}{c}{9 Categories} \\
+ & F1 & AUROC & AUPR & Recall & Precision & F1 & AUROC & AUPR & Recall & Precision & F1 & AUROC & AUPR & Recall & Precision & F1 & AUROC & AUPR & Recall & Precision \\
+\hline
+CPU & 64.7 & 63.5 & 61.8 & 80.5 & 54.0 & 66.0 & \textbf{66.8} & \textbf{64.1} & 74.8 & \textbf{59.0} & 63.9 & 65.1 & 63.0 & 69.9 & 58.9 & \textbf{66.3} & 65.8 & 63.4 & \textbf{91.1} & 52.2 \\
+Disk & 57.4 & 70.8 & 68.2 & 82.8 & 43.9 & 59.2 & 71.4 & 67.9 & 75.6 & 48.6 & \textbf{59.8} & 72.2 & 69.0 & 74.8 & \textbf{49.9} & 57.7 & \textbf{73.5} & \textbf{70.1} & \textbf{92.7} & 41.9 \\
+Memory & 68.5 & 67.5 & 70.1 & 83.3 & 58.1 & \textbf{71.4} & \textbf{72.2} & \textbf{73.1} & 80.7 & \textbf{63.9} & 68.9 & 69.3 & 71.6 & 75.0 & 63.7 & 69.3 & 70.0 & 71.6 & \textbf{91.8} & 55.6 \\
+Network & 60.0 & 74.6 & 65.8 & 89.4 & 45.1 & 63.5 & 76.3 & 68.1 & 84.9 & 50.7 & \textbf{65.0} & 77.5 & 67.7 & 85.6 & \textbf{52.4} & 58.4 & \textbf{80.0} & \textbf{72.3} & \textbf{96.0} & 42.0 \\
+\hline
+Average & 62.6 & 69.1 & 66.5 & 84.0 & 50.3 & \textbf{65.0} & 71.7 & 68.3 & 79.0 & 55.6 & 64.4 & 71.0 & 67.8 & 76.3 & \textbf{56.2} & 62.9 & \textbf{72.3} & \textbf{69.3} & \textbf{92.9} & 47.9 \\
+\hline
+\end{tabular}%
+}
+}
+\end{table*}
+
+\begin{table*}[t]
+\centering
+\caption{\textcolor{red}{TRANSFORMER multitask OOD results across category settings.}}
+\label{tab:transformer_multitask_all_metrics}
+{\color{red}
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.1}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l|ccccc|ccccc|ccccc|ccccc}
+\hline
+\multirow{2}{*}{Dataset} & \multicolumn{5}{c|}{3 Categories} & \multicolumn{5}{c|}{5 Categories} & \multicolumn{5}{c|}{7 Categories} & \multicolumn{5}{c}{9 Categories} \\
+ & F1 & AUROC & AUPR & Recall & Precision & F1 & AUROC & AUPR & Recall & Precision & F1 & AUROC & AUPR & Recall & Precision & F1 & AUROC & AUPR & Recall & Precision \\
+\hline
+CPU & 64.8 & 64.7 & 62.7 & 77.0 & 55.9 & \textbf{67.8} & \textbf{68.6} & \textbf{65.4} & \textbf{82.3} & \textbf{57.6} & 65.2 & 65.1 & 62.8 & 75.7 & 57.2 & 66.3 & 66.1 & 63.5 & 80.1 & 56.6 \\
+Disk & 57.8 & 69.7 & 66.0 & 78.7 & 45.6 & \textbf{59.5} & 71.0 & 66.1 & \textbf{82.0} & \textbf{46.7} & 58.0 & 69.1 & 65.0 & 76.6 & 46.7 & 59.2 & \textbf{71.4} & \textbf{67.1} & 81.9 & 46.4 \\
+Memory & 68.8 & 68.0 & 69.6 & 80.4 & 60.1 & \textbf{72.1} & \textbf{73.0} & \textbf{73.0} & \textbf{86.4} & \textbf{61.9} & 68.5 & 67.6 & 69.4 & 78.0 & 61.0 & 69.9 & 69.1 & 70.5 & 82.7 & 60.5 \\
+Network & 61.2 & 73.3 & 61.9 & 86.7 & 47.3 & 61.9 & 75.5 & 65.1 & 87.9 & 47.7 & 63.1 & 76.2 & 65.0 & 87.8 & \textbf{49.3} & \textbf{63.3} & \textbf{78.4} & \textbf{67.6} & \textbf{91.6} & 48.4 \\
+\hline
+Average & 63.1 & 68.9 & 65.0 & 80.7 & 52.2 & \textbf{65.3} & \textbf{72.0} & \textbf{67.4} & \textbf{84.7} & 53.5 & 63.7 & 69.5 & 65.5 & 79.5 & \textbf{53.5} & 64.7 & 71.3 & 67.2 & 84.1 & 53.0 \\
+\hline
+\end{tabular}%
+}
+}
+\end{table*}
+
+\textcolor{red}{Several patterns are consistent across the two architectures. First, a moderate duration discretization yields the best balanced detection performance for Sock Shop: the 5-category setting gives the highest average F1-score for both models and also the highest average AUROC and AUPR for Transformer. Second, the LSTM and Transformer remain closely matched overall. The Transformer attains slightly higher average F1-score at every category setting, whereas the LSTM attains higher average precision at 5 and 7 categories and the strongest average AUROC and AUPR at 9 categories. Third, memory perturbations are the easiest to separate from normal behavior, reaching F1-scores of 71.4 for LSTM and 72.1 for Transformer at 5 categories. By contrast, disk and network perturbations achieve their highest recalls at 9 categories, but these gains are accompanied by lower precision, indicating a less favorable operating balance.}
+
+\textcolor{red}{These results complement the Apache findings rather than replacing them. In Apache, request-level change detection benefits from finer duration discretization, with 7 categories providing the best average F1-score. In Sock Shop, where the detector operates on short host-level windows spanning heterogeneous service activity, 5 categories offer the best overall balance. This difference suggests that the optimal duration granularity depends on the structure of the monitored workload, while the underlying multi-task formulation remains effective across both settings.}
+
+Tables \ref{tab:lstm} and \ref{tab:transformer} present a comparative analysis of change detection outcomes between single-task and multi-task configurations for LSTM and BERT models, respectively. \textcolor{red}{For the Apache workload,} the integration of duration modeling is shown to significantly improve change detection capabilities. Importantly, the duration model not only captures all changes recognized by the event model but also uncovers further notable variations, especially within the Sysbench and Bandwidth datasets. This increased detection is attributed to the distinctively higher loss values that the duration model associates with these datasets.
 
 While the duration model proves more effective in several scenarios, there are instances where the event model excels, indicating the value of a combined approach. In fact, the choice between these models is context-dependent, and neither can be deemed universally superior.  This highlights the need for a holistic modeling approach to capture the full spectrum of system behavior changes. Multi-task models address this need effectively, achieving comprehensive change detection with minimal performance trade-offs, given the marginal increase in parameters. Furthermore, these models exhibit greater stability in their outcomes compared to their single-task counterparts, as reflected by reduced variability in their performance metrics.
 
