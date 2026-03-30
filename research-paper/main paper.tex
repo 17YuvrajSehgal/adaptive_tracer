@@ -918,6 +918,7 @@ Transformer & \textbf{84.6} & \textbf{38.4} & \textbf{32.5} & 11.6 & 31.5 & \tex
 
 
 \subsection{Tracing}
+\textcolor{red}{The trace-selection results reported below correspond to the Apache request-level workload, where LMAT is evaluated directly as an adaptive recording controller. For the Sock Shop microservice workload, our deployment study focuses instead on runtime interference on the monitored application. In that setting, we compare three system conditions: an uninstrumented baseline, tracing only, and replay-based asynchronous LMAT inference running concurrently with fresh application traffic. The final reviewer-facing protocol uses 200 virtual users, 30\,s of warm-up, 100\,s of measured load per condition, three repeats, and rotated condition order to reduce ordering bias. Because the LMAT condition replays a saved trace while the application serves a new workload, it should be interpreted as a co-located inference-overhead proxy rather than as a fully live trace-triggering deployment over the same in-flight requests.}
 The overall effectiveness of the Adaptive Tracer module of LMAT is evaluated based on its accuracy for the selection of traces related to a new pattern and the volume of trace data it manages to reduce. Recorded trace data volume is used as a general measurement of the tracing overhead, especially on disk space usage. Evaluation is based on a set of test traces with varying levels and types of noise, giving us a comprehensive view of the model’s performance under different conditions. \textcolor{black}{These test traces are created by randomly distributing already collected noisy requests among the requests from traces of normal workload, to simulate changes in system behavior, and each of the noisy setups includes more than 6,000 abrupt changes.} Model processes trace data per request and using request as a unit to create test scenarios helps with keeping the integrity of the collected trace and model's input.
 
 To determine when to initiate tracing, the Adaptive Tracer employs a window-based decision-making strategy that defers recording until the proportion of requests identified as abnormal within a window exceeds a predetermined threshold. The window size is set to match the batch size (16), with the threshold established at 80\% of the window size. This method ensures that only significant deviations prompt recording, enhancing the tracer's precision in capturing data shifts.
@@ -954,6 +955,7 @@ Delays in detecting changes have a direct impact on the volume of data missed du
 
 
 \subsection{Trace event reduction}
+\textcolor{red}{This event-subset study is performed on the Apache workload. For the Sock Shop deployment study, we retain the full syscall monitoring configuration of the trained multi-task model so that the measured latency and throughput effects reflect tracing and inference costs rather than an additional event-pruning optimization. The microservice overhead results should therefore be interpreted as conservative with respect to event-volume reduction.}
 To assess the feasibility of having a secondary set of events for constant monitoring of the system with reduced overhead, we trained the model using the subsets of system calls mentioned in Table \ref{tab:subset_syscalls}. The aggregated results from training the multi-task model on these subsets are presented in Table \ref{tab:subset_syscalls_results}. As we can see, most frequently occurring events are not always the richest source of information for monitoring system behavior and tracking its trends. For instance, excluding the top-10 most repeated event types, only results in a 7\% decline in change detection accuracy, despite a substantial 76\% reduction in the volume of input data. This accuracy could potentially be preserved or even enhanced by selectively targeting specific events tailored to particular monitoring needs.
 
 \begin{table}[tb]
@@ -978,7 +980,7 @@ Normal         & 98.6 ± 0.5 & 97.5 ± 0.8 & 100 \\
 These findings confirm that LMAT maintains strong performance even when operating on substantially reduced input sets, supporting the viability of a two-tier monitoring framework with a lightweight default mode and a more comprehensive tracing mode triggered on demand.
 
 \subsection{Overhead analysis}
-The latency involved in executing the model's steps for adaptive tracing is a critical factor in assessing its feasibility in real-world scenarios. The latencies for the various modeling approaches used in this study are documented in Table \ref{tab:model_latency}, measured using a V100 GPU. The sequence prediction phase is the most time consuming step, with a slight increase in latency observed in the multi-task approach due to the additional operations related to duration prediction task. Notably, reducing the number of monitored event types by considering the discard-top10 subset, decreases the model's inference time by 41\%, which is the result of the substantial reduction in the length of input sequences and the number of potential events for prediction.
+The latency involved in executing the model's steps for adaptive tracing is a critical factor in assessing its feasibility in real-world scenarios. \textcolor{red}{For the Apache workload,} the latencies for the various modeling approaches used in this study are documented in Table \ref{tab:model_latency}, measured using a V100 GPU. The sequence prediction phase is the most time consuming step, with a slight increase in latency observed in the multi-task approach due to the additional operations related to duration prediction task. Notably, reducing the number of monitored event types by considering the discard-top10 subset, decreases the model's inference time by 41\%, which is the result of the substantial reduction in the length of input sequences and the number of potential events for prediction.
 
 
 
@@ -1005,6 +1007,31 @@ Total            & 45.12 & 46.11 & 19.28 \\
 \end{table}
 
 \textcolor{blue}{With batching of 16 requests, the reduced LSTM configuration processes a batch in \(\sim\)19.3ms, i.e., \(\sim\)830 requests/s effective throughput on this (non-tuned) setup. In our client workload ($\sim$1{,}000 req/s), the model is unable to keep up with the stream of data. In practice, there are options to address this and to improve the efficiency and throughput: (i) lighter hardware (e.g., mid-range GPU or CPU) when the application’s latency budget allows; (ii) routine systems optimizations (reduced precision and larger batches) to improve throughput (usually yielding significant speedups in practice) and (iii) sampling the monitor stream (e.g., analyze \(p\%\) of requests) when full coverage is unnecessary, because LMAT’s detection accuracy is high even at modest sampling rates.}
+
+\textcolor{red}{To complement these component-level measurements, we evaluate the runtime cost of LMAT on the Sock Shop VM by measuring application latency and throughput under three system conditions: baseline (no tracing and no LMAT), tracing only, and replay-based asynchronous LMAT inference. Table \ref{tab:sockshop_overhead} summarizes the final fair 200-user experiment. The most meaningful incremental comparison is tracing only versus LMAT, because LMAT depends on trace data and the asynchronous mode is designed to isolate the host-side CPU cost of inference. Under this comparison, P95 latency increases from 199.5\,ms to 225.5\,ms, while throughput changes only from 183.3 to 180.9 requests/s and error rate increases marginally from 2.03\% to 2.16\%. This corresponds to a 13.0\% increase in P95 latency and a 1.3\% reduction in throughput relative to tracing alone at the tested operating point.}
+
+\begin{table*}[tb]
+\centering
+\caption{\textcolor{red}{Sock Shop application-level overhead at 200 virtual users under the fair rotated protocol. The LMAT condition is a replay-based asynchronous inference proxy running concurrently with fresh application traffic.}}
+\label{tab:sockshop_overhead}
+{\color{red}
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.1}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l|ccccc}
+\hline
+Condition & Throughput (req/s) & P50 (ms) & P95 (ms) & P99 (ms) & Error Rate (\%) \\
+\hline
+baseline & 178.8 $\pm$ 4.5 & 66.6 & 313.7 & 718.7 & 2.05 \\
+lttng\_only & 183.3 $\pm$ 0.8 & 56.3 & 199.5 & 645.1 & 2.03 \\
+lmat\_async & 180.9 $\pm$ 3.8 & 64.9 & 225.5 & 496.2 & 2.16 \\
+\hline
+\end{tabular}%
+}
+}
+\end{table*}
+
+\textcolor{red}{Two observations are important for interpreting these results. First, the baseline runs are visibly noisier than the traced runs at this operating point, with a P95 standard deviation of 111.6\,ms compared with 17.2\,ms for tracing only and 57.1\,ms for LMAT. We therefore do not base the main overhead claim on baseline-versus-LMAT comparisons for the 200-user case. Second, tail latency is the most stable place where LMAT appears: the P95 increase over tracing only is consistent with modest additional host contention from inference, whereas throughput remains within a narrow 179--183 requests/s range across all three conditions. Because only the 200-user operating point was exercised in the final fair rerun, these throughput values should be interpreted as the best observed throughput at the tested load rather than as a full saturation study.}
 
 \subsubsection{\textcolor{blue}{Practical deployment target}}
 \textcolor{blue}{We emphasize that LMAT does not require high-end GPU clusters. We used V100s because they were available on our shared compute infrastructure; however, the LSTM variant, which in our experiments matches the Transformer variant in detection accuracy, has $\sim$1M parameters (\(\sim\)5\,MB on disk) and occupied well under 1\,GB of device memory for inference. This footprint enables deployment on modest accelerators (e.g., entry-level datacenter/consumer GPUs) and, where latency budgets permit, on \emph{CPUs only}. The model storage is a \emph{constant} overhead; LMAT’s savings accrue on the \emph{ongoing} tracing stream.}
