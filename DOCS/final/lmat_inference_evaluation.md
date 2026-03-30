@@ -1,6 +1,6 @@
 # LMAT Runtime Overhead Evaluation
 
-This document describes how we evaluate the runtime cost of using LMAT alongside a live microservice application. It is intentionally method-focused: it explains how we answer the latency and overhead questions without reporting experiment-specific numbers.
+This document describes how we evaluate the runtime cost of using LMAT alongside a live microservice application and summarizes the final fair-overhead results collected on the VM-based Sock Shop deployment.
 
 ## Goal
 
@@ -47,6 +47,26 @@ This design is appropriate for answering the main systems question:
 - how much CPU contention and latency overhead LMAT inference adds when co-located with the application
 
 It is not meant to claim that the model is making real-time tracing decisions on those exact requests. For that reason, we describe `lmat_async` as a co-located inference-overhead proxy, not as a full online deployment.
+
+More concretely, the `lmat_async` condition is not:
+
+- live tracing plus live inference over the same in-flight requests
+
+Instead, it is:
+
+- one phase that records the kernel trace under live load
+- followed by a second phase where LMAT replays that saved trace from disk while the application serves a fresh load run
+
+This means that during the LMAT-overhead phase, the application is experiencing:
+
+- CPU contention from model inference
+- concurrent website traffic
+
+but not:
+
+- simultaneous live LTTng trace collection for that second-phase traffic
+
+We use this design deliberately because it isolates the incremental CPU-side cost of LMAT inference on the same host while avoiding the engineering complexity of a fully live streaming trace-to-model pipeline in the current setup.
 
 ## Experimental Design
 
@@ -125,6 +145,14 @@ This condition answers:
 
 The async mode is used because it is the most realistic deployment style in this repository: inference runs in the background and does not intentionally block event collection.
 
+However, it is important to be precise about what is and is not active in this condition:
+
+- tracing is active in phase 1 to produce the replay trace
+- tracing is not kept active during phase 2, when `load_results_with_inference.csv` is measured
+- LMAT inference during phase 2 therefore runs against the saved kernel trace, not against the live requests being served at that moment
+
+This is why the LMAT result should be interpreted as a co-located replay-based overhead measurement rather than a full live tracing-plus-inference deployment measurement.
+
 ## Metrics Reported
 
 For each condition and load level, we report:
@@ -164,6 +192,130 @@ These files are intended to support direct reviewer questions about:
 - tracing-only overhead
 - throughput under representative load
 
+## Final 200-User Fair Run
+
+The final reviewer-facing overhead analysis uses the fair 200-user protocol implemented in [run_reviewer_overhead_200_fair.sh](/C:/workplace/adaptive_tracer/microservice-lttng-data-collection-scripts/run_reviewer_overhead_200_fair.sh):
+
+- `200` virtual users
+- `3` repeats
+- `100s` measured duration per condition
+- `30s` warm-up before each measured run
+- rotated condition order across repeats
+
+The aggregated outputs for this run are stored under:
+
+- [reviewer_overhead_summary.md](/C:/workplace/adaptive_tracer/micro-service-trace-data/final-experiments-LMAT/experiments/reviewer_overhead_200_fair/reviewer_overhead_summary.md)
+- [reviewer_overhead_by_users.csv](/C:/workplace/adaptive_tracer/micro-service-trace-data/final-experiments-LMAT/experiments/reviewer_overhead_200_fair/reviewer_overhead_by_users.csv)
+- [reviewer_overhead_max_throughput.csv](/C:/workplace/adaptive_tracer/micro-service-trace-data/final-experiments-LMAT/experiments/reviewer_overhead_200_fair/reviewer_overhead_max_throughput.csv)
+- [run_manifest.csv](/C:/workplace/adaptive_tracer/micro-service-trace-data/final-experiments-LMAT/experiments/reviewer_overhead_200_fair/run_manifest.csv)
+
+## Final Results
+
+### P95/P99 latency at 200 users
+
+| Condition | Throughput (req/s) | P50 (ms) | P95 (ms) | P99 (ms) | Error rate |
+|---|---:|---:|---:|---:|---:|
+| `baseline` | 178.8 ± 4.5 | 66.6 | 313.7 | 718.7 | 2.05% |
+| `lttng_only` | 183.3 ± 0.8 | 56.3 | 199.5 | 645.1 | 2.03% |
+| `lmat_async` | 180.9 ± 3.8 | 64.9 | 225.5 | 496.2 | 2.16% |
+
+### Best observed throughput among tested points
+
+Only the 200-user operating point was tested in the final fair rerun, so the maximum-throughput file should be interpreted as the best observed throughput at the tested load, not as a full load-sweep maximum:
+
+| Condition | Best observed throughput (req/s) | P95 at tested point (ms) | P99 at tested point (ms) |
+|---|---:|---:|---:|
+| `baseline` | 178.8 | 313.7 | 718.7 |
+| `lttng_only` | 183.3 | 199.5 | 645.1 |
+| `lmat_async` | 180.9 | 225.5 | 496.2 |
+
+## Main Findings
+
+### 1. The fairest LMAT comparison is against tracing-only
+
+The most meaningful systems comparison in this experiment is:
+
+- `lttng_only` vs `lmat_async`
+
+This is because LMAT requires tracing to supply event data, and the `lmat_async` condition is a replay-based co-located inference proxy rather than a no-tracing replacement.
+
+Under that comparison:
+
+- P95 latency increases from `199.5 ms` to `225.5 ms`
+- this is about a `13.0%` P95 increase over tracing alone
+- throughput changes from `183.3 req/s` to `180.9 req/s`
+- this is about a `1.3%` throughput reduction
+- error rate remains very similar, increasing only from `2.03%` to `2.16%`
+
+This supports the conclusion that LMAT adds a modest incremental tail-latency cost beyond tracing, while having only a small effect on sustained throughput at this operating point.
+
+At the same time, this result should be read with the correct experimental scope:
+
+- `lttng_only` measures live tracing overhead
+- `lmat_async` measures replay-based inference overhead under concurrent live traffic
+
+So the experiment directly answers the practical question:
+
+- how much extra host-side overhead LMAT inference adds when co-located with the application
+
+It does not directly answer:
+
+- what the exact latency would be if live tracing and live LMAT inference were both active simultaneously on the same request stream
+
+### 2. The baseline remains noisier than the traced conditions
+
+The `baseline` runs show substantially higher variance than the traced runs:
+
+- baseline P95 standard deviation: `111.6 ms`
+- LTTng-only P95 standard deviation: `17.2 ms`
+- LMAT-async P95 standard deviation: `57.1 ms`
+
+Because of that, the fact that both `lttng_only` and `lmat_async` appear numerically better than `baseline` at 200 users should not be interpreted as tracing improving application performance. The more likely explanation is that the uninstrumented runs were exposed to more transient variability during this operating point.
+
+For that reason, the final reviewer-facing interpretation should not rely on:
+
+- `baseline` vs `lttng_only`
+- `baseline` vs `lmat_async`
+
+as the primary overhead claim for the 200-user case.
+
+### 3. Tail latency is the main place where LMAT shows up
+
+The difference between `lttng_only` and `lmat_async` is most visible in P95 rather than throughput or error rate. This is consistent with the intended purpose of the experiment: tracing and inference overhead usually affect the latency tail first.
+
+The P99 behavior is less clean:
+
+- `lttng_only`: `645.1 ms`
+- `lmat_async`: `496.2 ms`
+
+This lower P99 under `lmat_async` should be treated cautiously. Given the variability of the runs, the more stable and interpretable signal here is the P95 increase of `lmat_async` over `lttng_only`.
+
+### 4. Throughput impact is small at the tested operating point
+
+All three conditions sustain similar throughput around `179-183 req/s`. The incremental throughput change from tracing alone to LMAT is small:
+
+- `183.3 req/s` for `lttng_only`
+- `180.9 req/s` for `lmat_async`
+
+This suggests that, on this 12-vCPU VM, the main cost of co-located LMAT is additional tail-latency pressure rather than a large collapse in sustained request throughput.
+
+## Recommended Interpretation for Researchers
+
+The final fair-overhead experiment supports the following practical reading:
+
+- tracing-only is the correct reference point for incremental LMAT overhead
+- co-located async LMAT adds modest P95 overhead over tracing alone
+- throughput degradation is small at the tested operating point
+- baseline-vs-LMAT comparisons at 200 users are not stable enough to use as the main claim
+- the LMAT condition is a replay-based proxy chosen to measure inference cost on a real host without claiming a fully live end-to-end deployment
+
+In other words, the system-level overhead story is:
+
+1. tracing is required and must be included in the overhead accounting
+2. LMAT adds a measurable but not catastrophic incremental tail-latency cost on top of tracing
+3. throughput remains close to the tracing-only case
+4. the final evidence is strongest for incremental overhead relative to `lttng_only`, not for absolute improvement or degradation relative to the noisier baseline runs
+
 ## How We Interpret the Final Comparison
 
 The final systems interpretation follows this hierarchy:
@@ -193,11 +345,11 @@ Those are handled by separate offline change-detection, root-cause, and adaptive
 
 ## Recommended Claim Framing
 
-This methodology supports claims of the form:
+Based on the final 200-user fair run, the safest claim framing is:
 
-- the latency impact of tracing alone
-- the total latency impact of tracing plus LMAT
-- the incremental overhead of LMAT relative to tracing-only operation
-- the throughput sustained under representative load with and without LMAT
+- the direct tracing-overhead condition is `lttng_only`
+- the incremental LMAT runtime cost should be reported relative to `lttng_only`
+- in the final VM experiment, `lmat_async` increased P95 latency by about `13%` over tracing alone while reducing throughput by only about `1.3%`
+- the baseline 200-user runs were more variable, so baseline-relative latency claims should be presented cautiously
 
-This is the intended final evaluation path for reviewer-facing overhead and latency questions.
+This is the final reviewer-facing interpretation path for the overhead and latency question in this repository.
