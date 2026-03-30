@@ -12,17 +12,24 @@
 #   e.g. ./lmat_sync_run.sh run01 300 --quiet
 set -e
 
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_DIR=${PROJECT_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}
 RUN_ID=${1:-run01}
 DURATION=${2:-300}
 QUIET_FLAG=${3:-}    # pass --quiet to silence the OTel span printing
-EXPERIMENT_DIR=~/experiments/lmat_sync/$RUN_ID
+EXPERIMENT_ROOT=${EXPERIMENT_ROOT:-~/experiments}
+EXPERIMENT_DIR=$EXPERIMENT_ROOT/lmat_sync/$RUN_ID
 FRONTEND_HOST=${FRONTEND_HOST:-http://localhost:80}
 LOAD_USERS=${LOAD_USERS:-200}
+THINK_MIN=${THINK_MIN:-0.2}
+THINK_MAX=${THINK_MAX:-1.0}
+TORCH_THREADS=${TORCH_THREADS:-2}
+LOAD_GENERATOR=${LOAD_GENERATOR:-$SCRIPT_DIR/load_generator.py}
 
 # ── Edit these paths before running on the GCP VM ────────────────────────────
-MODEL_PATH=${MODEL_PATH:-~/adaptive_tracer/checkpoints/model_best_lstm.pt}
-VOCAB_PATH=${VOCAB_PATH:-~/adaptive_tracer/micro-service-trace-data/preprocessed/vocab.pkl}
-DELAY_PATH=${DELAY_PATH:-~/adaptive_tracer/micro-service-trace-data/preprocessed/delay_spans.pkl}
+MODEL_PATH=${MODEL_PATH:-$PROJECT_DIR/checkpoints/model_best_lstm.pt}
+VOCAB_PATH=${VOCAB_PATH:-$PROJECT_DIR/micro-service-trace-data/preprocessed/vocab.pkl}
+DELAY_PATH=${DELAY_PATH:-$PROJECT_DIR/micro-service-trace-data/preprocessed/delay_spans.pkl}
 MODEL_TYPE=${MODEL_TYPE:-lstm}
 N_HIDDEN=${N_HIDDEN:-1024}; N_LAYER=${N_LAYER:-6}; N_HEAD=${N_HEAD:-8}
 DIM_SYS=${DIM_SYS:-48};     DIM_ENTRY=${DIM_ENTRY:-12}; DIM_RET=${DIM_RET:-12}
@@ -38,22 +45,23 @@ sudo mkdir -p "$TRACE_DIR"/{kernel,ust} 2>/dev/null || true
 sudo chown -R "$(whoami)" ~/traces/lmat_sync 2>/dev/null || true
 
 echo "🚀 LMAT SYNC: $RUN_ID (${DURATION}s, ${LOAD_USERS} users)"
+echo "   Host=$FRONTEND_HOST  think=${THINK_MIN}-${THINK_MAX}s  root=$EXPERIMENT_ROOT  torch_threads=$TORCH_THREADS"
 
 # ── PHASE 1: Collect trace + load data (no inference yet) ───────────────────
 echo "📡 Phase 1: LTTng tracing + load generator ($DURATION s)..."
 RUN_START_EPOCH=$(date -u +%s)
 
 # LTTng collection
-(~/adaptive_tracer/microservice-lttng-data-collection-scripts/collect_trace.sh lmat_sync "$RUN_ID" "$DURATION" $QUIET_FLAG) &
+("$SCRIPT_DIR/collect_trace.sh" lmat_sync "$RUN_ID" "$DURATION" $QUIET_FLAG) &
 TRACE_PID=$!
 
 # Load generator (this is the primary latency measurement)
-python3 ~/load_generator.py \
+python3 "$LOAD_GENERATOR" \
     --host "$FRONTEND_HOST" \
     --users "$LOAD_USERS" \
     --duration "$DURATION" \
-    --think-min 0.2 \
-    --think-max 1.0 \
+    --think-min "$THINK_MIN" \
+    --think-max "$THINK_MAX" \
     --log-level WARNING \
     --output "$EXPERIMENT_DIR/load_results.csv" &
 LOAD_PID=$!
@@ -67,18 +75,18 @@ RUN_END_EPOCH=$(date -u +%s)
 echo "🧠 Phase 2: Replaying trace through model + concurrent load ($DURATION s)..."
 
 # Fresh load run concurrent with inference so SockShop feels the CPU impact
-python3 ~/load_generator.py \
+python3 "$LOAD_GENERATOR" \
     --host "$FRONTEND_HOST" \
     --users "$LOAD_USERS" \
     --duration "$DURATION" \
-    --think-min 0.2 \
-    --think-max 1.0 \
+    --think-min "$THINK_MIN" \
+    --think-max "$THINK_MAX" \
     --log-level WARNING \
     --output "$EXPERIMENT_DIR/load_results_with_inference.csv" &
 LOAD2_PID=$!
 
 # Replay the completed trace through the model in sync mode
-python3 ~/adaptive_tracer/microservice-lttng-data-collection-scripts/online_inference.py \
+python3 "$SCRIPT_DIR/online_inference.py" \
     --model_path       "$MODEL_PATH" \
     --vocab_path       "$VOCAB_PATH" \
     --delay_spans_path "$DELAY_PATH" \
@@ -90,6 +98,7 @@ python3 ~/adaptive_tracer/microservice-lttng-data-collection-scripts/online_infe
     --dim_order "$DIM_ORDER" --dim_time "$DIM_TIME" \
     --mode sync \
     --replay \
+    --torch_threads "$TORCH_THREADS" \
     --window_ms 100 \
     --log_file "$EXPERIMENT_DIR/inference.log" &
 INFER_PID=$!

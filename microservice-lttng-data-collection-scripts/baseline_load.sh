@@ -6,19 +6,23 @@
 #   e.g. ./baseline_load.sh run01 300
 set -e
 
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 RUN_ID=${1:-run01}
 DURATION=${2:-300}
-EXPERIMENT_DIR=~/experiments/baseline/$RUN_ID
+EXPERIMENT_ROOT=${EXPERIMENT_ROOT:-~/experiments}
+EXPERIMENT_DIR=$EXPERIMENT_ROOT/baseline/$RUN_ID
 FRONTEND_HOST=${FRONTEND_HOST:-http://localhost:80}
 LOAD_USERS=${LOAD_USERS:-200}
-THINK_MIN=${THINK_MIN:-0.1}
-THINK_MAX=${THINK_MAX:-0.3}
+THINK_MIN=${THINK_MIN:-0.2}
+THINK_MAX=${THINK_MAX:-1.0}
+LOAD_GENERATOR=${LOAD_GENERATOR:-$SCRIPT_DIR/load_generator.py}
 
 mkdir -p "$EXPERIMENT_DIR"/load_logs
 RUN_LOG="$EXPERIMENT_DIR/run.log"
 exec > >(tee -a "$RUN_LOG") 2>&1
 
 echo "🚀 BASELINE (no tracing, no LMAT): $RUN_ID (${DURATION}s, ${LOAD_USERS} users)"
+echo "   Host=$FRONTEND_HOST  think=${THINK_MIN}-${THINK_MAX}s  root=$EXPERIMENT_ROOT"
 
 # ── Stop ALL tracing (idempotent — safe even if no sessions exist) ──────────
 echo "🔇 Destroying any active LTTng sessions..."
@@ -42,7 +46,7 @@ echo "✅ LTTng is silent. Starting pure baseline run."
 RUN_START_EPOCH=$(date -u +%s)
 
 # ── Load generator only ──────────────────────────────────────────────────────
-python3 ~/load_generator.py \
+python3 "$LOAD_GENERATOR" \
     --host "$FRONTEND_HOST" \
     --users "$LOAD_USERS" \
     --duration "$DURATION" \

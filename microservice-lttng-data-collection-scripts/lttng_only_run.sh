@@ -6,16 +6,22 @@
 #   e.g. ./lttng_only_run.sh run01 300
 set -e
 
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 RUN_ID=${1:-run01}
 DURATION=${2:-300}
-EXPERIMENT_DIR=~/experiments/lttng_only/$RUN_ID
+EXPERIMENT_ROOT=${EXPERIMENT_ROOT:-~/experiments}
+EXPERIMENT_DIR=$EXPERIMENT_ROOT/lttng_only/$RUN_ID
 FRONTEND_HOST=${FRONTEND_HOST:-http://localhost:80}
 LOAD_USERS=${LOAD_USERS:-200}
+THINK_MIN=${THINK_MIN:-0.2}
+THINK_MAX=${THINK_MAX:-1.0}
 QUIET_FLAG=${3:-}    # pass --quiet to silence the OTel span printing
+LOAD_GENERATOR=${LOAD_GENERATOR:-$SCRIPT_DIR/load_generator.py}
 
 mkdir -p "$EXPERIMENT_DIR"/load_logs
 
 echo "🚀 LTTng ONLY (no LMAT): $RUN_ID (${DURATION}s, ${LOAD_USERS} users)"
+echo "   Host=$FRONTEND_HOST  think=${THINK_MIN}-${THINK_MAX}s  root=$EXPERIMENT_ROOT"
 
 RUN_START_EPOCH=$(date -u +%s)
 
@@ -25,16 +31,16 @@ sudo mkdir -p "$TRACE_DIR"/{kernel,ust} 2>/dev/null || true
 sudo chown -R "$(whoami)" ~/traces/lttng_only 2>/dev/null || true
 
 # ── Tracing (kernel + UST, same as normal runs) ──────────────────────────────
-(~/adaptive_tracer/microservice-lttng-data-collection-scripts/collect_trace.sh lttng_only "$RUN_ID" "$DURATION" $QUIET_FLAG) &
+("$SCRIPT_DIR/collect_trace.sh" lttng_only "$RUN_ID" "$DURATION" $QUIET_FLAG) &
 TRACE_PID=$!
 
 # ── Load generator ───────────────────────────────────────────────────────────
-python3 ~/load_generator.py \
+python3 "$LOAD_GENERATOR" \
     --host "$FRONTEND_HOST" \
     --users "$LOAD_USERS" \
     --duration "$DURATION" \
-    --think-min 0.2 \
-    --think-max 1.0 \
+    --think-min "$THINK_MIN" \
+    --think-max "$THINK_MAX" \
     --log-level WARNING \
     --output "$EXPERIMENT_DIR/load_results.csv" &
 LOAD_PID=$!

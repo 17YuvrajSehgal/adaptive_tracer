@@ -131,6 +131,8 @@ def get_args():
     # Async queue
     p.add_argument("--queue_maxsize", type=int, default=50,
                    help="Max windows buffered in async queue before dropping oldest")
+    p.add_argument("--torch_threads", type=int, default=2,
+                   help="Number of CPU threads PyTorch may use for inference")
 
     return p.parse_args()
 
@@ -640,8 +642,9 @@ def main():
     device = torch.device("cpu")   # GCP VM has no GPU
 
     # ── Torch settings optimised for CPU inference ───────────────────────────
-    torch.set_num_threads(2)           # leave most CPUs for SockShop
+    torch.set_num_threads(args.torch_threads)
     torch.set_grad_enabled(False)
+    log.info("PyTorch CPU threads: %d", args.torch_threads)
 
     # ── Load vocab and latency boundaries ───────────────────────────────────
     log.info("Loading vocab from %s", args.vocab_path)
