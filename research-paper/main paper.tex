@@ -490,14 +490,14 @@ Once the error vector is formed, it is compared against the centroids of pre-lab
 
 
 \section{Data Collection}\label{dcollection}
-To evaluate the effectiveness of the proposed LMAT approach, we require kernel traces from a real-world application that satisfy three key criteria: (1) sufficient scale to support training of deep neural networks, (2) detailed kernel event arguments to compute {event\_duration} and support effective modeling, and (3) coverage of both normal and anomalous system behaviors. The dataset introduced by \cite{fournier2023language} is the most suitable publicly available resource for this purpose. It includes traces of two million web requests with corresponding event arguments, encompassing both normal operations and scenarios involving known system issues.
+\textcolor{red}{To evaluate the effectiveness of LMAT, we require kernel traces from real-world applications that satisfy three criteria: (1) sufficient scale to support neural sequence models, (2) rich event arguments that permit recovery of \textit{event\_duration} and contextual modeling, and (3) coverage of both normal and anomalous behaviors. We therefore use two complementary datasets. The first is the public corpus introduced by \cite{fournier2023language}, which provides a strong Apache-based benchmark and enables direct comparison with prior work. The second is a new dataset that we collected from the Sock Shop microservice benchmark using the same kernel-centric tracing philosophy but on a containerized multi-service application.}
 
-While part of our evaluation is based on this dataset to enable direct comparison with prior work, we also collect an additional dataset of similar scale using the same instrumentation methodology. This enables us to collect traces of other types of system behavior, which present greater challenges to trace models and potentially address the gaps left by the previous dataset. Our objective is to enhance the dataset's diversity, thereby providing a more accurate representation of real-world applications. In particular, we focus on performance-related issues that significantly impact the duration of event processing within the system.
+\textcolor{red}{This combination serves two purposes. It preserves continuity with prior LMAT-style evaluation on a request-driven web workload, while also broadening the empirical basis of the study to an architecturally different setting with multiple interacting services and host-level resource perturbations. Across the two environments, the raw collection artifacts include kernel traces with event arguments, and, for Sock Shop, additional UST span exports, request-level load logs, and Prometheus metrics that support cross-layer inspection and runtime-overhead analysis.}
 
 Following the methodology outlined in \cite{fournier2023language}, we established a test environment consisting of an Apache2 web server and a client executing a benchmark to send HTTP requests to the server. The experiments were conducted on a machine equipped with an Intel\textregistered{} Core\textsuperscript{TM} i7 CPU and 32 GB of DDR5 RAM, specifications that are robust and detailed in Table~\ref{tbl:systemconfiguration}. A clean installation of Linux Ubuntu 22.04.2 LTS ran on the system, providing a stable and controlled environment for the tests. On the client side, the wrk2 benchmark was configured to send 1000 requests per second to fully engage the server. We collected traces exclusively from the server side, as it is the principal source of latency within the system. \textcolor{black}{The web server was traced for 1,000 seconds to compile the training set and for 100 seconds each to assemble both the validation and test sets under normal and noisy conditions, resulting in 1,000,000 requests for the training set and 100,000 requests for each of the test and validation sets. \textcolor{blue}{ The noisy conditions correspond to various types of intentionally injected anomalies that simulate realistic system-level misconfigurations and performance bottlenecks.}}
 
 \begin{table}[tb]
-\caption{\textcolor{blue}{Specification of the system used to collect trace data for the experiments.}}
+\caption{\textcolor{red}{Specification of the Apache-server host used to collect trace data for the baseline experiments.}}
 \centering
 \begin{adjustbox}{center, width=0.8\textwidth}
 \begin{tabular}{lc}
@@ -513,12 +513,38 @@ OS & \textit{Linux Ubuntu 22.04.2 LTS}\\
 \label{tbl:systemconfiguration}
 \end{table}
 
+\textcolor{red}{To complement this baseline, we deployed the Sock Shop microservice benchmark on a dedicated Google Cloud Platform virtual machine and collected traces from the host while the services executed under Docker Compose. Each run produced a raw kernel trace, a UST trace containing relayed OpenTelemetry export events, metadata snapshots, request-level load logs, and Prometheus metrics. The resulting dataset contains five independent runs for each of five scenarios: \textit{normal}, \textit{anomaly\_cpu}, \textit{anomaly\_disk}, \textit{anomaly\_mem}, and \textit{anomaly\_net}. Importantly, the collected kernel traces preserve \texttt{procname}, \texttt{pid}, \texttt{tid}, and syscall entry/exit structure, which makes them directly compatible with the LMAT representation used throughout this paper.}
+
+\begin{table}[tb]
+\caption{\textcolor{red}{Specification of the cloud VM used to host and trace the Sock Shop experiments.}}
+\centering
+\begin{adjustbox}{center, width=0.85\textwidth}
+\begin{tabular}{lc}
+\hline \hline
+Name & \textit{Specification} \\\hline
+\textcolor{red}{Platform / zone} & \textcolor{red}{Google Cloud Platform, us-central1-a} \\
+\textcolor{red}{Machine type} & \textcolor{red}{e2-custom-12-40960} \\
+\textcolor{red}{CPU} & \textcolor{red}{12 vCPUs, Intel Broadwell} \\
+\textcolor{red}{Memory} & \textcolor{red}{40 GB} \\
+\textcolor{red}{Boot disk} & \textcolor{red}{300 GB balanced persistent disk} \\
+\textcolor{red}{OS image} & \textcolor{red}{Ubuntu 22.04 LTS (ubuntu-2204-jammy-v20260225)} \\
+\textcolor{red}{GPU} & \textcolor{red}{None} \\
+\hline \hline
+\end{tabular}
+\end{adjustbox}
+\label{tbl:systemconfiguration_sockshop}
+\end{table}
+
 
 \subsection{\textcolor{blue}{Anomaly Generation Methodology}}
+
+\textcolor{red}{For clarity, the Apache environment contains seven injected server-side faults, listed below, all applied under the same workload conditions used during normal operation (1,000 HTTP requests per second).}
 
 \textcolor{blue}{To evaluate the model’s ability to detect anomalies, we introduced six types of controlled server-side faults, each designed to mimic common real-world issues. These anomalies were injected individually under the same workload conditions used during normal operation (1,000 HTTP requests per second) to ensure consistent system stress and comparability across experiments.}
 
 \textcolor{blue}{The anomalies are as follows:}
+
+\textcolor{red}{The Apache anomaly set contains seven conditions in total, corresponding exactly to the seven items listed below.}
 
 \begin{itemize}
     \item \textcolor{blue}{\textbf{OPcache:} PHP's OPcache was turned off, preventing the reuse of precompiled bytecode and thereby increasing request latency. This behavior reflects a common development misconfiguration when caching is disabled and not re-enabled before deployment.}
@@ -533,8 +559,19 @@ OS & \textit{Linux Ubuntu 22.04.2 LTS}\\
 \textcolor{blue}{These injected conditions offer a diverse mix of CPU, I/O, and configuration-level anomalies, helping assess LMAT’s sensitivity to both subtle and significant changes in system behavior.}
 
 
+\textcolor{red}{For Sock Shop, we used host-level anomaly injection while driving the application with the repository's load generator over realistic shopping actions. The four anomaly families are as follows:}
+
+\begin{itemize}
+    \item \textcolor{red}{\textbf{CPU stress:} We used \texttt{stress-ng} to saturate the available CPU resources, creating contention that propagates across the co-located microservices.}
+    \item \textcolor{red}{\textbf{Disk stress:} We used \texttt{stress-ng} to generate heavy disk activity, increasing I/O wait time and affecting the storage-backed services in the application stack.}
+    \item \textcolor{red}{\textbf{Memory stress:} We used \texttt{stress-ng} to create sustained memory pressure, inducing slower execution and interference across concurrently running services.}
+    \item \textcolor{red}{\textbf{Network stress:} We used host-level traffic control to perturb network behavior, introducing communication slowdowns that propagate through inter-service interactions.}
+\end{itemize}
+
+\textcolor{red}{Together, the Apache and Sock Shop collections cover configuration faults, compute contention, storage pressure, memory pressure, and network degradation. This yields a diverse anomaly space that helps assess LMAT's sensitivity to both subtle and substantial behavioral shifts across distinct software architectures.}
+
 \subsection{Duration Preprocessing}
-Labeling the events in trace data with their respective durations involves identifying the start and end kernel events that define an operation interval within the system. The interval begins with the timestamp of an `Entry' event and concludes with the timestamp of the corresponding `Exit' event. These `Entry' and `Exit' events are matched based on their PID and TID arguments. The duration of a specific interval is calculated by determining the difference between the timestamps of the matched `Entry' and `Exit' events, and this duration is then tagged to the `Exit' event. Conversely, the `Entry' event is assigned a `none' tag for its duration, indicating that no duration is measured at that point. This method ensures that each operation interval is accurately represented by its corresponding duration, which is crucial for precise system analysis and performance metric evaluation. In the following section, we describe how these durations are categorized and adjusted throughout system operation.
+Labeling the events in trace data with their respective durations involves identifying the start and end kernel events that define an operation interval within the system. The interval begins with the timestamp of an `Entry' event and concludes with the timestamp of the corresponding `Exit' event. \textcolor{red}{In the implemented preprocessing pipeline, entry and exit records are matched within the same execution context, operationalized by syscall identity and thread ID, while PID and process metadata are retained as additional contextual features.} The duration of a specific interval is calculated by determining the difference between the timestamps of the matched `Entry' and `Exit' events, and this duration is then tagged to the `Exit' event. Conversely, the `Entry' event is assigned a `none' tag for its duration, indicating that no duration is measured at that point. This method ensures that each operation interval is accurately represented by its corresponding duration, which is crucial for precise system analysis and performance metric evaluation. In the following section, we describe how these durations are categorized and adjusted throughout system operation.
 
 \subsubsection{Duration Categorization}
 
