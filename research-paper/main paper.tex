@@ -70,7 +70,7 @@
 %% for the whole article with \linenumbers.
 %% \usepackage{lineno}
 
-\journal{Nuclear Physics B}
+\journal{The Journal of Systems and Software}
 
 \begin{document}
 
@@ -124,6 +124,9 @@
 \author[1]{Morteza Noferesti\fnref{equal}}
 \ead{mnoferesti@brocku.ca}
 
+\author[1]{Yuvraj Sehgal}\fnref{equal}
+\ead{ys19rk@brocku.ca}
+
 \author[1]{Naser Ezzati-Jivan}
 \ead{nezzati@brocku.ca}
 
@@ -141,10 +144,11 @@
 
 %% Abstract
 \begin{abstract}
-We introduce LMAT, a Language Model-based Adaptive Tracing framework designed for intelligent DevOps pipelines requiring granular observability without excessive monitoring overhead. LMAT leverages a multi-task architecture to jointly predict kernel event sequences and classify event durations, thereby capturing both control-flow and temporal dynamics. By continuously comparing live trace data against model predictions, LMAT automatically signals deviations, dynamically adjusting trace granularity only when needed. This approach significantly reduces trace volume, along with associated energy and storage costs, achieving a 70.6\% reduction in our experiments.
+We introduce LMAT, a Language Model-based Adaptive Tracing framework designed for \textcolor{red}{host-level observability that provides granular monitoring without excessive overhead}. LMAT leverages a multi-task architecture to jointly predict kernel event sequences and classify event durations, thereby capturing both control-flow and temporal dynamics. By continuously comparing live trace data against model predictions, LMAT automatically signals deviations, dynamically adjusting trace granularity only when needed. This approach significantly reduces trace volume, along with associated energy and storage costs, achieving a 70.6\% reduction in our experiments.
 
-Additionally, LMAT utilizes prediction discrepancies to drive an efficient root-cause classifier, mapping detected anomalies directly to their potential fault sources and providing actionable feedback for operations teams. Evaluated against an extensive corpus of Linux kernel traces, including standard workloads and two newly introduced duration-centric noise scenarios, LMAT demonstrates up to \textbf{97.7\%} accuracy in anomaly detection and root-cause identification, surpassing state-of-the-art methods relying solely on event sequences. Our findings illustrate that LMAT offers a practical, sustainable, and AI-driven solution for adaptive tracing, ideally suited for modern DevOps environments striving for balanced performance, reliability, and resource efficiency.
+Additionally, LMAT utilizes prediction discrepancies to drive an efficient root-cause classifier, mapping detected anomalies directly to their potential fault sources and providing actionable feedback for operations teams. \textcolor{red}{We evaluate LMAT on two architecturally distinct single-host environments---an Apache2 web-server stack and the Sock Shop containerized microservice benchmark---using kernel traces that include standard workloads, duration-centric noise scenarios, and controlled CPU, disk, memory, and network stress injections.} \textcolor{red}{On the Apache workload,} LMAT demonstrates up to \textbf{97.7\%} accuracy in anomaly detection and root-cause identification, surpassing state-of-the-art methods relying solely on event sequences. \textcolor{red}{On Sock Shop, the same design remains effective for host-local change detection, while root-cause attribution in the microservice setting remains more challenging. A deployment-oriented overhead study further shows that asynchronous LMAT inference increases P95 latency by 13.0\% and reduces throughput by 1.3\% relative to tracing alone.} Our findings illustrate that LMAT offers a practical, sustainable, and AI-driven solution for adaptive tracing \textcolor{red}{in the evaluated single-host environments}.
 \end{abstract}
+
 
 %%Graphical abstract
 %\begin{graphicalabstract}
@@ -152,16 +156,17 @@ Additionally, LMAT utilizes prediction discrepancies to drive an efficient root-
 %\end{graphicalabstract}
 
 \begin{highlights}
-\item Proposes LMAT, a language model-based adaptive tracing approach tailored for intelligent DevOps observability.
+\item Proposes LMAT, a language model-based adaptive tracing approach tailored for \textcolor{red}{host-level system observability}.
 \item Dynamically adjusts tracing granularity by detecting deviations in live kernel event sequences and durations.
-\item Achieves 97.7\% anomaly detection accuracy while reducing trace data volume by 70.6\%, enhancing observability with minimal overhead.
+\item \textcolor{red}{Evaluates LMAT on two architecturally distinct single-host environments (Apache web server and Sock Shop microservices), achieving up to 97.7\% anomaly detection accuracy on the Apache workload while reducing trace data volume by 70.6\%.}
 \item Automates root-cause analysis, mapping detected anomalies to likely fault sources, significantly reducing debugging time and effort.
+\item \textcolor{red}{Quantifies deployment overhead, showing that asynchronous LMAT inference reduces application throughput by only 1.3\% relative to tracing alone.}
 \end{highlights}
 
 
 %% Keywords
 \begin{keyword}
-Adaptive Tracing\sep Language Model\sep Root Cause Analysis\sep Change Detection\sep Trace Duration Modeling\sep Observability\sep Intelligent DevOps
+Adaptive Tracing\sep Language Model\sep Root Cause Analysis\sep Change Detection\sep Trace Duration Modeling\sep Observability\sep \textcolor{red}{Host-Level Monitoring}
 \end{keyword}
 %% keywords here, in the form: keyword \sep keyword
 
@@ -199,7 +204,7 @@ In this paper, we introduce LMAT, a Language Model-based Adaptive Tracing framew
 
 \textcolor{red}{We evaluate LMAT on two architecturally distinct single-host environments. First, we use the dataset from Fournier \textit{et al.}~\cite{fournier2023language} and augment it with additional scenarios emphasizing system call duration anomalies in an Apache2-based stack. Second, we collect a new kernel-centric dataset from the Sock Shop microservice benchmark, combining LTTng tracing, relayed OpenTelemetry span metadata, and controlled CPU, disk, memory, and network stress scenarios. This unified evaluation lets us study LMAT on both a monolithic request-response workload and a containerized microservice application while preserving the same kernel-level modeling assumptions.}
 
-Our experiments demonstrate LMAT’s effectiveness in adaptively tracing system behavior, capturing abrupt changes with only 3.2\% event loss and reducing collected trace data by 70.6\%. Moreover, LMAT accurately identifies anomaly scenarios with 97.7\% accuracy, significantly outperforming previous state-of-the-art methods that rely solely on event sequence modeling. This improvement underscores LMAT’s ability to efficiently balance comprehensive monitoring with minimal resource overhead.
+Our experiments demonstrate LMAT’s effectiveness in adaptively tracing system behavior, capturing abrupt changes with only 3.2\% event loss and reducing collected trace data by 70.6\%. Moreover, LMAT accurately identifies anomaly scenarios with 97.7\% accuracy \textcolor{red}{on a conventional web server}, significantly outperforming previous state-of-the-art methods that rely solely on event sequence modeling. This improvement underscores LMAT’s ability to efficiently balance comprehensive monitoring with minimal resource overhead.
 
 \textcolor{red}{Beyond these Apache-based results, our evaluation on Sock Shop shows that the same LMAT design remains effective on a substantially different execution architecture, namely a containerized microservice application with multi-service interactions and resource-contention faults. We further complement the offline accuracy study with deployment-oriented experiments that quantify LMAT's cost in terms of application latency and throughput, thereby grounding the framework's practical viability in addition to its detection quality.}
 
@@ -212,34 +217,35 @@ In this paper, we present four main contributions to the field of adaptive traci
 \end{enumerate}
 
 
-\textcolor{blue}{The remainder of this paper is structured as follows. Section \ref{rwork} reviews related work, Section \ref{methodology} details the LMAT framework, Section \ref{dcollection} describes the dataset collection and preprocessing, Section \ref{results} evaluates LMAT’s performance and analyzes runtime overhead, Section~\ref{sec:discussion} discusses applicability to multi-host settings, operator workload/feedback, and threats to validity, and finally, Section \ref{conc} concludes the paper and outlines future research directions.} To facilitate reproducibility and future work, the LMAT implementation\footnote{\url{https://github.com/kasra-darvishi/adaptive_tracer}} and associated datasets\footnote{\url{https://zenodo.org/records/10437041}} have been made publicly accessible.
+The remainder of this paper is structured as follows. Section \ref{rwork} reviews related work, Section \ref{methodology} details the LMAT framework, Section \ref{dcollection} describes the dataset collection and preprocessing, Section \ref{results} evaluates LMAT’s performance and analyzes runtime overhead, Section~\ref{sec:discussion} discusses applicability to multi-host settings, operator workload/feedback, and threats to validity, and finally, Section \ref{conc} concludes the paper and outlines future research directions. To facilitate reproducibility and future work, the LMAT implementation\footnote{\url{https://github.com/kasra-darvishi/adaptive_tracer}} and associated datasets\footnote{\url{https://zenodo.org/records/10437041}} have been made publicly accessible.
 
 
-\section{\textcolor{blue}{Related Work}}\label{rwork}
-\textcolor{blue}{Tracing systems aim to capture runtime behavior while minimizing performance overhead and data volume. This has led to two broad directions: (1) adaptive tracing, which dynamically adjusts what to record \emph{during execution}, and (2) trace selection, which decides \emph{after execution} which traces to retain, often referred to as tail retention. The former targets fine-grained control for real-time responsiveness, while the latter prioritizes budget-aware curation of completed traces. LMAT contributes to adaptive tracing: it predicts expected system behavior from kernel event streams and adjusts trace granularity online based on deviation. Below, we survey tail-retention techniques, adaptive instrumentation systems, and prior work on sequence and duration modeling, positioning LMAT in this evolving space.}
+
+\section{Related Work}\label{rwork}
+Tracing systems aim to capture runtime behavior while minimizing performance overhead and data volume. This has led to two broad directions: (1) adaptive tracing, which dynamically adjusts what to record \emph{during execution}, and (2) trace selection, which decides \emph{after execution} which traces to retain, often referred to as tail retention. The former targets fine-grained control for real-time responsiveness, while the latter prioritizes budget-aware curation of completed traces. LMAT contributes to adaptive tracing: it predicts expected system behavior from kernel event streams and adjusts trace granularity online based on deviation. Below, we survey tail-retention techniques, adaptive instrumentation systems, and prior work on sequence and duration modeling, positioning LMAT in this evolving space.
 
 \subsection{Tail-retention sampling of end-to-end traces}
-\textcolor{blue}{Sieve~\cite{huang2021sieve} encodes each trace as a path vector that jointly captures control-flow presence/absence and per-path latency, scores “uncommonness” with an enhanced Robust Random Cut Forest, and maps that score (and its recent variance) to a sampling probability—retaining structurally or temporally rare traces at low budgets. TraStrainer~\cite{huang2024trastrainer} augments tail sampling with the system’s current runtime state: a Transformer-based trace representation is combined with a metric-derived preference vector, and a budget-aware AND/OR gate blends a system-biased sampler with a diversity-biased sampler, yielding more problem-related traces and stronger downstream root-cause analysis. Hindsight~\cite{zhang2023benefit} is complementary to tail retention: it performs retroactive tracing by buffering low-overhead data and selectively retrieving edge-case segments once a symptom is detected, enabling post-hoc reconstruction without continuous high-volume recording.
-In contrast, LMAT does not rank completed traces; it detects change during execution and raises or lowers tracing detail in real time. These approaches are nevertheless complementary: LMAT governs \emph{what and when} to record inline, while a tail-retention or retroactive system can still curate or retrieve among completed traces.}
+Sieve~\cite{huang2021sieve} encodes each trace as a path vector that jointly captures control-flow presence/absence and per-path latency, scores “uncommonness” with an enhanced Robust Random Cut Forest, and maps that score (and its recent variance) to a sampling probability—retaining structurally or temporally rare traces at low budgets. TraStrainer~\cite{huang2024trastrainer} augments tail sampling with the system’s current runtime state: a Transformer-based trace representation is combined with a metric-derived preference vector, and a budget-aware AND/OR gate blends a system-biased sampler with a diversity-biased sampler, yielding more problem-related traces and stronger downstream root-cause analysis. Hindsight~\cite{zhang2023benefit} is complementary to tail retention: it performs retroactive tracing by buffering low-overhead data and selectively retrieving edge-case segments once a symptom is detected, enabling post-hoc reconstruction without continuous high-volume recording.
+In contrast, LMAT does not rank completed traces; it detects change during execution and raises or lowers tracing detail in real time. These approaches are nevertheless complementary: LMAT governs \emph{what and when} to record inline, while a tail-retention or retroactive system can still curate or retrieve among completed traces.
 
 
 \subsection{Systems that adapt instrumentation}
-\textcolor{blue}{Dynamic tracing systems such as DTrace~\cite{cantrill2004dynamic} and Pivot Tracing~\cite{mace2015pivot} provide selective instrumentation via static rules or query-like specifications but require manual configuration or source-level hooks. Zhang \textit{et al.}~\cite{zhang2020diagnostic} adapt probe placement using clustering and regression over performance metrics to classify states and toggle instrumentation, and VAIF~\cite{toslali2021automating,toslali2022vaif} enables probes based on response-time variance. These systems adjust \emph{what} to instrument but do not learn fine-grained temporal dynamics nor react at per-event granularity. LMAT differs by training a predictive model over kernel events and durations and using the model’s error \emph{online} to control tracing intensity automatically, without source changes.}
+Dynamic tracing systems such as DTrace~\cite{cantrill2004dynamic} and Pivot Tracing~\cite{mace2015pivot} provide selective instrumentation via static rules or query-like specifications but require manual configuration or source-level hooks. Zhang \textit{et al.}~\cite{zhang2020diagnostic} adapt probe placement using clustering and regression over performance metrics to classify states and toggle instrumentation, and VAIF~\cite{toslali2021automating,toslali2022vaif} enables probes based on response-time variance. These systems adjust \emph{what} to instrument but do not learn fine-grained temporal dynamics nor react at per-event granularity. LMAT differs by training a predictive model over kernel events and durations and using the model’s error \emph{online} to control tracing intensity automatically, without source changes.
 
 
 \subsection{Microservice-level root-cause analysis and deployment optimization}
-\textcolor{blue}{Khanahmadi \textit{et al.}~\cite{khanahmadi2023detection} combine distributed tracing with learned service-dependency graphs to detect and localize performance anomalies in microservices, and Pan \textit{et al.}~\cite{pan2023tracing} use trace-derived runtime graphs for locality-aware scheduling. These systems reason at the service graph level for diagnosis or placement. LMAT targets a different layer: kernel-level event streams across architectures, adapting tracing granularity in real time to capture the onset and context of behavioral changes without application modifications.}
+Khanahmadi \textit{et al.}~\cite{khanahmadi2023detection} combine distributed tracing with learned service-dependency graphs to detect and localize performance anomalies in microservices, and Pan \textit{et al.}~\cite{pan2023tracing} use trace-derived runtime graphs for locality-aware scheduling. These systems reason at the service graph level for diagnosis or placement. LMAT targets a different layer: kernel-level event streams across architectures, adapting tracing granularity in real time to capture the onset and context of behavioral changes without application modifications.
 
 
 \subsection{Sequence- and duration-aware anomaly detection}
-\textcolor{blue}{Beyond deciding \emph{which} traces to keep or \emph{where} to place probes, a complementary line of work learns temporal regularities \emph{within} traces. Early efforts leverage durations at coarse granularity (e.g., sliding windows of system-call times~\cite{kohyarnejadfard2019system}) or emphasize static path/distributed processing pipelines~\cite{janecek2022performance,denys2023distributed}. LSTM-based models further demonstrate the value of sequence learning for multi-modal traces~\cite{nedelkoski2019anomaly}. Closer to our setting, Fournier \textit{et al.} first learn syscall representations with arguments~\cite{fournier2021improving}, then append the \emph{elapsed time between consecutive system calls} to the event representation to improve sensitivity to duration-sensitive novelties~\cite{fournier2023language}. These approaches, however, operate as \emph{detectors/classifiers}: they neither adapt tracing configurations nor close a control loop that responds during execution.}
+Beyond deciding \emph{which} traces to keep or \emph{where} to place probes, a complementary line of work learns temporal regularities \emph{within} traces. Early efforts leverage durations at coarse granularity (e.g., sliding windows of system-call times~\cite{kohyarnejadfard2019system}) or emphasize static path/distributed processing pipelines~\cite{janecek2022performance,denys2023distributed}. LSTM-based models further demonstrate the value of sequence learning for multi-modal traces~\cite{nedelkoski2019anomaly}. Closer to our setting, Fournier \textit{et al.} first learn syscall representations with arguments~\cite{fournier2021improving}, then append the \emph{elapsed time between consecutive system calls} to the event representation to improve sensitivity to duration-sensitive novelties~\cite{fournier2023language}. These approaches, however, operate as \emph{detectors/classifiers}: they neither adapt tracing configurations nor close a control loop that responds during execution.
 
 \subsection{LMAT in context: what is new relative to prior art}
-\textcolor{blue}{LMAT builds on the above insights but differs in three ways that are central to adaptive tracing.
+LMAT builds on the above insights but differs in three ways that are central to adaptive tracing.
 \emph{First}, it uses \emph{multi-task forecasting at kernel-event granularity}—jointly predicting the next event token(s) and their duration—to produce per-event disagreement signals that are more sensitive to true behavioral shifts than sequence-only or duration-only objectives.
 \emph{Second}, it \emph{closes the loop}: prediction errors drive \emph{immediate} tracing actions (escalate/de-escalate granularity) and yield low-dimensional error vectors that support lightweight diagnosis (clustering/classification).
 \emph{Third}, it is \emph{practical and architecture-agnostic}: the LSTM-based LMAT attains accuracy and detection delay comparable to the Transformer variant at lower computational cost, making it suitable for constrained environments.
-We evaluate LMAT on the benchmark of Fournier \textit{et al.}~\cite{fournier2023language} and extend it with duration-intensive scenarios, showing reliable capture of prolonged or delayed activity patterns that representation-only models struggle to surface—while simultaneously enabling real-time trace control and diagnosis.}
+We evaluate LMAT on the benchmark of Fournier \textit{et al.}~\cite{fournier2023language} and extend it with duration-intensive scenarios, showing reliable capture of prolonged or delayed activity patterns that representation-only models struggle to surface—while simultaneously enabling real-time trace control and diagnosis.
 
 
 
@@ -271,10 +277,10 @@ A system trace consists of kernel-level events enriched with arguments such as p
 \begin{figure}[tbp]
     \centering
     \includegraphics[width=0.8\linewidth]{figs/sample_trace_sequence.pdf}
-    \caption{\textcolor{blue}{Timestamp-ordered event stream with entry/exit records for three event types (\(E_1,E_2,E_3\)).
+    \caption{Timestamp-ordered event stream with entry/exit records for three event types (\(E_1,E_2,E_3\)).
     Blue boxes denote \emph{entry} (start) events and green boxes denote \emph{exit} (end) events.
     Dashed lines link each entry to its matching exit for the same context (e.g., thread/process), and the horizontal arrows indicate per-instance durations.
-    Overlaps illustrate interleaving: although events are shown in a single timeline, multiple instances can be concurrent and their durations are recovered by matching entry/exit pairs.}}
+    Overlaps illustrate interleaving: although events are shown in a single timeline, multiple instances can be concurrent and their durations are recovered by matching entry/exit pairs.}
     \label{fig:sample_sequence}
 \end{figure}
 
@@ -296,7 +302,8 @@ Following~\cite{fournier2021improving}, we represent each event with a vector th
 
 We also incorporate two derived features: \textit{Return status} (\texttt{retstat}) is set to “success” if the return value is non-negative, “failure” otherwise. \textit{Delay} is the time elapsed since the previous event, regardless of type.
 
-\textcolor{red}{In the implemented LMAT pipeline, syscall entry and exit records are further normalized by storing the base syscall identity once and encoding the execution phase separately through an \textit{entry/exit indicator}. This design lets the model share statistical strength across the two phases of the same syscall while still distinguishing call initiation from completion.}
+\textcolor{red}{In the implemented LMAT pipeline, syscall records are represented by separating the syscall identity from its execution phase. Concretely, both \texttt{syscall\_entry\_*} and \texttt{syscall\_exit\_*} events are mapped to the same base syscall name, while a dedicated \textit{entry/exit indicator} records whether the event corresponds to call initiation or completion. This representation preserves the distinction between start and end events without treating them as unrelated event types, and it also supports recovery of syscall execution durations by matching entry and exit events within the same execution context.}
+
 
 \begin{table}[tb]
 \caption{Key arguments and their descriptions for forming the event representation.}
@@ -341,8 +348,6 @@ H_{\text{sequence}} = \frac{1}{n}\sum_{j=1}^{n} H(p_j, q_j) = \frac{-1}{n}\sum_{
 \end{equation}
 
 In this equation, $n$ represents the number of events in the sequence. Thus, a higher sequence loss indicates a greater mismatch between expected and observed behavior, making it a reliable signal for detecting anomalies or novelties.
-
-\textcolor{red}{At deployment time, LMAT computes one novelty score per sequence. In single-task configurations, this score is the corresponding sequence-level loss. In the multi-task configuration, the event and duration losses are first normalized with Median Absolute Deviation statistics estimated from held-out in-distribution validation data and are then summed to produce a single decision score before thresholding.}
 
 
 
@@ -443,7 +448,7 @@ Our method extracts these events and uses them to identify the root cause of eac
     \centering
     \hspace*{-0.13\linewidth}
     \includegraphics[width=1\linewidth]{figs/count_of_error_all.pdf}
-    \caption{\textcolor{blue}{Comparison of incorrect prediction distributions across out-of-distribution sets for frequent events, showing the unique pattern each type of anomaly exhibits.}}
+    \caption{Comparison of incorrect prediction distributions across out-of-distribution sets for frequent events, showing the unique pattern each type of anomaly exhibits.}
     \label{fig:compare_distro}
 \end{figure}
 
@@ -494,7 +499,9 @@ Once the error vector is formed, it is compared against the centroids of pre-lab
 
 \textcolor{red}{This combination serves two purposes. It preserves continuity with prior LMAT-style evaluation on a request-driven web workload, while also broadening the empirical basis of the study to an architecturally different setting with multiple interacting services and host-level resource perturbations. Across the two environments, the raw collection artifacts include kernel traces with event arguments, and, for Sock Shop, additional UST span exports, request-level load logs, and Prometheus metrics that support cross-layer inspection and runtime-overhead analysis.}
 
-Following the methodology outlined in \cite{fournier2023language}, we established a test environment consisting of an Apache2 web server and a client executing a benchmark to send HTTP requests to the server. The experiments were conducted on a machine equipped with an Intel\textregistered{} Core\textsuperscript{TM} i7 CPU and 32 GB of DDR5 RAM, specifications that are robust and detailed in Table~\ref{tbl:systemconfiguration}. A clean installation of Linux Ubuntu 22.04.2 LTS ran on the system, providing a stable and controlled environment for the tests. On the client side, the wrk2 benchmark was configured to send 1000 requests per second to fully engage the server. We collected traces exclusively from the server side, as it is the principal source of latency within the system. \textcolor{black}{The web server was traced for 1,000 seconds to compile the training set and for 100 seconds each to assemble both the validation and test sets under normal and noisy conditions, resulting in 1,000,000 requests for the training set and 100,000 requests for each of the test and validation sets. \textcolor{blue}{ The noisy conditions correspond to various types of intentionally injected anomalies that simulate realistic system-level misconfigurations and performance bottlenecks.}}
+\textcolor{red}{The Apache-based dataset family comprises the public Fournier corpus together with additional scenarios we collected on a second physical machine; these are treated as a single workload group throughout the evaluation, while Sock Shop constitutes the second, architecturally distinct dataset.}
+
+Following the methodology outlined in \cite{fournier2023language}, we established a test environment consisting of an Apache2 web server and a client executing a benchmark to send HTTP requests to the server. The experiments were conducted on a machine equipped with an Intel\textregistered{} Core\textsuperscript{TM} i7 CPU and 32 GB of DDR5 RAM, specifications that are robust and detailed in Table~\ref{tbl:systemconfiguration}. A clean installation of Linux Ubuntu 22.04.2 LTS ran on the system, providing a stable and controlled environment for the tests. On the client side, the wrk2 benchmark was configured to send 1000 requests per second to fully engage the server. We collected traces exclusively from the server side, as it is the principal source of latency within the system. \textcolor{black}{The web server was traced for 1,000 seconds to compile the training set and for 100 seconds each to assemble both the validation and test sets under normal and noisy conditions, resulting in 1,000,000 requests for the training set and 100,000 requests for each of the test and validation sets. The noisy conditions correspond to various types of intentionally injected anomalies that simulate realistic system-level misconfigurations and performance bottlenecks.}
 
 \begin{table}[tb]
 \caption{\textcolor{red}{Specification of the Apache-server host used to collect trace data for the baseline experiments.}}
@@ -536,27 +543,23 @@ Name & \textit{Specification} \\\hline
 \end{table}
 
 
-\subsection{\textcolor{blue}{Anomaly Generation Methodology}}
+\subsection{Anomaly Generation Methodology}
 
-\textcolor{red}{For clarity, the Apache environment contains seven injected server-side faults, listed below, all applied under the same workload conditions used during normal operation (1,000 HTTP requests per second).}
+To evaluate the model’s ability to detect anomalies for the Apache server, we introduced seven types of controlled server-side faults, each designed to mimic common real-world issues. These anomalies were injected individually under the same workload conditions used during normal operation (1,000 HTTP requests per second) to ensure consistent system stress and comparability across experiments.
 
-\textcolor{blue}{To evaluate the model’s ability to detect anomalies, we introduced six types of controlled server-side faults, each designed to mimic common real-world issues. These anomalies were injected individually under the same workload conditions used during normal operation (1,000 HTTP requests per second) to ensure consistent system stress and comparability across experiments.}
-
-\textcolor{blue}{The anomalies are as follows:}
-
-\textcolor{red}{The Apache anomaly set contains seven conditions in total, corresponding exactly to the seven items listed below.}
+The anomalies are as follows:
 
 \begin{itemize}
-    \item \textcolor{blue}{\textbf{OPcache:} PHP's OPcache was turned off, preventing the reuse of precompiled bytecode and thereby increasing request latency. This behavior reflects a common development misconfiguration when caching is disabled and not re-enabled before deployment.}
-    \item \textcolor{blue}{\textbf{Dump IO:} Apache’s \texttt{dump\_io} module was activated with maximum verbosity, resulting in excessive disk I/O from debug logging.}
-    \item \textcolor{blue}{\textbf{Connection:} Apache’s concurrent connection threshold was lowered from 150 to 25, simulating a misconfiguration or limited-resource deployment.}
-    \item \textcolor{blue}{\textbf{CPU:} Using the \texttt{stress-ng} tool to run intensive matrix multiplication operations, simulating resource contention from unexpected CPU-intensive tasks.}
-    \item \textcolor{blue}{\textbf{Socket:} The persistent connection feature (KeepAlive) in Apache2 was disabled. This forces clients to reopen sockets for each request, increasing CPU utilization and latency, and representing a deployment optimized for memory-limited environments.}
-    \item \textcolor{blue}{\textbf{Sysbench:} We used \texttt{sysbench} to create short bursts of many concurrent database requests. This increases the number of open connections and the amount of work MySQL must do at the same time, which in turn causes queueing delays and slower responses at the web tier.}
-    \item \textcolor{blue}{\textbf{Bandwidth:} We intentionally limited the server’s network speed so responses had to travel over a “narrower pipe”. With less bandwidth, each request takes longer to send/receive, even when the CPU is idle, so overall page loads slow down due to the network alone.}
+    \item \textbf{OPcache:} PHP's OPcache was turned off, preventing the reuse of precompiled bytecode and thereby increasing request latency. This behavior reflects a common development misconfiguration when caching is disabled and not re-enabled before deployment.
+    \item \textbf{Dump IO:} Apache’s \texttt{dump\_io} module was activated with maximum verbosity, resulting in excessive disk I/O from debug logging.
+    \item \textbf{Connection:} Apache’s concurrent connection threshold was lowered from 150 to 25, simulating a misconfiguration or limited-resource deployment.
+    \item \textbf{CPU:} Using the \texttt{stress-ng} tool to run intensive matrix multiplication operations, simulating resource contention from unexpected CPU-intensive tasks.
+    \item \textbf{Socket:} The persistent connection feature (KeepAlive) in Apache2 was disabled. This forces clients to reopen sockets for each request, increasing CPU utilization and latency, and representing a deployment optimized for memory-limited environments.
+    \item \textbf{Sysbench:} We used \texttt{sysbench} to create short bursts of many concurrent database requests. This increases the number of open connections and the amount of work MySQL must do at the same time, which in turn causes queueing delays and slower responses at the web tier.
+    \item \textbf{Bandwidth:} We intentionally limited the server’s network speed so responses had to travel over a “narrower pipe”. With less bandwidth, each request takes longer to send/receive, even when the CPU is idle, so overall page loads slow down due to the network alone.
 \end{itemize}
 
-\textcolor{blue}{These injected conditions offer a diverse mix of CPU, I/O, and configuration-level anomalies, helping assess LMAT’s sensitivity to both subtle and significant changes in system behavior.}
+These injected conditions offer a diverse mix of CPU, I/O, and configuration-level anomalies, helping assess LMAT’s sensitivity to both subtle and significant changes in system behavior.
 
 
 \textcolor{red}{For Sock Shop, we used host-level anomaly injection while driving the application with the repository's load generator over realistic shopping actions. The four anomaly families are as follows:}
@@ -612,7 +615,7 @@ Even under stable conditions, the distribution of event durations undergoes mino
 \begin{figure}[tb]
     \centering
     \includegraphics[width=\linewidth]{figs/Duration Distribution for syscall_exit_connect-1.pdf}
-    \caption{\textcolor{blue}{{Distribution shift of ``connect" syscall durations after 10 seconds of normal operation, demonstrating the need for duration category adjustments.}}}
+    \caption{{Distribution shift of ``connect" syscall durations after 10 seconds of normal operation, demonstrating the need for duration category adjustments.}}
     \label{fig:interval_adjst}
 \end{figure}
 
@@ -626,7 +629,7 @@ To facilitate this minimization, we consider two separate sets of events in the 
 To evaluate this strategy of event reduction, we considered various subsets of events. These include `select-top40', which consists of the 40 most frequently occurring events. To explore the impact of disregarding highly frequent but potentially less informative events, we also created subsets `discard-top10' and `discard-top20', which exclude the top 10 and top 20 most frequent events from the `select-top40' list, respectively. Each of these subsets was selected with the goal of achieving a balance between providing thorough insight into the system's functioning and enhancing the model's efficiency, enabling it to respond to variations in system behavior in a timely manner. A summary of these combinations and their total number of events is listed in Table \ref{tab:subset_syscalls}.
 
 \begin{table}[tb]
-\caption{\textcolor{blue}{The definition and size of each subset of system calls, designed to assess the feasibility of system monitoring with a reduced set of events.}}
+\caption{The definition and size of each subset of system calls, designed to assess the feasibility of system monitoring with a reduced set of events.}
 \label{tab:subset_syscalls}
 \centering
 \renewcommand{\arraystretch}{1.3}
@@ -651,7 +654,7 @@ discard-top20   & 20    & Top 20 events with the highest frequency are disregard
 In our experiment, we implement the proposed LMAT using LSTM, a recurrent neural network, and BERT \cite{devlin2018bert},  a Transformer-based architecture, both of which are commonly employed in tasks related to language modeling. These networks process a sequence of events representing a complete request, except some extreme cases which are truncated to 2048 events. The processing of complete requests is made possible by training the Transformer model with mixed precision \cite{micikevicius2018mixed} and gradient checkpointing \cite{chen2016training}, as these techniques increase memory efficiency, allowing for more effective handling of large sequences \cite{fournier2023language}.
 
 
-The implementation was carried out in Python using the Pytorch framework \cite{paszke2019pytorch}. We set the hyper-parameter $\lambda$ at 0.5. The selection of other hyper-parameters is oriented towards optimizing the change detection task, which is the ultimate objective. To minimize the impact of random variation, each test was performed three times with distinct seeds. The training process takes place on a server provided by the Digital Research Alliance of Canada~\footnote{https://alliancecan.ca}, equipped with two Intel Gold 6148 Skylake processors, four Nvidia V100SXM2 16G GPUs, and 64GB of RAM. \textcolor{red}{The Apache experiments were trained on this configuration.} \textcolor{red}{For the Sock Shop experiments, training was conducted on a separate Alliance compute allocation using one node, 12 CPU cores, one NVIDIA H100 GPU, and 32\,GB of memory.}
+The implementation was carried out in Python using the Pytorch framework \cite{paszke2019pytorch}. We set the hyper-parameter $\lambda$ at 0.5. The selection of other hyper-parameters is oriented towards optimizing the change detection task, which is the ultimate objective. To minimize the impact of random variation, each test was performed three times with distinct seeds. The training process for the \textcolor{red}{Apache experiments} takes place on a server provided by the Digital Research Alliance of Canada~\footnote{https://alliancecan.ca}, equipped with two Intel Gold 6148 Skylake processors, four Nvidia V100SXM2 16G GPUs, and 64GB of RAM. \textcolor{red}{For the Sock Shop experiments, training was conducted on a separate Alliance compute allocation using one node, 12 CPU cores, one NVIDIA H100 GPU, and 32\,GB of memory.}
 
 
 \subsection{Event Sequence and Duration Modeling}
@@ -719,57 +722,63 @@ To understand how duration categorization impacts the model's ability to detect 
 
 \textcolor{red}{For the Sock Shop workload, the same analysis leads to a different operating point. Tables \ref{tab:lstm_multitask_all_metrics} and \ref{tab:transformer_multitask_all_metrics} report the multi-task change-detection results across 3, 5, 7, and 9 duration categories for CPU, disk, memory, and network perturbations. In contrast to the Apache workload, both architectures achieve their highest average F1-score with 5 categories, reaching 65.0 for LSTM and 65.3 for Transformer.}
 
-\begin{table*}[t]
+\begin{table*}[tb]
 \centering
-\caption{\textcolor{red}{LSTM multitask OOD results across category settings.}}
+\caption{\textcolor{red}{LSTM multitask OOD results for the Sock Shop workload across category settings.}}
 \label{tab:lstm_multitask_all_metrics}
 {\color{red}
-\setlength{\tabcolsep}{3pt}
-\renewcommand{\arraystretch}{1.1}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{l|ccccc|ccccc|ccccc|ccccc}
+\begin{adjustbox}{center, width=0.7\textwidth}
+\begin{tabular}{|l|cccc|cccc|cccc|}
 \hline
-\multirow{2}{*}{Dataset} & \multicolumn{5}{c|}{3 Categories} & \multicolumn{5}{c|}{5 Categories} & \multicolumn{5}{c|}{7 Categories} & \multicolumn{5}{c}{9 Categories} \\
- & F1 & AUROC & AUPR & Recall & Precision & F1 & AUROC & AUPR & Recall & Precision & F1 & AUROC & AUPR & Recall & Precision & F1 & AUROC & AUPR & Recall & Precision \\
+\multirow{2}{*}{Dataset}
+& \multicolumn{4}{c|}{5 Categories}
+& \multicolumn{4}{c|}{7 Categories}
+& \multicolumn{4}{c|}{9 Categories} \\
+ & F1 & AUC & Recall & Precision
+ & F1 & AUC & Recall & Precision
+ & F1 & AUC & Recall & Precision \\
 \hline
-CPU & 64.7 & 63.5 & 61.8 & 80.5 & 54.0 & 66.0 & \textbf{66.8} & \textbf{64.1} & 74.8 & \textbf{59.0} & 63.9 & 65.1 & 63.0 & 69.9 & 58.9 & \textbf{66.3} & 65.8 & 63.4 & \textbf{91.1} & 52.2 \\
-Disk & 57.4 & 70.8 & 68.2 & 82.8 & 43.9 & 59.2 & 71.4 & 67.9 & 75.6 & 48.6 & \textbf{59.8} & 72.2 & 69.0 & 74.8 & \textbf{49.9} & 57.7 & \textbf{73.5} & \textbf{70.1} & \textbf{92.7} & 41.9 \\
-Memory & 68.5 & 67.5 & 70.1 & 83.3 & 58.1 & \textbf{71.4} & \textbf{72.2} & \textbf{73.1} & 80.7 & \textbf{63.9} & 68.9 & 69.3 & 71.6 & 75.0 & 63.7 & 69.3 & 70.0 & 71.6 & \textbf{91.8} & 55.6 \\
-Network & 60.0 & 74.6 & 65.8 & 89.4 & 45.1 & 63.5 & 76.3 & 68.1 & 84.9 & 50.7 & \textbf{65.0} & 77.5 & 67.7 & 85.6 & \textbf{52.4} & 58.4 & \textbf{80.0} & \textbf{72.3} & \textbf{96.0} & 42.0 \\
+CPU     & 66.0 & \textbf{66.8} & 74.8 & \textbf{59.0} & 63.9 & 65.1 & 69.9 & 58.9 & \textbf{66.3} & 65.8 & \textbf{91.1} & 52.2 \\
+Disk    & 59.2 & 71.4 & 75.6 & 48.6 & \textbf{59.8} & 72.2 & 74.8 & \textbf{49.9} & 57.7 & \textbf{73.5} & \textbf{92.7} & 41.9 \\
+Memory  & \textbf{71.4} & \textbf{72.2} & 80.7 & \textbf{63.9} & 68.9 & 69.3 & 75.0 & 63.7 & 69.3 & 70.0 & \textbf{91.8} & 55.6 \\
+Network & 63.5 & 76.3 & 84.9 & 50.7 & \textbf{65.0} & 77.5 & 85.6 & \textbf{52.4} & 58.4 & \textbf{80.0} & \textbf{96.0} & 42.0 \\
 \hline
-Average & 62.6 & 69.1 & 66.5 & 84.0 & 50.3 & \textbf{65.0} & 71.7 & 68.3 & 79.0 & 55.6 & 64.4 & 71.0 & 67.8 & 76.3 & \textbf{56.2} & 62.9 & \textbf{72.3} & \textbf{69.3} & \textbf{92.9} & 47.9 \\
+Average & \textbf{65.0} & 71.7 & 79.0 & 55.6 & 64.4 & 71.0 & 76.3 & \textbf{56.2} & 62.9 & \textbf{72.3} & \textbf{92.9} & 47.9 \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
+\end{adjustbox}
 }
 \end{table*}
 
-\begin{table*}[t]
+\begin{table*}[tb]
 \centering
-\caption{\textcolor{red}{TRANSFORMER multitask OOD results across category settings.}}
+\caption{\textcolor{red}{TRANSFORMER multitask OOD results for the Sock Shop workload across category settings.}}
 \label{tab:transformer_multitask_all_metrics}
 {\color{red}
-\setlength{\tabcolsep}{3pt}
-\renewcommand{\arraystretch}{1.1}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{l|ccccc|ccccc|ccccc|ccccc}
+\begin{adjustbox}{center, width=0.7\textwidth}
+\begin{tabular}{|l|cccc|cccc|cccc|}
 \hline
-\multirow{2}{*}{Dataset} & \multicolumn{5}{c|}{3 Categories} & \multicolumn{5}{c|}{5 Categories} & \multicolumn{5}{c|}{7 Categories} & \multicolumn{5}{c}{9 Categories} \\
- & F1 & AUROC & AUPR & Recall & Precision & F1 & AUROC & AUPR & Recall & Precision & F1 & AUROC & AUPR & Recall & Precision & F1 & AUROC & AUPR & Recall & Precision \\
+\multirow{2}{*}{Dataset}
+& \multicolumn{4}{c|}{5 Categories}
+& \multicolumn{4}{c|}{7 Categories}
+& \multicolumn{4}{c|}{9 Categories} \\
+ & F1 & AUC & Recall & Precision
+ & F1 & AUC & Recall & Precision
+ & F1 & AUC & Recall & Precision \\
 \hline
-CPU & 64.8 & 64.7 & 62.7 & 77.0 & 55.9 & \textbf{67.8} & \textbf{68.6} & \textbf{65.4} & \textbf{82.3} & \textbf{57.6} & 65.2 & 65.1 & 62.8 & 75.7 & 57.2 & 66.3 & 66.1 & 63.5 & 80.1 & 56.6 \\
-Disk & 57.8 & 69.7 & 66.0 & 78.7 & 45.6 & \textbf{59.5} & 71.0 & 66.1 & \textbf{82.0} & \textbf{46.7} & 58.0 & 69.1 & 65.0 & 76.6 & 46.7 & 59.2 & \textbf{71.4} & \textbf{67.1} & 81.9 & 46.4 \\
-Memory & 68.8 & 68.0 & 69.6 & 80.4 & 60.1 & \textbf{72.1} & \textbf{73.0} & \textbf{73.0} & \textbf{86.4} & \textbf{61.9} & 68.5 & 67.6 & 69.4 & 78.0 & 61.0 & 69.9 & 69.1 & 70.5 & 82.7 & 60.5 \\
-Network & 61.2 & 73.3 & 61.9 & 86.7 & 47.3 & 61.9 & 75.5 & 65.1 & 87.9 & 47.7 & 63.1 & 76.2 & 65.0 & 87.8 & \textbf{49.3} & \textbf{63.3} & \textbf{78.4} & \textbf{67.6} & \textbf{91.6} & 48.4 \\
+CPU     & \textbf{67.8} & \textbf{68.6} & \textbf{82.3} & \textbf{57.6} & 65.2 & 65.1 & 75.7 & 57.2 & 66.3 & 66.1 & 80.1 & 56.6 \\
+Disk    & \textbf{59.5} & 71.0 & \textbf{82.0} & \textbf{46.7} & 58.0 & 69.1 & 76.6 & \textbf{46.7} & 59.2 & \textbf{71.4} & 81.9 & 46.4 \\
+Memory  & \textbf{72.1} & \textbf{73.0} & \textbf{86.4} & \textbf{61.9} & 68.5 & 67.6 & 78.0 & 61.0 & 69.9 & 69.1 & 82.7 & 60.5 \\
+Network & 61.9 & 75.5 & 87.9 & 47.7 & 63.1 & 76.2 & 87.8 & \textbf{49.3} & \textbf{63.3} & \textbf{78.4} & \textbf{91.6} & 48.4 \\
 \hline
-Average & 63.1 & 68.9 & 65.0 & 80.7 & 52.2 & \textbf{65.3} & \textbf{72.0} & \textbf{67.4} & \textbf{84.7} & 53.5 & 63.7 & 69.5 & 65.5 & 79.5 & \textbf{53.5} & 64.7 & 71.3 & 67.2 & 84.1 & 53.0 \\
+Average & \textbf{65.3} & \textbf{72.0} & \textbf{84.7} & 53.5 & 63.7 & 69.5 & 79.5 & \textbf{53.5} & 64.7 & 71.3 & 84.1 & 53.0 \\
 \hline
-\end{tabular}%
-}
+\end{tabular}
+\end{adjustbox}
 }
 \end{table*}
 
-\textcolor{red}{Several patterns are consistent across the two architectures. First, a moderate duration discretization yields the best balanced detection performance for Sock Shop: the 5-category setting gives the highest average F1-score for both models and also the highest average AUROC and AUPR for Transformer. Second, the LSTM and Transformer remain closely matched overall. The Transformer attains slightly higher average F1-score at every category setting, whereas the LSTM attains higher average precision at 5 and 7 categories and the strongest average AUROC and AUPR at 9 categories. Third, memory perturbations are the easiest to separate from normal behavior, reaching F1-scores of 71.4 for LSTM and 72.1 for Transformer at 5 categories. By contrast, disk and network perturbations achieve their highest recalls at 9 categories, but these gains are accompanied by lower precision, indicating a less favorable operating balance.}
+\textcolor{red}{Several patterns are consistent across the two architectures. First, a moderate duration discretization yields the best balanced detection performance for Sock Shop: the 5-category setting gives the highest average F1-score for both models and also the highest average AUC for Transformer. Second, the LSTM and Transformer remain closely matched overall. The Transformer attains slightly higher average F1-score at every category setting, whereas the LSTM attains higher average precision at 5 and 7 categories and the strongest average AUC at 9 categories. Third, memory perturbations are the easiest to separate from normal behavior, reaching F1-scores of 71.4 for LSTM and 72.1 for Transformer at 5 categories for the Sock Shop. By contrast, disk and network perturbations achieve their highest recalls at 9 categories, but these gains are accompanied by lower precision, indicating a less favorable operating balance.}
 
 \textcolor{red}{These results complement the Apache findings rather than replacing them. In Apache, request-level change detection benefits from finer duration discretization, with 7 categories providing the best average F1-score. In Sock Shop, where the detector operates on short host-level windows spanning heterogeneous service activity, 5 categories offer the best overall balance. This difference suggests that the optimal duration granularity depends on the structure of the monitored workload, while the underlying multi-task formulation remains effective across both settings.}
 
@@ -780,7 +789,7 @@ While the duration model proves more effective in several scenarios, there are i
 
 \begin{table}[tb]
 \centering
-\caption{Change detection performance: LSTM single-task versus multi-task.}
+\caption{Change detection performance of the Apache workload: LSTM single-task versus multi-task.}
 \label{tab:lstm}
 \begin{adjustbox}{center, width=0.8\textwidth}
 \begin{tabular}{|l|c|c|c|}
@@ -801,7 +810,7 @@ Average         & 96.1 ± 1.6            & 98.2 ± 1.2 & \textbf{98.6 ± 0.1} \\
 
 \begin{table}[tb]
 \centering
-\caption{Change detection performance: BERT single-task versus multi-task.}
+\caption{Change detection performance of the Apache workload: BERT single-task versus multi-task.}
 \label{tab:transformer}
 \begin{adjustbox}{center, width=0.8\textwidth}
 \begin{tabular}{|l|c|c|c|}
@@ -872,7 +881,7 @@ As root cause analysis operates on top of the change detection task, the overall
 
 \begin{table}[tb]
 \centering
-\caption{Integrated performance of root cause analysis and change detection.}
+\caption{Integrated performance of root cause analysis and change detection \textcolor{red}{for Apache workload}.}
 \label{tab:root-cause}
 \begin{adjustbox}{center, width=0.8\textwidth}
 \begin{tabular}{|l|c|c|c|}
@@ -918,7 +927,6 @@ Transformer & \textbf{84.6} & \textbf{38.4} & \textbf{32.5} & 11.6 & 31.5 & \tex
 
 
 \subsection{Tracing}
-\textcolor{red}{The trace-selection results reported below correspond to the Apache request-level workload, where LMAT is evaluated directly as an adaptive recording controller. For the Sock Shop microservice workload, our deployment study focuses instead on runtime interference on the monitored application. In that setting, we compare three system conditions: an uninstrumented baseline, tracing only, and replay-based asynchronous LMAT inference running concurrently with fresh application traffic. The final reviewer-facing protocol uses 200 virtual users, 30\,s of warm-up, 100\,s of measured load per condition, three repeats, and rotated condition order to reduce ordering bias. Because the LMAT condition replays a saved trace while the application serves a new workload, it should be interpreted as a co-located inference-overhead proxy rather than as a fully live trace-triggering deployment over the same in-flight requests.}
 The overall effectiveness of the Adaptive Tracer module of LMAT is evaluated based on its accuracy for the selection of traces related to a new pattern and the volume of trace data it manages to reduce. Recorded trace data volume is used as a general measurement of the tracing overhead, especially on disk space usage. Evaluation is based on a set of test traces with varying levels and types of noise, giving us a comprehensive view of the model’s performance under different conditions. \textcolor{black}{These test traces are created by randomly distributing already collected noisy requests among the requests from traces of normal workload, to simulate changes in system behavior, and each of the noisy setups includes more than 6,000 abrupt changes.} Model processes trace data per request and using request as a unit to create test scenarios helps with keeping the integrity of the collected trace and model's input.
 
 To determine when to initiate tracing, the Adaptive Tracer employs a window-based decision-making strategy that defers recording until the proportion of requests identified as abnormal within a window exceeds a predetermined threshold. The window size is set to match the batch size (16), with the threshold established at 80\% of the window size. This method ensures that only significant deviations prompt recording, enhancing the tracer's precision in capturing data shifts.
@@ -929,7 +937,7 @@ Responsiveness to system changes is another crucial aspect of Adaptive Tracer th
 % As mentioned, we implement a secondary window with higher sensitivity to take advantage of the LTTng buffer and reduce the loss of events due to delayed recognition of change. Therefore, the number of lost details and time delay are reported considering the second buffer.
 
 
-Figure \ref{fig:event_vs_mt} illustrates a comparison between the event and multi-task models' performance in adaptive tracing across different noise levels within the Sysbench dataset. Despite the event model showing a 9\% lower performance in change detection for this particular dataset, it achieves a significantly higher miss rate for relevant data and a more pronounced delay in detecting changes, with disparities of 30.3\% and 14.2ms (56.8\%) respectively. Conversely, the multi-task model maintains an average change detection delay of 25ms with only a 1.5\% data loss.
+Figure \ref{fig:event_vs_mt} illustrates a comparison between the event and multi-task models' performance in adaptive tracing across different noise levels within the Sysbench dataset. \textcolor{red}{The results reported correspond to the Apache request-level workload, where LMAT is evaluated directly as an adaptive recording controller (for the Sock Shop microservice workload, our deployment study focuses instead on runtime interference on the monitored application).} Despite the event model showing a 9\% lower performance in change detection for this particular dataset, it achieves a significantly higher miss rate for relevant data and a more pronounced delay in detecting changes, with disparities of 30.3\% and 14.2ms (56.8\%) respectively. Conversely, the multi-task model maintains an average change detection delay of 25ms with only a 1.5\% data loss.
 
 Independent of the base model, adaptive tracing leads to a substantial decrease in the amount of trace data stored in the system. When the trace contains no noisy requests, the volume of data is reduced by approximately 99\%, as the model detects almost no significant deviations. In general, the event model achieves a 10.1\% greater reduction in trace data; however, this comes at the expense of an increased loss of critical trace information.
 
@@ -937,7 +945,7 @@ Independent of the base model, adaptive tracing leads to a substantial decrease 
 \begin{figure}[tb]
     \centering
     \includegraphics[width=\linewidth]{figs/comparison_test_random_traces.pdf}
-    \caption{\textcolor{blue}{Event and multi-task models' performance on adaptive tracing for various levels of noise from Sysbench set in trace data. Multi-task model shows higher efficiency in trace reduction, while keeping the miss rate and detection delay lower than the event-focused model.}}
+    \caption{Event and multi-task models' performance on adaptive tracing for various levels of noise from Sysbench set in trace data \textcolor{red}{(Apache workload)}. Multi-task model shows higher efficiency in trace reduction, while keeping the miss rate and detection delay lower than the event-focused model.}
     \label{fig:event_vs_mt}
 \end{figure}
 
@@ -947,7 +955,7 @@ Delays in detecting changes have a direct impact on the volume of data missed du
 \begin{figure}[tb]
     \centering
     \includegraphics[width=0.6\linewidth]{figs/miss_rates2.pdf}
-    \caption{\textcolor{blue}{Impact of modeling approach on data miss rate in adaptive tracing. The multi-task model achieves higher accuracy in retaining anomalous trace data across test cases.}}
+    \caption{Impact of modeling approach on data miss rate in adaptive tracing \textcolor{red}{(Apache workload)}. The multi-task model achieves higher accuracy in retaining anomalous trace data across test cases.}
     \label{fig:missrates}
 \end{figure}
 
@@ -955,8 +963,7 @@ Delays in detecting changes have a direct impact on the volume of data missed du
 
 
 \subsection{Trace event reduction}
-\textcolor{red}{This event-subset study is performed on the Apache workload. For the Sock Shop deployment study, we retain the full syscall monitoring configuration of the trained multi-task model so that the measured latency and throughput effects reflect tracing and inference costs rather than an additional event-pruning optimization. The microservice overhead results should therefore be interpreted as conservative with respect to event-volume reduction.}
-To assess the feasibility of having a secondary set of events for constant monitoring of the system with reduced overhead, we trained the model using the subsets of system calls mentioned in Table \ref{tab:subset_syscalls}. The aggregated results from training the multi-task model on these subsets are presented in Table \ref{tab:subset_syscalls_results}. As we can see, most frequently occurring events are not always the richest source of information for monitoring system behavior and tracking its trends. For instance, excluding the top-10 most repeated event types, only results in a 7\% decline in change detection accuracy, despite a substantial 76\% reduction in the volume of input data. This accuracy could potentially be preserved or even enhanced by selectively targeting specific events tailored to particular monitoring needs.
+To assess the feasibility of having a secondary set of events for constant monitoring of the system with reduced overhead, we trained \textcolor{red}{the Apache server model} using the subsets of system calls mentioned in Table \ref{tab:subset_syscalls}. The aggregated results from training the multi-task model on these subsets are presented in Table \ref{tab:subset_syscalls_results}. As we can see, most frequently occurring events are not always the richest source of information for monitoring system behavior and tracking its trends. For instance, excluding the top-10 most repeated event types, only results in a 7\% decline in change detection accuracy, despite a substantial 76\% reduction in the volume of input data. This accuracy could potentially be preserved or even enhanced by selectively targeting specific events tailored to particular monitoring needs.
 
 \begin{table}[tb]
 \centering
@@ -979,6 +986,8 @@ Normal         & 98.6 ± 0.5 & 97.5 ± 0.8 & 100 \\
 
 These findings confirm that LMAT maintains strong performance even when operating on substantially reduced input sets, supporting the viability of a two-tier monitoring framework with a lightweight default mode and a more comprehensive tracing mode triggered on demand.
 
+\textcolor{red}{As mentioned, this event-subset study is performed on the Apache workload. For the Sock Shop deployment study, we retain the full syscall monitoring configuration of the trained multi-task model so that the measured latency and throughput effects reflect tracing and inference costs rather than an additional event-pruning optimization. The microservice overhead results should therefore be interpreted as conservative with respect to event-volume reduction.}
+
 \subsection{Overhead analysis}
 The latency involved in executing the model's steps for adaptive tracing is a critical factor in assessing its feasibility in real-world scenarios. \textcolor{red}{For the Apache workload,} the latencies for the various modeling approaches used in this study are documented in Table \ref{tab:model_latency}, measured using a V100 GPU. The sequence prediction phase is the most time consuming step, with a slight increase in latency observed in the multi-task approach due to the additional operations related to duration prediction task. Notably, reducing the number of monitored event types by considering the discard-top10 subset, decreases the model's inference time by 41\%, which is the result of the substantial reduction in the length of input sequences and the number of potential events for prediction.
 
@@ -986,7 +995,7 @@ The latency involved in executing the model's steps for adaptive tracing is a cr
 
 \begin{table}[tb]
 \centering
-\caption{\textcolor{blue}{End-to-end component latency (ms) for LMAT under three modeling settings (batch size = 16). The Reduce column represents the model trained on the “discard-top10” event subset, which shortens sequences and reduces the output space.}}
+\caption{End-to-end component latency (ms) for LMAT under three modeling settings \textcolor{red}{of the Apache server} (batch size = 16). The Reduce column represents the model trained on the “discard-top10” event subset, which shortens sequences and reduces the output space.}
 \captionsetup[table]{skip=6pt}
 \label{tab:model_latency}
 \begin{adjustbox}{center, width=0.8\textwidth}
@@ -1006,7 +1015,10 @@ Total            & 45.12 & 46.11 & 19.28 \\
 \end{adjustbox}
 \end{table}
 
-\textcolor{blue}{With batching of 16 requests, the reduced LSTM configuration processes a batch in \(\sim\)19.3ms, i.e., \(\sim\)830 requests/s effective throughput on this (non-tuned) setup. In our client workload ($\sim$1{,}000 req/s), the model is unable to keep up with the stream of data. In practice, there are options to address this and to improve the efficiency and throughput: (i) lighter hardware (e.g., mid-range GPU or CPU) when the application’s latency budget allows; (ii) routine systems optimizations (reduced precision and larger batches) to improve throughput (usually yielding significant speedups in practice) and (iii) sampling the monitor stream (e.g., analyze \(p\%\) of requests) when full coverage is unnecessary, because LMAT’s detection accuracy is high even at modest sampling rates.}
+With batching of 16 requests, the reduced LSTM configuration processes a batch in \(\sim\)19.3ms, i.e., \(\sim\)830 requests/s effective throughput on this (non-tuned) setup. In our client workload ($\sim$1{,}000 req/s), the model is unable to keep up with the stream of data. In practice, there are options to address this and to improve the efficiency and throughput: (i) lighter hardware (e.g., mid-range GPU or CPU) when the application’s latency budget allows; (ii) routine systems optimizations (reduced precision and larger batches) to improve throughput (usually yielding significant speedups in practice) and (iii) sampling the monitor stream (e.g., analyze \(p\%\) of requests) when full coverage is unnecessary, because LMAT’s detection accuracy is high even at modest sampling rates.
+
+\textcolor{red}{The above analysis characterizes per-batch inference cost in isolation. To assess the practical impact on a running application, we next measure end-to-end overhead on the Sock Shop microservice benchmark, which operates at a lower request rate (200 virtual users) and uses asynchronous replay-based inference to decouple model execution from the request-serving path.}
+
 
 \textcolor{red}{To complement these component-level measurements, we evaluate the runtime cost of LMAT on the Sock Shop VM by measuring application latency and throughput under three system conditions: baseline (no tracing and no LMAT), tracing only, and replay-based asynchronous LMAT inference. Table \ref{tab:sockshop_overhead} summarizes the final fair 200-user experiment. The most meaningful incremental comparison is tracing only versus LMAT, because LMAT depends on trace data and the asynchronous mode is designed to isolate the host-side CPU cost of inference. Under this comparison, P95 latency increases from 199.5\,ms to 225.5\,ms, while throughput changes only from 183.3 to 180.9 requests/s and error rate increases marginally from 2.03\% to 2.16\%. This corresponds to a 13.0\% increase in P95 latency and a 1.3\% reduction in throughput relative to tracing alone at the tested operating point.}
 
@@ -1087,44 +1099,46 @@ Retention policy & Monthly savings (USD) \\
 \end{table}
 
 \textcolor{red}{These figures are lower bounds because they exclude ingestion fees, query charges, secondary replicas, and downstream analytics. The key architectural point is that LMAT converts a recurring volume-driven observability expense into a comparatively small capacity tax. When trace data is replicated or indexed centrally, the storage-side savings scale with the full fleet-wide trace volume, whereas the compute-side penalty scales only with the marginal capacity required to absorb an approximately 1.3\% throughput reduction.}
-\section{\textcolor{blue}{Discussion}}
+\section{Discussion}
 \label{sec:discussion}
 
-\textcolor{blue}{
+
 \paragraph{Scope, generality, and next steps}
-Our evaluation involves two systems by design: (i) the public benchmark of Fournier \emph{et al.}\cite{fournier2023language}, which provides kernel-level traces and established scenarios; and (ii) a separate physical machine where we recreate a similar client–server stack (Apache2+PHP+MySQL) and the same tracing pipeline. The second setup extends the anomaly set and validates portability across different hardware/OS configurations while holding the workload paradigm constant, thereby, to some extent, demonstrating the generality of our approach across heterogeneous platforms.}
-
-\textcolor{blue}{
-More broadly, our claims of generality rest on \emph{where} LMAT operates and \emph{what} it models, not on HTTP-specific semantics. LMAT runs at the \emph{kernel event} layer (syscalls, scheduling, file/network I/O) and jointly forecasts \emph{event identity and duration}; the control loop reacts to prediction disagreement at this layer. These signals are application-agnostic: databases, stream processors, and microservices ultimately manifest as characteristic mixes of the same kernel primitives (e.g., \texttt{send}/\texttt{recv}, \texttt{read}/\texttt{write}, \texttt{fsync}, \texttt{mmap}, \texttt{futex}, context switches). Our evaluation setup is therefore not merely “another web server”: by including a relational database (MySQL) it exercises database I/O, process/thread interleavings, and network backends in addition to HTTP handling. That said, we acknowledge the need to \emph{empirically} broaden coverage; in future work we will (a) evaluate write-heavy database workloads, (b) add streaming pipelines exhibiting back-pressure, and (c) assess containerized microservices with synchronized, multi-host traces. Because LMAT’s modeling and control are anchored at the kernel boundary, these extensions should require only origin metadata (e.g., \texttt{host\_id}, \texttt{container\_id}) and no application-specific changes.}
+\textcolor{red}{Our evaluation spans three setups across two architecturally distinct workload paradigms. On the Apache side, we use (i) the public benchmark of Fournier \emph{et al.}\cite{fournier2023language}, which provides kernel-level traces and established scenarios, together with (ii) a separate physical machine where we recreate a similar client–server stack (Apache2+PHP+MySQL) and the same tracing pipeline. The second setup extends the anomaly set and validates portability across different hardware/OS configurations while holding the workload paradigm constant. On the microservice side, we evaluate LMAT on (iii) the Sock Shop containerized benchmark running on a dedicated cloud VM, with controlled CPU, disk, memory, and network stress scenarios. This combination demonstrates that LMAT generalizes across both a monolithic request-response workload and a multi-service, containerized application without application-specific changes to the learning pipeline.}
 
 
-\textcolor{blue}{
+
+More broadly, our claims of generality rest on \emph{where} LMAT operates and \emph{what} it models, not on HTTP-specific semantics. LMAT runs at the \emph{kernel event} layer (syscalls, scheduling, file/network I/O) and jointly forecasts \emph{event identity and duration}; the control loop reacts to prediction disagreement at this layer. These signals are application-agnostic: databases, stream processors, and microservices ultimately manifest as characteristic mixes of the same kernel primitives (e.g., \texttt{send}/\texttt{recv}, \texttt{read}/\texttt{write}, \texttt{fsync}, \texttt{mmap}, \texttt{futex}, context switches). Our evaluation setup is therefore not merely “another web server”: by including a relational database (MySQL) it exercises database I/O, process/thread interleavings, and network backends in addition to HTTP handling. \textcolor{red}{The addition of the Sock Shop benchmark further validates this claim: LMAT's kernel-level representation transfers without modification to a containerized multi-service application whose runtime behavior differs substantially from a monolithic web server.} That said, we acknowledge the need to \emph{empirically} broaden coverage further; in future work we will (a) evaluate write-heavy database workloads, (b) add streaming pipelines exhibiting back-pressure, and (c) \textcolor{red}{extend to synchronized, multi-host distributed traces}. Because LMAT’s modeling and control are anchored at the kernel boundary, these extensions should require only origin metadata (e.g., \texttt{host\_id}, \texttt{container\_id}) and no application-specific changes.
+
+
+
+
 \paragraph{Single-host vs.\ distributed settings}
-LMAT is instantiated and evaluated over kernel-level event streams, which we model as a single, time-ordered sequence. This assumption holds naturally on one host, but does not preclude multi-host deployments: commodity tracing stacks (e.g., LTTng with Trace Compass or Babeltrace) support clock synchronization and post-hoc alignment, enabling construction of a partially ordered global trace. In such settings, LMAT can operate (i) per host with host-local control and (ii) optionally over a merged event stream where \texttt{host\_id} (and, if needed, \texttt{proc\_id}/\texttt{thread\_id}) are encoded in the event representation. Our experiments already span two distinct systems (different hardware/OS environments), and the modeling/tracing assumptions fit both.}
+LMAT is instantiated and evaluated over kernel-level event streams, which we model as a single, time-ordered sequence. This assumption holds naturally on one host, but does not preclude multi-host deployments: commodity tracing stacks (e.g., LTTng with Trace Compass or Babeltrace) support clock synchronization and post-hoc alignment, enabling construction of a partially ordered global trace. In such settings, LMAT can operate (i) per host with host-local control and (ii) optionally over a merged event stream where \texttt{host\_id} (and, if needed, \texttt{proc\_id}/\texttt{thread\_id}) are encoded in the event representation. \textcolor{red}{Our experiments now span three setups across two architecturally distinct workload paradigms (a monolithic Apache web-server stack and the Sock Shop containerized microservices), confirming that the modeling and tracing assumptions hold across both.}
 
-\textcolor{blue}{
+
 \paragraph{Multi-threading and interleavings}
-The current setup merges events from concurrent processes/threads; LMAT’s encoder carries process/thread identifiers so the model learns regularities amid interleavings rather than requiring a strict total order. Because events from parallel activities are routinely reordered in our workloads, the model is already exposed to permutations; we find it remains tolerant to ordering drift while flagging meaningful deviations. Extending to multi-host traces follows the same principle: adding a \texttt{host\_id} feature to the token and duration context so the model can condition on origin without losing sensitivity to cross-host temporal dynamics.}
+The current setup merges events from concurrent processes/threads; LMAT’s encoder carries process/thread identifiers so the model learns regularities amid interleavings rather than requiring a strict total order. Because events from parallel activities are routinely reordered in our workloads, the model is already exposed to permutations; we find it remains tolerant to ordering drift while flagging meaningful deviations. Extending to multi-host traces follows the same principle: adding a \texttt{host\_id} feature to the token and duration context so the model can condition on origin without losing sensitivity to cross-host temporal dynamics.
 
-\textcolor{blue}{
+
 \paragraph{Generalization and reliance on failure history}
-LMAT is \emph{unsupervised} for detection: it learns a behavioral prior and uses prediction disagreement as a change signal. No history of failures or root-cause labels is required to function. When historical incidents exist, LMAT leverages the resulting error vectors for faster diagnosis; when they do not, LMAT clusters error vectors online so operators can quickly triage, label, and build that history over time. }
+LMAT is \emph{unsupervised} for detection: it learns a behavioral prior and uses prediction disagreement as a change signal. No history of failures or root-cause labels is required to function. When historical incidents exist, LMAT leverages the resulting error vectors for faster diagnosis; when they do not, LMAT clusters error vectors online so operators can quickly triage, label, and build that history over time. \textcolor{red}{The Sock Shop evaluation empirically supports this claim: LMAT was applied to an entirely new workload without any pre-existing failure catalog, and the unsupervised change-detection stage remained effective.}
 
-\textcolor{blue}{
+
+
 \paragraph{Intermittent and rare errors}
 LMAT classifies \emph{each request} (hundreds of kernel events) using an \emph{online, request-level} disagreement score that accumulates over the request; escalation can occur \emph{mid-request} once the rolling score crosses a threshold, so a one-off fault does not need to repeat to be detected. Our evaluation includes variable-length disturbances and low-frequency injections; detection is \emph{not} contingent on repetition, although repeated occurrences naturally improve clustering quality for diagnosis.
-In our current prototype \emph{without} auxiliary guardrails (no pre-trigger buffering, no post-trigger linger), the anomalous-event miss rate is already low ($\approx3\%$) while still yielding substantial volume reduction. In practice, this risk can be reduced further with lightweight engineering additions—e.g., a per-request prelude ring buffer (flush the last $K$ events or $W$ seconds on trigger) and a short post-trigger linger window—which do not change LMAT’s detection logic but capture additional context around single, non-repeating faults and further decrease the chance of missing rare anomalies under non-continuous recording.}
+In our current prototype \emph{without} auxiliary guardrails (no pre-trigger buffering, no post-trigger linger), the anomalous-event miss rate is already low ($\approx3\%$) while still yielding substantial volume reduction. In practice, this risk can be reduced further with lightweight engineering additions—e.g., a per-request prelude ring buffer (flush the last $K$ events or $W$ seconds on trigger) and a short post-trigger linger window—which do not change LMAT’s detection logic but capture additional context around single, non-repeating faults and further decrease the chance of missing rare anomalies under non-continuous recording. \textcolor{red}{The miss-rate figures reported above correspond to the Apache request-level workload; the Sock Shop evaluation focuses on detection accuracy and deployment overhead rather than adaptive recording, so analogous miss-rate measurements for microservice windows remain future work.}
 
 
-\textcolor{blue}{
+
+
 \paragraph{Operator workload and novelty feedback}
-LMAT is designed so that operators label patterns, instead of individual outliers. At runtime we de-duplicate alerts by clustering request-level error vectors (Section~\ref{methodology}); the operator labels a cluster once (e.g., “benign config change” or “expected traffic surge”), and that label propagates to all members and future near-duplicates. In practice, changes that trigger novelty—software rollouts, configuration toggles, hardware swaps, or load regime shifts—arrive in coarse-grained batches and recur across hosts; once a benign novelty is labeled, the same pattern rarely needs re-labeling. Consequently, labeling demand decreases over time: the catalog of accepted novelties grows, and LMAT suppresses or auto-accepts matching clusters.}
-
-\textcolor{blue}{
-To avoid frequent retraining, LMAT separates quick configuration adjustments from model updates. Small distribution shifts can be absorbed without full retraining by (i) duration-bin recalibration and short stability windows around planned changes, and (ii) incremental updates to the LSTM/Transformer using a low learning rate. Periodic housekeeping (e.g., nightly or weekly) compacts the buffer and revalidates thresholds but does not require offline retraining. This keeps operator effort bounded while allowing the notion of “normal” to evolve continuously with the system.}
+LMAT is designed so that operators label patterns, instead of individual outliers. At runtime we de-duplicate alerts by clustering request-level error vectors (Section~\ref{methodology}); the operator labels a cluster once (e.g., “benign config change” or “expected traffic surge”), and that label propagates to all members and future near-duplicates. In practice, changes that trigger novelty—software rollouts, configuration toggles, hardware swaps, or load regime shifts—arrive in coarse-grained batches and recur across hosts; once a benign novelty is labeled, the same pattern rarely needs re-labeling. Consequently, labeling demand decreases over time: the catalog of accepted novelties grows, and LMAT suppresses or auto-accepts matching clusters. \textcolor{red}{In the Sock Shop setting, where the detection unit is a fixed execution window rather than a complete request, the same cluster-and-label workflow applies: operators label prototypical window-level error vectors, and labels propagate to future windows with similar signatures.}
 
 
 
+To avoid frequent retraining, LMAT separates quick configuration adjustments from model updates. Small distribution shifts can be absorbed without full retraining by (i) duration-bin recalibration and short stability windows around planned changes, and (ii) incremental updates to the LSTM/Transformer using a low learning rate. Periodic housekeeping (e.g., nightly or weekly) compacts the buffer and revalidates thresholds but does not require offline retraining. This keeps operator effort bounded while allowing the notion of “normal” to evolve continuously with the system.
 
 
 \subsection{Threats to Validity}
@@ -1133,27 +1147,31 @@ This subsection discusses potential threats to the validity of our study, struct
 
 \textbf{Internal Validity.} One internal threat is the potential bias arising from threshold selection in our adaptive tracing approach. Although thresholds for triggering detailed tracing and change detection were carefully selected using validation data to maximize F1-score, these choices might not generalize optimally to all operational contexts or unforeseen scenarios. We mitigated this threat by repeating experiments with multiple random seeds and reporting averaged results with standard deviations.
 
-\textbf{External Validity.} Our experiments are based on kernel trace data collected from an Apache2 web server under controlled scenarios. Although we augmented this dataset with additional noise types to improve generalization, the framework's effectiveness may vary across different applications, workloads, or system architectures not evaluated here. The selected noisy conditions might not encompass all real-world anomaly patterns, potentially affecting LMAT's general applicability. Future work should validate LMAT on a broader range of systems and workloads to further establish its generalizability.
+\textbf{External Validity.} \textcolor{red}{Our experiments span two architecturally distinct single-host environments: an Apache2 web-server stack evaluated on two physical machines, and the Sock Shop containerized microservice benchmark on a cloud VM. Although this broadens the evaluation relative to a single-workload study, both environments remain single-host deployments.} The framework's effectiveness may vary across different applications, workloads, or system architectures not evaluated here\textcolor{red}{, and in particular, distributed multi-host tracing with cross-machine clock synchronization has not yet been validated}. The selected noisy conditions might not encompass all real-world anomaly patterns, potentially affecting LMAT's general applicability. Future work should validate LMAT on \textcolor{red}{distributed multi-host deployments and additional workload types} to further establish its generalizability.
+
 
 \textbf{Construct Validity.} LMAT relies on cross-entropy loss and classification accuracy metrics for evaluating predictive performance and anomaly detection capabilities. While widely used, these metrics may not fully capture the practical effectiveness of adaptive tracing in real-world scenarios. Additionally, the discretization of continuous duration data into categorical bins introduces information loss and may affect sensitivity to subtle timing variations. To address this, we employed a percentile-based binning strategy designed to retain critical distribution characteristics, but alternative duration modeling methods may yield different sensitivities.
 
 \textbf{Conclusion Validity.} Statistical conclusion validity refers to whether our experimental results justify the conclusions we draw from them. While experiments were carefully designed and repeated to enhance reliability, the sample size, particularly in the diversity of scenarios evaluated, could still limit the robustness of our conclusions. Ensuring statistical robustness through larger-scale validation and diverse workload experiments could further strengthen the confidence in LMAT’s reported performance improvements. Additionally, the potential for overfitting exists despite mitigation efforts through validation-based threshold selection and rigorous experimental protocols.
 
 \section{Conclusion and Future work} \label{conc}
-This paper presented \textbf{LMAT}, a language model–based adaptive tracing framework designed to support intelligent DevOps pipelines requiring both high reliability and sustainability. By dynamically focusing on the most informative segments of system traces, \textcolor{blue}{including rare and non-repeating anomalies}, LMAT guides operators toward periods of interest, highlights mispredicted events, and links them to potential fault sources. In doing so, it significantly reduces tracing overhead, manual analysis effort, and energy consumption.
+This paper presented \textbf{LMAT}, a language model–based adaptive tracing framework designed to support \textcolor{red}{host-level system observability} requiring both high reliability and sustainability. By dynamically focusing on the most informative segments of system traces, including rare and non-repeating anomalies, LMAT guides operators toward periods of interest, highlights mispredicted events, and links them to potential fault sources. In doing so, it significantly reduces tracing overhead, manual analysis effort, and energy consumption.
 
 
 A central component of LMAT’s effectiveness is its use of language models for system behavior modeling, with robust change detection serving as a core capability. While prior work has leveraged language models to detect anomalies in event sequences~\cite{fournier2021improving,fournier2023language}, LMAT advances the state of the art by explicitly incorporating \emph{event durations}, a critical and underutilized signal in system diagnostics. Duration modeling enables LMAT to detect behavioral changes that may not be apparent from event sequences alone, particularly in contexts where timing irregularities are indicative of system anomalies.
 
-Extensive experiments demonstrate that LMAT consistently outperforms baseline approaches across change detection, root cause analysis, and trace volume reduction. These results confirm the framework’s generalizability across a diverse set of system behaviors and noise patterns.
+Extensive experiments demonstrate that LMAT consistently outperforms baseline approaches across change detection, root cause analysis, and trace volume reduction. \textcolor{red}{On the Apache web-server workload, LMAT achieves up to 97.7\% accuracy in end-to-end anomaly detection and root-cause identification. On the Sock Shop microservice benchmark, the same kernel-level design remains effective for change detection, while root-cause attribution in the microservice setting proves substantially harder, highlighting an important direction for future improvement. A deployment-oriented overhead study further shows that asynchronous LMAT inference adds only a 1.3\% throughput reduction relative to tracing alone. Together, these results confirm the framework’s applicability across architecturally distinct single-host environments and diverse noise patterns.}
+
 
 One current limitation of LMAT is its reliance on a static model that must be updated as the system’s notion of ``normal'' evolves. For example, recurring patterns initially flagged as anomalies—or one-off anomalies later deemed benign—may become part of the system’s baseline behavior. While LMAT incorporates a duration interval adjustment mechanism (see Section~\ref{sec:duration-interval-adjustment}) to adapt to minor distribution shifts, broader behavioral changes still necessitate model updates. As shown in Figure~\ref{fig:adaptive_process}, these reclassified behaviors are routed through the \emph{Online Learning} module, which refines the model parameters using administrator feedback or automated labeling of these behaviors.
 
-\textcolor{blue}{Future work will extend LMAT to multi-host and distributed tracing deployments with synchronized clocks and optional retroactive capture, and will incorporate online learning techniques~\cite{shalev2012online} to enable continuous model adaptation in CI/CD environments.} This enhancement will allow LMAT to preserve detection accuracy over time while maintaining its lightweight and energy-efficient profile. Periodic model refinement will ensure that the system can recognize and incorporate new ``normal'' behaviors and prevent tracing costs from creeping back up to the level of traditional methods.
+\textcolor{red}{Having demonstrated LMAT on both a monolithic web server and a containerized microservice application, future} work will extend LMAT to \textcolor{red}{truly distributed} multi-host \textcolor{red}{tracing} deployments with synchronized clocks and optional retroactive capture, and will incorporate online learning techniques~\cite{shalev2012online} to enable continuous model adaptation in CI/CD environments. This enhancement will allow LMAT to preserve detection accuracy over time while maintaining its lightweight and energy-efficient profile. Periodic model refinement will ensure that the system can recognize and incorporate new ``normal'' behaviors and prevent tracing costs from creeping back up to the level of traditional methods.
+
 
 %A key aspect of enhancing the practicality of adaptive tracing involves addressing recurring abnormalities that may be deemed normal by administrators or identified automatically. The base model utilized in our approach requires periodic adjustments to maintain low tracing overhead. Without these updates, the cost of tracing could approach that of traditional methods, as it would identify changes more frequently than necessary. Therefore, future work will concentrate on refining the model to better recognize and adapt to such recurring patterns, ensuring that this method remains efficient over time.
 
 \bibliographystyle{elsarticle-num}           % for numbered references
+\nocite{*}
 \bibliography{bibs}
 
 \end{document}
