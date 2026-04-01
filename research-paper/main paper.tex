@@ -147,6 +147,8 @@
 We introduce LMAT, a Language Model-based Adaptive Tracing framework designed for \textcolor{red}{host-level observability that provides granular monitoring without excessive overhead}. LMAT leverages a multi-task architecture to jointly predict kernel event sequences and classify event durations, thereby capturing both control-flow and temporal dynamics. By continuously comparing live trace data against model predictions, LMAT automatically signals deviations, dynamically adjusting trace granularity only when needed. This approach significantly reduces trace volume, along with associated energy and storage costs, achieving a 70.6\% reduction in our experiments.
 
 Additionally, LMAT utilizes prediction discrepancies to drive an efficient root-cause classifier, mapping detected anomalies directly to their potential fault sources and providing actionable feedback for operations teams. \textcolor{red}{We evaluate LMAT on two architecturally distinct single-host environments---an Apache2 web-server stack and the Sock Shop containerized microservice benchmark---using kernel traces that include standard workloads, duration-centric noise scenarios, and controlled CPU, disk, memory, and network stress injections.} \textcolor{red}{On the Apache workload,} LMAT demonstrates up to \textbf{97.7\%} accuracy in anomaly detection and root-cause identification, surpassing state-of-the-art methods relying solely on event sequences. \textcolor{red}{On Sock Shop, the same design remains effective for host-local change detection, while root-cause attribution in the microservice setting remains more challenging. A deployment-oriented overhead study further shows that asynchronous LMAT inference increases P95 latency by 13.0\% and reduces throughput by 1.3\% relative to tracing alone.} Our findings illustrate that LMAT offers a practical, sustainable, and AI-driven solution for adaptive tracing \textcolor{red}{in the evaluated single-host environments}.
+Our findings illustrate that LMAT is a practical approach for adaptive tracing in the evaluated single-host environments, improving detection quality while keeping deployment overhead modest.
+
 \end{abstract}
 
 
@@ -562,14 +564,17 @@ The anomalies are as follows:
 These injected conditions offer a diverse mix of CPU, I/O, and configuration-level anomalies, helping assess LMAT’s sensitivity to both subtle and significant changes in system behavior.
 
 
-\textcolor{red}{For Sock Shop, we used host-level anomaly injection while driving the application with the repository's load generator over realistic shopping actions. The four anomaly families are as follows:}
-
+\textcolor{red}{
+For the Sock Shop microservice benchmark, anomalies were introduced via controlled host-level fault injection while maintaining a fixed user-facing workload. A normal baseline was first collected without perturbations, followed by separate runs in which each anomaly type was injected independently. All runs followed a consistent protocol: a 20\,s warm-up period to stabilize services and monitoring, followed by 100\,s of steady-state execution with 200 concurrent users and a think time uniformly sampled between 0.1\,s and 0.3\,s. Concurrent LTTng tracing (UST and kernel) was enabled throughout.
+The anomalies are defined as follows:
 \begin{itemize}
-    \item \textcolor{red}{\textbf{CPU stress:} We used \texttt{stress-ng} to saturate the available CPU resources, creating contention that propagates across the co-located microservices.}
-    \item \textcolor{red}{\textbf{Disk stress:} We used \texttt{stress-ng} to generate heavy disk activity, increasing I/O wait time and affecting the storage-backed services in the application stack.}
-    \item \textcolor{red}{\textbf{Memory stress:} We used \texttt{stress-ng} to create sustained memory pressure, inducing slower execution and interference across concurrently running services.}
-    \item \textcolor{red}{\textbf{Network stress:} We used host-level traffic control to perturb network behavior, introducing communication slowdowns that propagate through inter-service interactions.}
+\item \textbf{CPU:} CPU contention was induced using \texttt{stress-ng --cpu 2$\times$nproc --cpu-method matrixprod --cpu-load 100 --timeout 100s}. This configuration launches twice the number of available cores (e.g., 24 workers on a 12-core host) at 100\% utilization, creating deliberate CPU oversubscription and sustained compute pressure.
+\item \textbf{Disk:} Disk I/O pressure was generated using \texttt{stress-ng --hdd 300 --hdd-bytes 4G --hdd-opts direct,fsync --timeout 100s}. This configuration uses 300 concurrent workers performing direct writes with frequent \texttt{fsync}, amplifying I/O wait time and storage latency.
+\item \textbf{Memory:} Memory pressure was introduced using \texttt{stress-ng --vm 24 --vm-bytes 95\% --vm-method all --vm-keep --page-in --timeout 100s}. This allocates and actively accesses approximately 95\% of system memory across 24 workers, ensuring sustained contention in the memory subsystem.
+\item \textbf{Network:} Network degradation was applied on the Docker bridge using Linux traffic control (\texttt{tc}). A \texttt{netem} discipline introduces 80\,ms delay, 20\,ms jitter, and 0.5\% packet loss, followed by a token bucket filter (\texttt{tbf}) limiting bandwidth to 20\,Mbit/s with a 64\,KB burst and 100\,ms latency.
 \end{itemize}
+All anomalies were injected independently while keeping the external workload fixed, ensuring that observed performance degradation is attributable solely to the injected resource contention.
+}
 
 \textcolor{red}{Together, the Apache and Sock Shop collections cover configuration faults, compute contention, storage pressure, memory pressure, and network degradation. This yields a diverse anomaly space that helps assess LMAT's sensitivity to both subtle and substantial behavioral shifts across distinct software architectures.}
 
